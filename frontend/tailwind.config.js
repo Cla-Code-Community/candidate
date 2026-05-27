@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Space Grotesk", "ui-sans-serif", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "ui-sans-serif", "sans-serif"],
         mono: ["IBM Plex Mono", "ui-monospace", "monospace"],
       },
       colors: {
@@ -44,4 +44,3 @@ export default {
   },
   plugins: [],
 }
-
