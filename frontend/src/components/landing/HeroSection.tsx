@@ -1,7 +1,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Link } from "react-router-dom";
 import { ArrowRight, Play } from "lucide-react";
-import { useRef, useMemo } from "react";
+import { useRef } from "react";
 import googleLogo from "../../assets/google.png";
 import amazonLogo from "../../assets/amazon.png";
 import metaLogo from "../../assets/meta.svg";
@@ -14,23 +14,22 @@ const COMPANIES = [
   { name: "Uber", logo: uberLogo },
 ];
 
-// Componente Interno para gerar as estrelas de forma otimizada
-function StarsBackground() {
-  // Gera posições aleatórias fixas para evitar recalculado a cada render
-  const stars = useMemo(() => {
-    return Array.from({ length: 80 }).map((_, i) => ({
-      id: i,
-      top: `${Math.random() * 100}%`,
-      left: `${Math.random() * 100}%`,
-      size: Math.random() * 2 + 1, // Tamanhos entre 1px e 3px
-      delay: Math.random() * 5,
-      duration: Math.random() * 4 + 2,
-    }));
-  }, []);
+const STATIC_STARS = Array.from({ length: 80 }).map((_, i) => {
+  const random = (min: number, max: number) => Math.random() * (max - min) + min;
+  return {
+    id: i,
+    top: `${random(0, 100)}%`,
+    left: `${random(0, 100)}%`,
+    size: random(1, 3),
+    delay: random(0, 5),
+    duration: random(2, 6),
+  };
+});
 
+function StarsBackground() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {stars.map((star) => (
+      {STATIC_STARS.map((star) => (
         <motion.div
           key={star.id}
           className="absolute rounded-full bg-emerald-800/40 dark:bg-white"
@@ -69,8 +68,6 @@ export function HeroSection() {
 
   return (
     <section ref={ref} className="relative min-h-[90vh] flex flex-col items-center justify-start pt-16 md:pt-24 pb-0 overflow-hidden bg-transparent font-sans">
-
-      {/* Container de Background Animado (Grid + Estrelas) */}
       <motion.div
         style={{ y: backgroundY }}
         className="absolute inset-0 pointer-events-none w-full h-[150%]
@@ -78,7 +75,6 @@ export function HeroSection() {
           dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)]
           bg-[size:60px_60px]"
       >
-        {/* Renderiza as estrelas dentro do container parallax do background */}
         <StarsBackground />
       </motion.div>
 
@@ -140,7 +136,7 @@ export function HeroSection() {
       </motion.div>
 
       <div className="w-full bg-[#10b981] dark:bg-emerald-800 py-8 md:py-10 relative z-20 overflow-hidden flex flex-col items-center border-y border-emerald-400/20 dark:border-emerald-900/30">
-        <p className="text-center  dark:text-white text-sm font-medium uppercase tracking-wider mb-6 w-full px-6">
+        <p className="text-center dark:text-white text-sm font-medium uppercase tracking-wider mb-6 w-full px-6">
           Usado por profissionais que passaram em empresas como :
         </p>
         <div className="w-full flex overflow-hidden select-none">
