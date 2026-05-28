@@ -39,13 +39,19 @@ export function Navbar() {
   const [isScrolledPastHero, setIsScrolledPastHero] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen]     = useState(false);
   const [activeSection, setActiveSection]           = useState<string>(navLinks[0].name);
-  const { theme, toggleTheme } = useTheme();
 
-  const isDark = theme === "dark";
+  const { resolvedTheme, toggleTheme } = useTheme();
+
+  const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
     const root = document.documentElement;
-    isDark ? root.classList.add("dark") : root.classList.remove("dark");
+
+    if (isDark) {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
   }, [isDark]);
 
   useEffect(() => {
@@ -126,11 +132,11 @@ export function Navbar() {
 
         <div className="hidden md:flex items-center gap-2 shrink-0">
           <Link
-            to="/app"
+            to="/login"
             className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-semibold text-xs px-4 py-1.5 h-8 rounded-full transition-all shadow-md whitespace-nowrap"
           >
             <User size={13} />
-            Acessar App
+            Realizar o Login
           </Link>
 
           <div className="w-[1px] h-4 bg-gray-200 dark:bg-neutral-800 mx-1" />
@@ -149,6 +155,7 @@ export function Navbar() {
           <button
             onClick={toggleTheme}
             type="button"
+            aria-label={isDark ? "Ativar tema claro" : "Ativar tema escuro"}
             className="w-8 h-8 rounded-full flex items-center justify-center text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-all"
           >
             {isDark ? <Sun size={15}  /> : <Moon size={15} />}
