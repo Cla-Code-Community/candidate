@@ -5,21 +5,37 @@
     <!--C:\Users\benev\projetos\Node\vagas-full\frontend\src\assets\logo-painel-vagas.svg-->
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
     <script>
       (function () {
-        const storageKey = "jobs-theme-preference";
         const root = document.documentElement;
+
+
+        const storedPreference =
+          localStorage.getItem("jobs-theme-preference") ||
+          localStorage.getItem("theme") ||
+          localStorage.getItem("vite-ui-theme");
+
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        const storedPreference = localStorage.getItem(storageKey);
+
         const themePreference = storedPreference === "light" || storedPreference === "dark" || storedPreference === "system"
           ? storedPreference
           : "system";
-        const resolvedTheme = themePreference === "system" ? (prefersDark ? "dark" : "light") : themePreference;
 
-        root.classList.toggle("dark", resolvedTheme === "dark");
+        const resolvedTheme = themePreference === "system"
+          ? (prefersDark ? "dark" : "light")
+          : themePreference;
+
+        if (resolvedTheme === "dark") {
+          root.classList.add("dark");
+        } else {
+          root.classList.remove("dark");
+        }
+
         root.setAttribute("data-theme", resolvedTheme);
       })();
     </script>
+
     <title>Painel de Vagas</title>
   </head>
   <body>

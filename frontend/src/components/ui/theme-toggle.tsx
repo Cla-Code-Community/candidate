@@ -21,7 +21,7 @@ export function ThemeToggle({ theme, onToggle }: ThemeToggleProps) {
       className="gap-2 hover:bg-accent/40 transition-all duration-300 rounded-lg"
     >
       {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-      <span className="hidden sm:inline">{isDark ? "Tema claro" : "Tema escuro"}</span>
+
     </Button>
   );
 }

@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/hooks/useTheme", () => ({
@@ -47,7 +48,22 @@ import App from "@/App";
 
 describe("App", () => {
   it("renderiza painel principal", () => {
-    render(<App />);
-    expect(screen.getByAltText("Painel de Vagas")).toBeInTheDocument();
+    vi.useFakeTimers();
+
+    try {
+      render(
+        <MemoryRouter initialEntries={["/"]}>
+          <App />
+        </MemoryRouter>
+      );
+
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+
+      expect(screen.getAllByAltText("Painel de Vagas").length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

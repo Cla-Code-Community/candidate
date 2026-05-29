@@ -1,55 +1,75 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-
 @layer base {
   :root {
     --background: 33 53% 100%;
     --foreground: 210 30% 15%;
+
     --card: 0 0% 100%;
     --card-foreground: 210 30% 15%;
+
     --primary: 140 70% 20%;
     --primary-foreground: 0 0% 100%;
+
     --secondary: 38 52% 86%;
     --secondary-foreground: 210 30% 15%;
+
     --muted: 36 35% 91%;
     --muted-foreground: 210 15% 40%;
+
     --accent: 140 75% 38%;
     --accent-foreground: 0 0% 100%;
+
     --border: 0 0% 82%;
     --input: 30 28% 82%;
     --ring: 140 75% 38%;
+
     --radius: 0.8rem;
+
     color-scheme: light;
   }
 
   .dark {
     --background: 215 30% 10%;
     --foreground: 210 30% 95%;
+
     --card: 216 26% 14%;
     --card-foreground: 210 30% 95%;
+
     --primary: 140 70% 20%;
-    /* --primary-foreground: 218 35% 12%; */
+
     --secondary: 216 20% 23%;
     --secondary-foreground: 210 20% 94%;
+
     --muted: 216 20% 19%;
     --muted-foreground: 215 20% 72%;
+
     --accent: 140 50% 45%;
     --accent-foreground: 0 0% 100%;
+
     --border: 216 16% 30%;
     --input: 216 16% 30%;
     --ring: 140 75% 38%;
+
     color-scheme: dark;
   }
 
   * {
-    @apply border-border transition-colors duration-300;
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+    scroll-padding-top: 5rem;
   }
 
   body {
-    @apply m-0 p-0 bg-background font-sans text-foreground antialiased;
+
+    @apply m-0 p-0 bg-background text-foreground antialiased;
+    overscroll-behavior: none;
   }
 }

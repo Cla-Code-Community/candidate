@@ -1,0 +1,11 @@
+packages:
+  - "frontend"
+  - "backend"
+
+allowBuilds:
+  "@scarf/scarf": true
+  argon2: true
+  electron: true
+  esbuild: true
+
+"pnpm": { "allowBuilds": ["@scarf/scarf", "electron", "esbuild"] }
