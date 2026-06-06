@@ -7,5 +7,24 @@ allowBuilds:
   argon2: true
   electron: true
   esbuild: true
+  msw: true
+minimumReleaseAgeExclude:
+  - xlsx@0.19.3
+  - xlsx@0.20.2
+overrides:
+  electron@<35.7.5: '>=35.7.5'
+  electron@<38.8.6: '>=38.8.6'
+  electron@<39.8.1: '>=39.8.1'
+  electron@<39.8.5: '>=39.8.5'
+  electron@>=33.0.0-alpha.1 <39.8.5: '>=39.8.5'
+  esbuild@<=0.24.2: '>=0.25.0'
+  tar@<7.5.7: '>=7.5.7'
+  tar@<7.5.8: '>=7.5.8'
+  tar@<=7.5.10: '>=7.5.11'
+  tar@<=7.5.2: '>=7.5.3'
+  tar@<=7.5.3: '>=7.5.4'
+  tar@<=7.5.9: '>=7.5.10'
+  tmp@<0.2.6: '>=0.2.6'
+  vitest@<4.1.0: '>=4.1.0'
 
-"pnpm": { "allowBuilds": ["@scarf/scarf", "electron", "esbuild"] }
+"pnpm": { "allowBuilds": [ "@scarf/scarf", "electron", "esbuild" ] }

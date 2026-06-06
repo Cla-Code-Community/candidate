@@ -1,9 +1,9 @@
-import { Navbar } from "../components/landing/Navbar";
+import { Navbar } from "../../components/landing/Navbar";
 
-import { FeaturesSection } from "../components/landing/FeaturesSection";
-import { HowItWorks } from "../components/landing/HowItWorks";
-import { CTASection } from "../components/landing/CTASection";
-import { Footer } from "../components/landing/Footer";
+import { FeaturesSection } from "../../components/landing/FeaturesSection";
+import { HowItWorks } from "../../components/landing/HowItWorks";
+import { CTASection } from "../../components/landing/CTASection";
+import { Footer } from "../../components/landing/Footer";
 import { HeroSection } from "@/components/landing/HeroSection";
 
 export default function LandingPage() {
