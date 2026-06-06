@@ -9,7 +9,11 @@ const mockAuthService = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../src/modules/auth/auth.service", () => ({
-  AuthService: vi.fn(() => mockAuthService),
+  AuthService: class {
+    constructor() {
+      return mockAuthService;
+    }
+  },
 }));
 
 // ── CredentialsService mock ───────────────────────────────────────────────────
@@ -20,7 +24,11 @@ const mockCredentialsService = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../src/modules/auth/credentials.service", () => ({
-  CredentialsService: vi.fn(() => mockCredentialsService),
+  CredentialsService: class {
+    constructor() {
+      return mockCredentialsService;
+    }
+  },
 }));
 
 // ── iron-session ──────────────────────────────────────────────────────────────

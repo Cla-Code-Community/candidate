@@ -12,7 +12,11 @@ const mockUsersService = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../src/modules/users/users.service", () => ({
-  UsersService: vi.fn(() => mockUsersService),
+  UsersService: class {
+    constructor() {
+      return mockUsersService;
+    }
+  },
 }));
 
 // ── iron-session ──────────────────────────────────────────────────────────────

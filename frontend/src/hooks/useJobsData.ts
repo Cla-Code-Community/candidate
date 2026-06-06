@@ -31,7 +31,10 @@ export function useJobsData() {
         modifiedAt: data.modifiedAt,
         total: data.total,
       });
-      setSelectedFile(data.file || fileName || "");
+
+      if (data.file && data.file !== fileName) {
+        setSelectedFile(data.file);
+      }
     } catch (err: unknown) {
       setJobs([]);
       setMeta(EMPTY_META);
@@ -55,13 +58,17 @@ export function useJobsData() {
   }, [loadFiles]);
 
   useEffect(() => {
-    if (selectedFile) {
-      loadJobs(selectedFile);
-      return;
-    }
+    const syncState = setTimeout(() => {
+      if (!selectedFile) {
+        setJobs([]);
+        setMeta(EMPTY_META);
+        return;
+      }
 
-    setJobs([]);
-    setMeta(EMPTY_META);
+      loadJobs(selectedFile);
+    }, 0);
+
+    return () => clearTimeout(syncState);
   }, [selectedFile, loadJobs]);
 
   const triggerScraper = useCallback(async () => {
