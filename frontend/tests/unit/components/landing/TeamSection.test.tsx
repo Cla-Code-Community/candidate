@@ -19,7 +19,7 @@ describe("TeamSection", () => {
     vi.restoreAllMocks();
   });
 
-  it("renderiza lista da API, filtra bots e garante presença do Pedro", async () => {
+  it("renderiza lista da API, filtra bots e garante presença de membros fixos", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => [
@@ -49,9 +49,13 @@ describe("TeamSection", () => {
     });
 
     expect(screen.queryByText("bot-user")).not.toBeInTheDocument();
+
+    // membros fixos
     expect(screen.getByText("PedroLucas1337")).toBeInTheDocument();
+    expect(screen.getByText("thalitat")).toBeInTheDocument();
+
     expect(screen.getByText("QA")).toBeInTheDocument();
-    expect(screen.getByText("1 commit")).toBeInTheDocument();
+    expect(screen.getByText("UX/UI Designer")).toBeInTheDocument();
   });
 
   it("mantém fallback local quando API retorna resposta inválida", async () => {
@@ -117,6 +121,7 @@ describe("TeamSection", () => {
     await waitFor(() => {
       expect(screen.getByText("Benevanio")).toBeInTheDocument();
       expect(screen.getByText("PedroLucas1337")).toBeInTheDocument();
+      expect(screen.getByText("thalitat")).toBeInTheDocument();
     });
   });
 
@@ -175,6 +180,7 @@ describe("TeamSection", () => {
     await waitFor(() => {
       expect(screen.getByText("Benevanio")).toBeInTheDocument();
       expect(screen.getByText("PedroLucas1337")).toBeInTheDocument();
+      expect(screen.getByText("thalitat")).toBeInTheDocument();
     });
   });
 });

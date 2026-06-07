@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
+import { Autoplay, Pagination } from 'swiper/modules';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Pagination, Autoplay } from 'swiper/modules';
 
+import { Github } from 'lucide-react';
 import 'swiper/css';
 import 'swiper/css/pagination';
-import { Github } from 'lucide-react';
 
 interface Contributor {
   id: number;
@@ -31,6 +31,14 @@ const INITIAL_TEAM: Contributor[] = [
     html_url: "https://github.com/PedroLucas1337",
     contributions: 0,
     type: "User"
+  },
+  {
+    id: 110640572,
+    login: "thalitat",
+    avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4",
+    html_url: "https://github.com/thalitat",
+    contributions: 0,
+    type: "User"
   }
 ];
 
@@ -51,31 +59,59 @@ export default function TeamSection() {
         return res.json();
       })
       .then((data: unknown) => {
-        if (Array.isArray(data)) {
-          let realUsers = (data as Contributor[])
-            .filter(user => user.type === 'User')
-            .map(user => {
-              if (user.login.toLowerCase() === "pedrolucas1337") {
-                return { ...user, avatar_url: "https://github.com/PedroLucas1337.png" };
-              }
-              return user;
-            });
+        if (!Array.isArray(data)) return;
 
-          const hasPedro = realUsers.some(user => user.login.toLowerCase() === "pedrolucas1337");
+        const realUsers = (data as Contributor[])
+          .filter(user => user.type === 'User')
+          .map(user => {
+            if (user.login.toLowerCase() === "pedrolucas1337") {
+              return {
+                ...user,
+                avatar_url: "https://github.com/PedroLucas1337.png"
+              };
+            }
 
-          if (!hasPedro) {
-            const pedroObj: Contributor = {
-              id: 104951475,
-              login: "PedroLucas1337",
-              avatar_url: "https://github.com/PedroLucas1337.png",
-              html_url: "https://github.com/PedroLucas1337",
-              contributions: 0,
-              type: "User"
-            };
-            realUsers = [...realUsers, pedroObj];
+            if (user.login.toLowerCase() === "thalitat") {
+              return {
+                ...user,
+                avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4"
+              };
+            }
+
+            return user;
+          });
+
+        const fixedMembers: Contributor[] = [
+          {
+            id: 104951475,
+            login: "PedroLucas1337",
+            avatar_url: "https://github.com/PedroLucas1337.png",
+            html_url: "https://github.com/PedroLucas1337",
+            contributions: 0,
+            type: "User"
+          },
+          {
+            id: 110640572,
+            login: "thalitat",
+            avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4",
+            html_url: "https://github.com/thalitat",
+            contributions: 0,
+            type: "User"
           }
+        ];
 
-          if (realUsers.length > 0) setContributors(realUsers);
+        fixedMembers.forEach(member => {
+          const exists = realUsers.some(
+            user => user.login.toLowerCase() === member.login.toLowerCase()
+          );
+
+          if (!exists) {
+            realUsers.push(member);
+          }
+        });
+
+        if (realUsers.length > 0) {
+          setContributors(realUsers);
         }
       })
       .catch((err) => {
@@ -92,7 +128,7 @@ export default function TeamSection() {
 
         <div className="text-gray-500 dark:text-gray-400 mb-10 text-sm sm:text-base">
           Conheça as mentes brilhantes por trás do{" "}
-          <span className='font-bold text-gray-800 dark:text-white inline-block block sm:inline'>
+          <span className='font-bold text-gray-800 dark:text-white inline-block sm:inline'>
             <span className="text-blue-500 font-bold">&lt;</span>
             Cand<span className="text-amber-500 font-bold">!</span>Date<span className="text-purple-500 font-bold">!</span>
             <span className="text-blue-500 font-bold">&gt;</span>
@@ -122,22 +158,29 @@ export default function TeamSection() {
             {contributors.map((user) => (
               <SwiperSlide key={user.id} className="h-full inline-block">
                 <div className="flex flex-col items-center p-6 border border-gray-100 dark:border-zinc-800/80 rounded-2xl text-center bg-white dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300 min-h-[260px] h-full justify-between">
+                  
                   <div className="flex flex-col items-center w-full">
                     <img
                       src={user.avatar_url}
                       alt={user.login}
                       className="w-24 h-24 rounded-full mb-4 border-2 border-violet-500/60 shadow-sm object-cover"
                     />
+
                     <h4 className="font-semibold text-lg text-gray-900 dark:text-zinc-100 mb-1 truncate w-full">
                       {user.login}
                     </h4>
 
                     <p className="text-xs font-medium text-gray-400 dark:text-zinc-500 mb-4">
-                      {user.login.toLowerCase() === "pedrolucas1337"
+                      {user.login.toLowerCase() === "benevanio"
+                        ? "Founder & Backend Dev"
+                        : user.login.toLowerCase() === "pedrolucas1337"
                         ? "QA"
+                        : user.login.toLowerCase() === "thalitat"
+                        ? "UX/UI Designer"
                         : `${user.contributions} ${user.contributions === 1 ? 'commit' : 'commits'}`}
                     </p>
                   </div>
+
                   <a
                     href={user.html_url}
                     target="_blank"
@@ -145,7 +188,7 @@ export default function TeamSection() {
                     className="w-full py-2 px-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 hover:opacity-90 text-white flex items-center justify-center text-sm font-medium rounded-lg transition-all duration-200 gap-2 shadow-sm"
                   >
                     Ver Perfil
-                    <Github className='h-4 w-4 flex justify-center items-center'/>
+                    <Github className='h-4 w-4' />
                   </a>
                 </div>
               </SwiperSlide>
