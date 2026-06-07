@@ -109,11 +109,11 @@ describe("Navbar", () => {
   });
 
   it("retorna quando elemento nao existe ao clicar em link", () => {
-    const { rerender } = render(
-      <MemoryRouter>
-        <Navbar />
-      </MemoryRouter>,
-    );
+    render(
+          <MemoryRouter>
+              <Navbar />
+          </MemoryRouter>
+      );
 
     const featureSection = document.getElementById("features");
     if (featureSection) {
