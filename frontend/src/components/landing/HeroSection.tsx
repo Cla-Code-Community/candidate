@@ -1,9 +1,9 @@
 import { motion, useScroll, useTransform } from "framer-motion";
-import { Link } from "react-router-dom";
 import { ArrowRight, Play } from "lucide-react";
 import { useRef } from "react";
-import googleLogo from "../../assets/google.png";
+import { Link } from "react-router-dom";
 import amazonLogo from "../../assets/amazon.png";
+import googleLogo from "../../assets/google.png";
 import metaLogo from "../../assets/meta.svg";
 import uberLogo from "../../assets/uber.png";
 
@@ -77,7 +77,6 @@ export function HeroSection() {
       >
         <StarsBackground />
       </motion.div>
- d
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-gradient-to-br from-blue-500/10 via-purple-500/5 to-transparent blur-[120px] rounded-full pointer-events-none" />
 
       <motion.div style={{ y: textY }} className="relative z-10 max-w-5xl mx-auto px-6 text-center">
