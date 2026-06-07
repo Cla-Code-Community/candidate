@@ -63,7 +63,7 @@
     "electron-builder": "^25.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
-    "typescript": "^6.0.3"
+    "typescript": "^5.9.3"
   },
   "lint-staged": {
     "frontend/src/**/*.{js,jsx,ts,tsx}": [
