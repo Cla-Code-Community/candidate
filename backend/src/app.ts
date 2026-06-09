@@ -19,6 +19,9 @@ export function createJobsApiApp() {
   app.use(securityHeaders);
   app.use(cors(corsOptions));
 
+  //Confia no proxy reverso (nginx) para lidar com HTTPS e IPs reais dos clientes
+  app.set("trust proxy", 1);
+
   app.use("/api/auth", withSession, authRoutes);
   app.use("/api/users", withSession, requireAuth, userRoutes);
   app.use("/api/jobs", withSession, requireAuth, jobsRoutes);
