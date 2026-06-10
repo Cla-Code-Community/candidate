@@ -7,6 +7,7 @@ import PhoneInput from "react-phone-number-input";
 import { api } from "@/services/api";
 import "react-phone-number-input/style.css";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 interface ValidationError {
   _errors?: string[];
@@ -55,6 +56,7 @@ function StarsBackground() {
 
 export default function RegisterSide() {
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const [showPassword, setShowPassword] = useState(false);
   const [nome, setNome] = useState("");
@@ -150,15 +152,19 @@ export default function RegisterSide() {
     setIsSubmitting(true);
 
     try {
-      const response = await api.post("/auth/register", {
+      // 1. Cadastra o usuário
+      await api.post("/auth/register", {
         name: nome,
-        email: email,
+        email,
         phone: telefone,
-        password: password,
+        password,
         cpf: cpf.replace(/\D/g, ""),
       });
 
-      console.log("Cadastro efetuado com sucesso!", response.data);
+      // 2. Loga automaticamente após cadastro — popula o AuthContext corretamente
+      await login({ email, password });
+
+      // 3. Redireciona para o app
       navigate("/app");
 
     } catch (error: unknown) {

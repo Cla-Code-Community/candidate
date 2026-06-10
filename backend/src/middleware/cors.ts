@@ -2,7 +2,6 @@ import cors from "cors";
 
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://painel-vagas-lake.vercel.app",
-  "https://painel-vagas-m6hbzlqeh-bene-teslas-projects.vercel.app",
   "https://jobsglobalscraper.ddns.net",
   "http://jobsglobalscraper.ddns.net",
   "http://localhost:5173",
@@ -22,11 +21,19 @@ export const corsOptions: cors.CorsOptions = {
     const allowedOrigins = parseAllowedOrigins(
       process.env.CORS_ALLOWED_ORIGINS,
     );
-    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-    callback(new Error("Origin not allowed by CORS"));
+
+    if (!origin) return callback(null, true);
+
+    if (/^https:\/\/painel-vagas-[a-z0-9-]+\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.has(origin)) return callback(null, true);
+
+    callback(new Error(`Origin not allowed by CORS: ${origin}`));
   },
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   credentials: true,
   maxAge: 86400,
 };

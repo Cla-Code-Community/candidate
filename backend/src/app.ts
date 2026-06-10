@@ -1,5 +1,5 @@
 import cors from "cors";
-import express from "express";
+import express, { NextFunction, Request, Response } from "express";
 import { corsOptions } from "./middleware/cors";
 import { errorHandler } from "./middleware/errorHandler";
 import { requireAuth } from "./middleware/requireAuth";
@@ -17,9 +17,15 @@ export function createJobsApiApp() {
   app.disable("x-powered-by");
   app.use(express.json({ limit: "16kb" }));
   app.use(securityHeaders);
-  app.use(cors(corsOptions));
 
-  //Confia no proxy reverso (nginx) para lidar com HTTPS e IPs reais dos clientes
+  // um wrapper para garantir se o CORS chega com erro 403
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    cors(corsOptions)(req, res, (err) => {
+      if (err) return next(err);
+      next();
+    });
+  });
+
   app.set("trust proxy", 1);
 
   app.use("/api/auth", withSession, authRoutes);

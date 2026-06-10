@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { CredentialsController } from "../../../../src/modules/auth/credentials.controller"; // Ajuste se usar path aliases (ex: @/modules/...)
+import { CredentialsController } from "../../../../src/modules/auth/credentials.controller";
 
 // Mock do módulo de tipos usando o mesmo padrão de caminho do import do seu controller
 vi.mock("../../../../src/modules/types/credentials.types", () => ({
@@ -45,6 +45,12 @@ describe("CredentialsController", () => {
       login: vi.fn().mockResolvedValue({
         user: { id: "user_123", email: "dev@teste.com" },
         session: { id: "sess_abc" },
+      }),
+      // ← fix: findById agora existe no mock
+      findById: vi.fn().mockResolvedValue({
+        id: "user_789",
+        email: "auth@teste.com",
+        displayName: "Teste",
       }),
     };
 
@@ -108,9 +114,7 @@ describe("CredentialsController", () => {
       );
 
       expect(resMock.status).toHaveBeenCalledWith(409);
-      expect(resMock.json).toHaveBeenCalledWith({
-        error: "Email já cadastrado",
-      });
+      expect(resMock.json).toHaveBeenCalledWith({ error: "Email já cadastrado" });
     });
   });
 
@@ -140,9 +144,7 @@ describe("CredentialsController", () => {
       );
 
       expect(resMock.status).toHaveBeenCalledWith(401);
-      expect(resMock.json).toHaveBeenCalledWith({
-        error: "Credenciais inválidas",
-      });
+      expect(resMock.json).toHaveBeenCalledWith({ error: "Credenciais inválidas" });
     });
   });
 
@@ -158,15 +160,32 @@ describe("CredentialsController", () => {
   });
 
   describe("me", () => {
-    it("deve retornar o userId se o usuário estiver autenticado na sessão", async () => {
+    it("deve retornar o user completo se o usuário estiver autenticado na sessão", async () => {
       reqMock.session.userId = "user_789";
+
       await controller.me(reqMock as unknown as Request, resMock as Response);
-      expect(resMock.json).toHaveBeenCalledWith({ userId: "user_789" });
+
+      expect(serviceMock.findById).toHaveBeenCalledWith("user_789");
+      expect(resMock.json).toHaveBeenCalledWith({
+        user: { id: "user_789", email: "auth@teste.com", displayName: "Teste" },
+      });
+    });
+
+    it("deve retornar 401 se findById não encontrar o usuário", async () => {
+      reqMock.session.userId = "user_inexistente";
+      serviceMock.findById.mockResolvedValue(null);
+
+      await controller.me(reqMock as unknown as Request, resMock as Response);
+
+      expect(resMock.status).toHaveBeenCalledWith(401);
+      expect(reqMock.session.destroy).toHaveBeenCalled();
     });
 
     it("deve retornar 401 se não houver userId armazenado na sessão", async () => {
       reqMock.session.userId = undefined;
+
       await controller.me(reqMock as unknown as Request, resMock as Response);
+
       expect(resMock.status).toHaveBeenCalledWith(401);
     });
   });

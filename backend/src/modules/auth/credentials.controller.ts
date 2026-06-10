@@ -53,6 +53,13 @@ export class CredentialsController {
     if (!req.session.userId) {
       return res.status(401).json({ error: "Não autenticado" });
     }
-    return res.json({ userId: req.session.userId });
+
+    const user = await this.service.findById(req.session.userId);
+    if (!user) {
+      await req.session.destroy();
+      return res.status(401).json({ error: "Não autenticado" });
+    }
+
+    return res.json({ user });
   }
 }
