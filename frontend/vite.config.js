@@ -18,7 +18,6 @@ export default defineConfig({
       "/api": {
         target: "https://jobsglobalscraper.ddns.net",
         changeOrigin: true,
-        secure: false,
       },
     },
   },
