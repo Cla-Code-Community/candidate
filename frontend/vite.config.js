@@ -5,6 +5,8 @@ import { defineConfig } from 'vite'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+const isDev = process.env.NODE_ENV === 'development'
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -12,45 +14,14 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-  server: {
+  server: isDev ? {
     port: 5173,
     proxy: {
       '/api': {
         target: 'https://jobsglobalscraper.ddns.net',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path,
-        configure: (proxy, options) => {
-          proxy.on('error', (err, req, res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            console.log('Proxying:', req.method, req.url);
-          });
-        }
       }
     }
-  }
-})
-        target: apiProxyTarget,
-        changeOrigin: true,
-        secure: false,
-      },
-      '/auth': {
-        target: apiProxyTarget,
-        changeOrigin: true,
-        secure: false,
-        configure: (proxy) => {
-          proxy.on('error', (err) => {
-            console.error('Erro no proxy do Vite para /auth:', err.message);
-          });
-        },
-      },
-    },
-  },
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./tests/setup.js'],
-  },
+  } : undefined,
 })
