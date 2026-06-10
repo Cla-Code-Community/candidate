@@ -28,8 +28,9 @@ vi.mock("react-phone-number-input", () => ({
   ),
 }));
 
+const mockNavigate = vi.fn();
 vi.mock("react-router-dom", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
 }));
 
 const mockApiPost = vi.fn();
@@ -48,6 +49,7 @@ describe("RegisterSide", () => {
   beforeEach(() => {
     mockApiPost.mockClear();
     mockApiGet.mockClear();
+    mockNavigate.mockClear();
   });
 
   it("renderiza formulário completo de cadastro", () => {

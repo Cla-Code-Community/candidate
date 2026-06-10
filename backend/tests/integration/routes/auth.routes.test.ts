@@ -21,6 +21,7 @@ vi.mock("../../../src/modules/auth/auth.service", () => ({
 const mockCredentialsService = vi.hoisted(() => ({
   register: vi.fn(),
   login: vi.fn(),
+  findById: vi.fn(), // ← fix: adicionado
 }));
 
 vi.mock("../../../src/modules/auth/credentials.service", () => ({
@@ -108,6 +109,8 @@ describe("Integration - Auth Routes", () => {
       user: fixtureUser,
       session: { userId: fixtureUser.id },
     });
+
+    mockCredentialsService.findById.mockResolvedValue(fixtureUser);
 
     app = createJobsApiApp();
   });
@@ -252,10 +255,7 @@ describe("Integration - Auth Routes", () => {
         .get(`${BASE}/twitter/callback?code=abc&state=valid-state-abc123`)
         .expect(400);
 
-      expect(res.body).toHaveProperty(
-        "error",
-        "Parâmetros de callback inválidos",
-      );
+      expect(res.body).toHaveProperty("error", "Parâmetros de callback inválidos");
     });
 
     it("retorna 400 quando code esta ausente (ZodError)", async () => {
@@ -288,10 +288,7 @@ describe("Integration - Auth Routes", () => {
 
   describe("POST /register", () => {
     it("cria usuario e retorna 201", async () => {
-      // CredentialsController usa req.session — injetado pelo withSession mock
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       const res = await request(app)
         .post(`${BASE}/register`)
@@ -303,9 +300,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("chama register com email, password e name", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       await request(app).post(`${BASE}/register`).send(registerPayload);
 
@@ -319,9 +314,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 400 para email invalido (ZodError)", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       const res = await request(app)
         .post(`${BASE}/register`)
@@ -332,9 +325,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 400 para senha curta (ZodError)", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       await request(app)
         .post(`${BASE}/register`)
@@ -343,9 +334,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 409 quando email ja esta cadastrado", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
       mockCredentialsService.register.mockRejectedValueOnce(
         new Error("Email já cadastrado"),
       );
@@ -359,9 +348,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 500 para erro inesperado no register", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
       mockCredentialsService.register.mockRejectedValueOnce(
         new Error("db connection failed"),
       );
@@ -377,9 +364,7 @@ describe("Integration - Auth Routes", () => {
 
   describe("POST /login", () => {
     it("autentica e retorna 200 com user e session", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       const res = await request(app)
         .post(`${BASE}/login`)
@@ -391,9 +376,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("chama login com email e password corretos", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       await request(app).post(`${BASE}/login`).send(loginPayload);
 
@@ -403,9 +386,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 400 para email invalido (ZodError)", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       await request(app)
         .post(`${BASE}/login`)
@@ -414,9 +395,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 400 para senha ausente (ZodError)", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
 
       await request(app)
         .post(`${BASE}/login`)
@@ -425,9 +404,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 401 para credenciais invalidas", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
       mockCredentialsService.login.mockRejectedValueOnce(
         new Error("Credenciais inválidas"),
       );
@@ -441,9 +418,7 @@ describe("Integration - Auth Routes", () => {
     });
 
     it("retorna 500 para erro inesperado no login", async () => {
-      vi.mocked(getIronSession).mockResolvedValue(
-        fixtureCredentialsSession as any,
-      );
+      vi.mocked(getIronSession).mockResolvedValue(fixtureCredentialsSession as any);
       mockCredentialsService.login.mockRejectedValueOnce(
         new Error("db timeout"),
       );
@@ -486,15 +461,18 @@ describe("Integration - Auth Routes", () => {
   // ── GET /me ───────────────────────────────────────────────────────────────
 
   describe("GET /me", () => {
-    it("retorna userId quando autenticado", async () => {
+    it("retorna user completo quando autenticado", async () => {
       vi.mocked(getIronSession).mockResolvedValue({
         userId: "user-1",
         save: vi.fn(),
+        destroy: vi.fn(),
       } as any);
 
       const res = await request(app).get(`${BASE}/me`).expect(200);
 
-      expect(res.body).toEqual({ userId: "user-1" });
+      expect(res.body).toHaveProperty("user");
+      expect(res.body.user).toHaveProperty("id", fixtureUser.id);
+      expect(res.body.user).toHaveProperty("email", fixtureUser.email);
     });
 
     it("retorna 401 quando nao autenticado", async () => {

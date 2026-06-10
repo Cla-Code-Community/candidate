@@ -6,7 +6,7 @@ export function errorHandler(
   res: Response,
   _next: NextFunction,
 ): void {
-  if (error.message === "Origin not allowed by CORS") {
+  if (error.message.startsWith("Origin not allowed by CORS")) {
     res.status(403).json({ message: "Origem não permitida." });
     return;
   }

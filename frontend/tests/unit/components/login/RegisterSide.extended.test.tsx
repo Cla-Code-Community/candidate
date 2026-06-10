@@ -28,9 +28,23 @@ vi.mock("react-phone-number-input", () => ({
   ),
 }));
 
+// Mock estável do react-router-dom protegendo contra hoisting
 const mockNavigate = vi.fn();
-vi.mock("react-router-dom", () => ({
-  useNavigate: () => mockNavigate,
+vi.mock("react-router-dom", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-router-dom")>();
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
+const mockLogin = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/context/AuthContext", () => ({
+  useAuth: () => ({
+    login: mockLogin,
+    user: null,
+    isLoading: false,
+  }),
 }));
 
 const mockApiPost = vi.fn();
@@ -58,15 +72,24 @@ describe("RegisterSide — branches extras", () => {
     mockApiPost.mockReset();
     mockApiGet.mockReset();
     mockNavigate.mockReset();
+    mockLogin.mockReset();
   });
 
   // ── Branch: submit com sucesso → navega para /app ────────────────────────
   it("navega para /app após cadastro bem-sucedido", async () => {
-    mockApiPost.mockResolvedValueOnce({ data: {} });
+    mockApiPost.mockResolvedValueOnce({ data: { user: {}, token: "fake-token" } });
+    mockLogin.mockResolvedValueOnce(undefined);
+
     render(<RegisterSide />);
     fillValidForm();
+
+    // Dispara o clique no botão de cadastrar
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/app"));
+
+    // Aguarda as promessas resolverem e valida a navegação esperada
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith("/app");
+    });
   });
 
   // ── Branch: API retorna erro de validação por campo (data.error é objeto) ─
