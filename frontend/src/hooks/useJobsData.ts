@@ -54,15 +54,19 @@ export function useJobsData() {
     });
   }, [loadFiles]);
 
-  useEffect(() => {
+useEffect(() => {
+  async function handleLoadJobs() {
     if (selectedFile) {
-      loadJobs(selectedFile);
+      await loadJobs(selectedFile);
       return;
     }
 
     setJobs([]);
     setMeta(EMPTY_META);
-  }, [selectedFile, loadJobs]);
+  }
+
+  handleLoadJobs();
+}, [selectedFile, loadJobs]);
 
   const triggerScraper = useCallback(async () => {
     setScraping(true);
