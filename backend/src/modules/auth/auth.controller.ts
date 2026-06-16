@@ -1,6 +1,5 @@
 import { randomBytes } from "crypto";
 import { Request, Response } from "express";
-import { getIronSession } from "iron-session";
 import { z } from "zod";
 import {
   AuthCallbackParamsSchema,
@@ -9,40 +8,17 @@ import {
 
 import { AuthService } from "./auth.service.js";
 
-interface SessionData {
-  oauth_state?: string;
-  userId?: string;
-}
-
-const sessionOptions = {
-  password: process.env.SESSION_SECRET!,
-  cookieName: "vagas_session",
-
-  cookieOptions: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7,
-  },
-};
-
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   async getUrl(req: Request, res: Response) {
     try {
-      const session = await getIronSession<SessionData>(
-        req,
-        res,
-        sessionOptions,
-      );
-
       const provider = OAuthProviderSchema.parse(req.params.provider);
 
       const state = randomBytes(16).toString("hex");
 
-      session.oauth_state = state;
-
-      await session.save();
+      (req.session as any).oauth_state = state;
+      await req.session.save();
 
       const url = await this.authService.getAuthUrl(provider, state);
 
@@ -62,7 +38,7 @@ export class AuthController {
   }
 
   async callback(req: Request, res: Response) {
-    const session = await getIronSession<SessionData>(req, res, sessionOptions);
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
     try {
       const callbackUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
@@ -74,42 +50,30 @@ export class AuthController {
         callbackUrl,
       });
 
-      if (!session.oauth_state) {
-        return res.status(400).json({
-          error: "OAuth state ausente",
-        });
+      const oauthState = (req.session as any).oauth_state;
+
+      if (!oauthState) {
+        return res.redirect(`${frontendUrl}/login?error=oauth_state_missing`);
       }
 
-      if (session.oauth_state !== params.state) {
-        return res.status(400).json({
-          error: "OAuth state inválido",
-        });
+      if (oauthState !== params.state) {
+        return res.redirect(`${frontendUrl}/login?error=oauth_state_invalid`);
       }
 
-      delete session.oauth_state;
-      await session.save();
+      delete (req.session as any).oauth_state;
 
       const result = await this.authService.handleCallback({
         ...params,
         callbackUrl,
       });
 
-      return res.json(result);
+      req.session.userId = result.session.userId;
+      await req.session.save();
+
+      return res.redirect(`${frontendUrl}/auth/callback`);
     } catch (error) {
       console.error("OAuth callback error:", error);
-
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          error: "Parâmetros de callback inválidos",
-          details: error.format(),
-        });
-      }
-
-      const message = error instanceof Error ? error.message : "Erro interno";
-
-      return res.status(500).json({
-        error: message,
-      });
+      return res.redirect(`${frontendUrl}/login?error=oauth_failed`);
     }
   }
 }

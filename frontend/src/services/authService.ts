@@ -123,3 +123,17 @@ export async function getCurrentUser() {
 
   return payload;
 }
+
+export async function getGoogleAuthUrl(): Promise<string> {
+  const response = await fetch(buildUrl("/api/auth/google/url"), {
+    credentials: "include",
+  });
+
+  const payload = await parseResponse(response);
+
+  if (!response.ok) {
+    throw createError(payload, "Falha ao obter URL de autenticacao Google.");
+  }
+
+  return payload.url;
+}

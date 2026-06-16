@@ -16,7 +16,7 @@ vi.mock("@/services/api", () => ({
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 
 function TestConsumer() {
-  const { user, isLoading, login, logout } = useAuth();
+  const { user, isLoading, login, logout, refreshUser } = useAuth();
   return (
     <div>
       <span data-testid="loading">{String(isLoading)}</span>
@@ -25,6 +25,7 @@ function TestConsumer() {
         login
       </button>
       <button onClick={() => logout()}>logout</button>
+      <button onClick={() => refreshUser()}>refresh</button>
     </div>
   );
 }
@@ -145,5 +146,59 @@ describe("AuthContext", () => {
     }
     render(<Naked />);
     expect(screen.getByTestId("ctx")).toBeInTheDocument();
+  });
+
+  it("refreshUser atualiza o usuário ao chamar /auth/me novamente", async () => {
+    mockApiGet.mockRejectedValueOnce(new Error("Unauthorized"));
+
+    renderWithProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+
+    expect(screen.getByTestId("user").textContent).toBe("null");
+
+    mockApiGet.mockResolvedValueOnce({
+      data: { user: { id: "2", email: "novo@teste.com", name: "Novo" } },
+    });
+
+    await act(async () => {
+      screen.getByRole("button", { name: /refresh/i }).click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+
+    const user = JSON.parse(screen.getByTestId("user").textContent!);
+    expect(user.id).toBe("2");
+    expect(user.email).toBe("novo@teste.com");
+  });
+
+  it("refreshUser define user como null quando /auth/me falha", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: { user: { id: "1", email: "joao@teste.com" } },
+    });
+
+    renderWithProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+
+    expect(screen.getByTestId("user").textContent).not.toBe("null");
+
+    mockApiGet.mockRejectedValueOnce(new Error("Unauthorized"));
+
+    await act(async () => {
+      screen.getByRole("button", { name: /refresh/i }).click();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+
+    expect(screen.getByTestId("user").textContent).toBe("null");
   });
 });

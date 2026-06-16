@@ -6,6 +6,7 @@ import NotFound from "./not_found";
 import Loading from "./Loading";
 import LoginPage from "./pages/login/LoginPage";
 import RegisterPage from "./pages/register/RegisterPage";
+import AuthCallback from "./pages/auth/AuthCallback";
 import { useAuth } from "@/context/AuthContext";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,7 @@ function App() {
       />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

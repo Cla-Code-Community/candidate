@@ -181,13 +181,12 @@ describe("Integration - Auth Routes", () => {
   // ── GET /:provider/callback ───────────────────────────────────────────────
 
   describe("GET /:provider/callback", () => {
-    it("retorna 200 e dados do usuario em callback valido", async () => {
+    it("redireciona ao frontend em callback valido", async () => {
       const res = await request(app)
         .get(`${BASE}/github/callback?code=abc123&state=valid-state-abc123`)
-        .expect(200);
+        .expect(302);
 
-      expect(res.body).toHaveProperty("user");
-      expect(res.body.user).toHaveProperty("email", "user@example.com");
+      expect(res.headers.location).toContain("/auth/callback");
     });
 
     it("chama handleCallback com os params corretos", async () => {
@@ -208,18 +207,19 @@ describe("Integration - Auth Routes", () => {
       const session = {
         oauth_state: "valid-state-abc123",
         save: vi.fn().mockResolvedValue(undefined),
+        userId: undefined as string | undefined,
       };
       vi.mocked(getIronSession).mockResolvedValue(session as any);
 
       await request(app)
         .get(`${BASE}/github/callback?code=abc123&state=valid-state-abc123`)
-        .expect(200);
+        .expect(302);
 
       expect(session.oauth_state).toBeUndefined();
       expect(session.save).toHaveBeenCalled();
     });
 
-    it("retorna 400 quando oauth_state da sessao esta ausente", async () => {
+    it("redireciona ao login quando oauth_state da sessao esta ausente", async () => {
       vi.mocked(getIronSession).mockResolvedValue({
         oauth_state: undefined,
         save: vi.fn(),
@@ -227,12 +227,12 @@ describe("Integration - Auth Routes", () => {
 
       const res = await request(app)
         .get(`${BASE}/github/callback?code=abc123&state=valid-state-abc123`)
-        .expect(400);
+        .expect(302);
 
-      expect(res.body).toHaveProperty("error", "OAuth state ausente");
+      expect(res.headers.location).toContain("/login?error=oauth_state_missing");
     });
 
-    it("retorna 400 quando state do query nao confere com o da sessao", async () => {
+    it("redireciona ao login quando state do query nao confere com o da sessao", async () => {
       vi.mocked(getIronSession).mockResolvedValue({
         oauth_state: "outro-state",
         save: vi.fn(),
@@ -240,12 +240,12 @@ describe("Integration - Auth Routes", () => {
 
       const res = await request(app)
         .get(`${BASE}/github/callback?code=abc123&state=state-errado`)
-        .expect(400);
+        .expect(302);
 
-      expect(res.body).toHaveProperty("error", "OAuth state inválido");
+      expect(res.headers.location).toContain("/login?error=oauth_state_invalid");
     });
 
-    it("retorna 400 para provider invalido nos params (ZodError)", async () => {
+    it("redireciona ao login para provider invalido nos params", async () => {
       vi.mocked(getIronSession).mockResolvedValue({
         oauth_state: "valid-state-abc123",
         save: vi.fn(),
@@ -253,12 +253,12 @@ describe("Integration - Auth Routes", () => {
 
       const res = await request(app)
         .get(`${BASE}/twitter/callback?code=abc&state=valid-state-abc123`)
-        .expect(400);
+        .expect(302);
 
-      expect(res.body).toHaveProperty("error", "Parâmetros de callback inválidos");
+      expect(res.headers.location).toContain("/login?error=oauth_failed");
     });
 
-    it("retorna 400 quando code esta ausente (ZodError)", async () => {
+    it("redireciona ao login quando code esta ausente", async () => {
       vi.mocked(getIronSession).mockResolvedValue({
         oauth_state: "valid-state-abc123",
         save: vi.fn(),
@@ -266,21 +266,21 @@ describe("Integration - Auth Routes", () => {
 
       const res = await request(app)
         .get(`${BASE}/github/callback?state=valid-state-abc123`)
-        .expect(400);
+        .expect(302);
 
-      expect(res.body).toHaveProperty("error");
+      expect(res.headers.location).toContain("/login?error=oauth_failed");
     });
 
-    it("retorna 500 quando handleCallback lanca erro", async () => {
+    it("redireciona ao login quando handleCallback lanca erro", async () => {
       mockAuthService.handleCallback.mockRejectedValueOnce(
         new Error("upstream OAuth error"),
       );
 
       const res = await request(app)
         .get(`${BASE}/github/callback?code=abc123&state=valid-state-abc123`)
-        .expect(500);
+        .expect(302);
 
-      expect(res.body).toHaveProperty("error", "upstream OAuth error");
+      expect(res.headers.location).toContain("/login?error=oauth_failed");
     });
   });
 

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { register } from "@/services/authService";
+import { register, getGoogleAuthUrl } from "@/services/authService";
 import { Image } from "@unpic/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
@@ -64,6 +64,16 @@ export default function RegisterSide() {
   
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState("");
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true);
+    try {
+      const url = await getGoogleAuthUrl();
+      window.location.href = url;
+    } catch {
+      setIsLoading(false);
+    }
+  };
 
   const handleRevealPassword = () => setShowPassword((prev) => !prev);
 
@@ -217,7 +227,7 @@ export default function RegisterSide() {
           </div>
         </div>
         <div className="grid grid-cols-3 gap-4">
-          <button type="button" disabled={isLoading} className="flex justify-center items-center py-3 px-4 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white/50 dark:bg-neutral-800/50 hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-all shadow-sm cursor-pointer disabled:opacity-50">
+          <button type="button" onClick={handleGoogleLogin} disabled={isLoading} className="flex justify-center items-center py-3 px-4 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white/50 dark:bg-neutral-800/50 hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-all shadow-sm cursor-pointer disabled:opacity-50">
             <Image src="/google.png" alt="Google" width={20} height={20} className="object-contain" />
           </button>
           <button type="button" disabled={isLoading} className="flex justify-center items-center py-3 px-4 border border-gray-200 dark:border-neutral-800 rounded-xl bg-white/50 dark:bg-neutral-800/50 hover:bg-gray-50 dark:hover:bg-neutral-700/50 transition-all shadow-sm cursor-pointer disabled:opacity-50">

@@ -1,16 +1,8 @@
 import { Request, Response } from "express";
-import { getIronSession } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { AuthController } from "../../../../src/modules/auth/auth.controller"; // Ajuste o caminho se necessário
+import { AuthController } from "../../../../src/modules/auth/auth.controller";
 
-// Mock das dependências externas
-vi.mock("iron-session", () => ({
-  getIronSession: vi.fn(),
-}));
-
-// Mock dos Schemas do Zod para isolar o comportamento se necessário,
-// mas vamos garantir que os inputs passem por eles perfeitamente.
 vi.mock("../../../../src/types/auth.types.js", () => ({
   OAuthProviderSchema: {
     parse: vi.fn((val) => {
@@ -35,37 +27,37 @@ describe("AuthController", () => {
 
   beforeEach(() => {
     vi.stubEnv("SESSION_SECRET", "um-password-longo-com-mais-de-32-caracteres");
+    vi.stubEnv("FRONTEND_URL", "http://localhost:5173");
     vi.clearAllMocks();
 
-    // Mock do AuthService
     authServiceMock = {
       getAuthUrl: vi.fn().mockResolvedValue("https://provider.com/auth"),
       handleCallback: vi
         .fn()
-        .mockResolvedValue({ token: "jwt-token", user: { id: "1" } }),
+        .mockResolvedValue({ user: { id: "1" }, session: { userId: "1" } }),
     };
 
     authController = new AuthController(authServiceMock);
 
-    // Mock da Sessão do iron-session
     sessionMock = {
       save: vi.fn().mockResolvedValue(undefined),
       oauth_state: undefined,
+      userId: undefined,
     };
-    (getIronSession as any).mockResolvedValue(sessionMock);
 
-    // Mocks do Express Request e Response
     reqMock = {
       params: {},
       query: {},
       protocol: "http",
       get: vi.fn().mockReturnValue("localhost:3000"),
       originalUrl: "/auth/callback",
+      session: sessionMock,
     };
 
     resMock = {
       json: vi.fn().mockReturnThis(),
       status: vi.fn().mockReturnThis(),
+      redirect: vi.fn().mockReturnThis(),
     };
   });
 
@@ -100,14 +92,15 @@ describe("AuthController", () => {
   });
 
   describe("callback", () => {
-    it("deve processar o callback com sucesso quando o state for válido", async () => {
+    it("deve redirecionar ao frontend apos callback valido", async () => {
       sessionMock.oauth_state = "state_secreto_123";
       reqMock.params = { provider: "google" };
       reqMock.query = { code: "auth_code_abc", state: "state_secreto_123" };
 
       await authController.callback(reqMock as Request, resMock as Response);
 
-      expect(sessionMock.oauth_state).toBeUndefined(); // Deve deletar após o uso
+      expect(sessionMock.oauth_state).toBeUndefined();
+      expect(sessionMock.userId).toBe("1");
       expect(sessionMock.save).toHaveBeenCalled();
       expect(authServiceMock.handleCallback).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -117,39 +110,36 @@ describe("AuthController", () => {
           callbackUrl: "http://localhost:3000/auth/callback",
         }),
       );
-      expect(resMock.json).toHaveBeenCalledWith({
-        token: "jwt-token",
-        user: { id: "1" },
-      });
+      expect(resMock.redirect).toHaveBeenCalledWith(
+        "http://localhost:5173/auth/callback",
+      );
     });
 
-    it("deve retornar 400 se o oauth_state estiver ausente na sessão", async () => {
+    it("deve redirecionar ao login se o oauth_state estiver ausente na sessão", async () => {
       sessionMock.oauth_state = undefined;
       reqMock.params = { provider: "google" };
       reqMock.query = { code: "code", state: "any_state" };
 
       await authController.callback(reqMock as Request, resMock as Response);
 
-      expect(resMock.status).toHaveBeenCalledWith(400);
-      expect(resMock.json).toHaveBeenCalledWith({
-        error: "OAuth state ausente",
-      });
+      expect(resMock.redirect).toHaveBeenCalledWith(
+        "http://localhost:5173/login?error=oauth_state_missing",
+      );
     });
 
-    it("deve retornar 400 se o state da query for diferente do state da sessão", async () => {
+    it("deve redirecionar ao login se o state da query for diferente do state da sessão", async () => {
       sessionMock.oauth_state = "state_original";
       reqMock.params = { provider: "google" };
       reqMock.query = { code: "code", state: "state_ataque_csrf" };
 
       await authController.callback(reqMock as Request, resMock as Response);
 
-      expect(resMock.status).toHaveBeenCalledWith(400);
-      expect(resMock.json).toHaveBeenCalledWith({
-        error: "OAuth state inválido",
-      });
+      expect(resMock.redirect).toHaveBeenCalledWith(
+        "http://localhost:5173/login?error=oauth_state_invalid",
+      );
     });
 
-    it("deve retornar 500 se o serviço falhar", async () => {
+    it("deve redirecionar ao login com erro se o serviço falhar", async () => {
       sessionMock.oauth_state = "valid_state";
       reqMock.params = { provider: "google" };
       reqMock.query = { code: "code", state: "valid_state" };
@@ -160,10 +150,9 @@ describe("AuthController", () => {
 
       await authController.callback(reqMock as Request, resMock as Response);
 
-      expect(resMock.status).toHaveBeenCalledWith(500);
-      expect(resMock.json).toHaveBeenCalledWith({
-        error: "Falha na comunicação com o provedor",
-      });
+      expect(resMock.redirect).toHaveBeenCalledWith(
+        "http://localhost:5173/login?error=oauth_failed",
+      );
     });
   });
 });

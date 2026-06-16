@@ -252,4 +252,48 @@ describe("authService", () => {
       );
     });
   });
+
+  describe("getGoogleAuthUrl", () => {
+    it("should return Google auth URL on success", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          jsonData: { url: "https://accounts.google.com/o/oauth2/auth?state=abc" },
+        })
+      );
+
+      const url = await auth.getGoogleAuthUrl();
+
+      expect(url).toBe("https://accounts.google.com/o/oauth2/auth?state=abc");
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/auth/google/url"),
+        expect.objectContaining({ credentials: "include" })
+      );
+    });
+
+    it("should throw error on failure with message", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 500,
+          jsonData: { message: "Provider unavailable" },
+        })
+      );
+
+      await expect(auth.getGoogleAuthUrl()).rejects.toThrow("Provider unavailable");
+    });
+
+    it("should throw error on failure without message", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 500,
+          jsonData: {},
+        })
+      );
+
+      await expect(auth.getGoogleAuthUrl()).rejects.toThrow(
+        "Falha ao obter URL de autenticacao Google."
+      );
+    });
+  });
 });
