@@ -18,6 +18,7 @@ interface AuthContextData {
   isLoading: boolean;
   login: (credentials: { email: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -50,8 +51,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
+  async function refreshUser() {
+    setIsLoading(true);
+    try {
+      const res = await api.get("/auth/me");
+      setUser(res.data.user ?? { id: res.data.userId, email: "" });
+    } catch {
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
