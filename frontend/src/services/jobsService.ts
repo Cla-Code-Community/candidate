@@ -58,7 +58,9 @@ function readMessage(payload: unknown): string | undefined {
 }
 
 export async function fetchJobFiles(): Promise<JobFile[]> {
-  const response = await fetch(buildApiUrl("/api/jobs/files"));
+  const response = await fetch(buildApiUrl("/api/jobs/files"), {
+    credentials: "include",
+  });
   const payload = (await readPayload(response)) as { files?: unknown } & Record<
     string,
     unknown
@@ -86,7 +88,9 @@ export async function fetchJobFiles(): Promise<JobFile[]> {
 
 export async function fetchJobsByFile(fileName: string): Promise<JobsResponse> {
   const suffix = fileName ? `?file=${encodeURIComponent(fileName)}` : "";
-  const response = await fetch(buildApiUrl(`/api/jobs${suffix}`));
+  const response = await fetch(buildApiUrl(`/api/jobs${suffix}`), {
+    credentials: "include",
+  });
   const payload = (await readPayload(response)) as Record<string, unknown>;
 
   if (!response.ok) {
@@ -106,7 +110,9 @@ export async function fetchJobsByFile(fileName: string): Promise<JobsResponse> {
 }
 
 export async function fetchKeywords(): Promise<string[]> {
-  const response = await fetch(buildApiUrl("/api/keywords"));
+  const response = await fetch(buildApiUrl("/api/keywords"), {
+    credentials: "include",
+  });
   const payload = (await readPayload(response)) as {
     keywords?: unknown;
   } & Record<string, unknown>;
@@ -125,6 +131,7 @@ export async function saveKeywords(keywords: string[]): Promise<void> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ keywords }),
+    credentials: "include",
   });
   const payload = (await readPayload(response)) as Record<string, unknown>;
 
@@ -136,6 +143,7 @@ export async function saveKeywords(keywords: string[]): Promise<void> {
 export async function runScraperRequest(): Promise<void> {
   const response = await fetch(buildApiUrl("/api/jobs/search"), {
     method: "POST",
+    credentials: "include",
   });
   const payload = (await readPayload(response)) as Record<string, unknown>;
 

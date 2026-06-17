@@ -23,7 +23,7 @@ describe("jobsService", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await fetchJobFiles();
-    expect(fetchMock).toHaveBeenCalledWith("https://jobsglobalscraper.ddns.net/api/jobs/files");
+    expect(fetchMock).toHaveBeenCalledWith("https://jobsglobalscraper.ddns.net/api/jobs/files", { credentials: "include" });
   });
 
   it("filtra entradas invalidas ao listar arquivos", async () => {
@@ -68,7 +68,7 @@ describe("jobsService", () => {
     const response = await fetchJobsByFile("vagas.xlsx");
     expect(response.total).toBe(1);
     expect(response.file).toBe("vagas.xlsx");
-    expect(fetchMock).toHaveBeenCalledWith("/api/jobs?file=vagas.xlsx");
+    expect(fetchMock).toHaveBeenCalledWith("/api/jobs?file=vagas.xlsx", { credentials: "include" });
   });
 
   it("usa endpoint sem sufixo quando fileName vazio", async () => {
@@ -81,7 +81,7 @@ describe("jobsService", () => {
     );
 
     await fetchJobsByFile("");
-    expect(fetch).toHaveBeenCalledWith("/api/jobs");
+    expect(fetch).toHaveBeenCalledWith("/api/jobs", { credentials: "include" });
   });
 
   it("normaliza payload invalido ao buscar jobs", async () => {
@@ -92,7 +92,7 @@ describe("jobsService", () => {
 
     const response = await fetchJobsByFile("vagas com espaco.xlsx");
     expect(response).toEqual({ jobs: [], file: "", modifiedAt: null, total: 0 });
-    expect(fetch).toHaveBeenCalledWith("/api/jobs?file=vagas%20com%20espaco.xlsx");
+    expect(fetch).toHaveBeenCalledWith("/api/jobs?file=vagas%20com%20espaco.xlsx", { credentials: "include" });
   });
 
   it("lanca erro com mensagem da API ao buscar jobs", async () => {
@@ -173,6 +173,7 @@ describe("jobsService", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ keywords: ["node", "vitest"] }),
+      credentials: "include",
     });
   });
 
