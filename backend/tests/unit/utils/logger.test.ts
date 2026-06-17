@@ -65,6 +65,22 @@ describe("logger", () => {
     vi.resetModules();
   });
 
+  it("logInfo works without ctx", async () => {
+    const spy = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const { logInfo } = await import("../../../src/logger.ts");
+    logInfo("no context");
+
+    const output = spy.mock.calls.map((c) => String(c[0])).join("");
+    const parsed = JSON.parse(output);
+
+    expect(parsed.msg).toBe("no context");
+
+    spy.mockRestore();
+  });
+
   it("defaults to info level", async () => {
     delete process.env.LOG_LEVEL;
     vi.resetModules();
