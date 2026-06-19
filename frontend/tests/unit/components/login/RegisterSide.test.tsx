@@ -62,6 +62,7 @@ describe("RegisterSide", () => {
 
   it("mostra erros obrigatórios ao submeter vazio", async () => {
     render(<RegisterSide />);
+    fireEvent.click(screen.getByRole("button", { name: /sou admin/i }));
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     expect(await screen.findByText(/campo de nome é obrigatório/i)).toBeInTheDocument();
     expect(await screen.findByText(/campo de e-mail é obrigatório/i)).toBeInTheDocument();
@@ -73,6 +74,7 @@ describe("RegisterSide", () => {
 
   it("valida CPF inválido quando preenchido", async () => {
     render(<RegisterSide />);
+    fireEvent.click(screen.getByRole("button", { name: /sou admin/i }));
     fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Usuário" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "teste@email.com" } });
     fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
@@ -87,6 +89,7 @@ describe("RegisterSide", () => {
   it("envia formulário válido sem CPF", async () => {
     mockRegister.mockResolvedValueOnce({ message: "Usuário criado" });
     render(<RegisterSide />);
+    fireEvent.click(screen.getByRole("button", { name: /sou admin/i }));
     fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
     fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
@@ -103,14 +106,38 @@ describe("RegisterSide", () => {
         cpf: "",
         level: "Júnior",
         technologies: ["React"],
+        role: "admin",
       });
     });
     expect(window.location.href).toBe("/login?registered=true");
   });
 
+  it("envia formulário válido como usuário (sem tecnologias/nível)", async () => {
+    mockRegister.mockResolvedValueOnce({ message: "Usuário criado" });
+    render(<RegisterSide />);
+    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
+    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
+    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalledWith({
+        email: "bene@teste.com",
+        password: "123456",
+        name: "Bene",
+        phone: "+5534999999999",
+        cpf: "",
+        level: undefined,
+        technologies: undefined,
+        role: "user"
+      });
+    });
+  });
+
   it("exibe erro da API", async () => {
     mockRegister.mockRejectedValueOnce(new Error("Email já cadastrado"));
     render(<RegisterSide />);
+    fireEvent.click(screen.getByRole("button", { name: /sou admin/i }));
     fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
     fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
@@ -124,6 +151,7 @@ describe("RegisterSide", () => {
   it("mostra loading durante requisição", async () => {
     mockRegister.mockImplementation(() => new Promise(() => {}));
     render(<RegisterSide />);
+    fireEvent.click(screen.getByRole("button", { name: /sou admin/i }));
     fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
     fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
@@ -146,6 +174,7 @@ describe("RegisterSide", () => {
   it("desabilita inputs durante loading", async () => {
     mockRegister.mockImplementation(() => new Promise(() => {}));
     render(<RegisterSide />);
+    fireEvent.click(screen.getByRole("button", { name: /sou admin/i }));
     const nomeInput = screen.getByLabelText(/nome/i);
     const emailInput = screen.getByLabelText(/email/i);
     const telefoneInput = screen.getByPlaceholderText(/\(34\)/i);
