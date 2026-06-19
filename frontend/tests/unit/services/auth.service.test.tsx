@@ -253,6 +253,50 @@ describe("authService", () => {
     });
   });
 
+  describe("getGithubAuthUrl", () => {
+    it("should return Github auth URL on success", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          jsonData: { url: "https://github.com/login/oauth/authorize?state=abc" },
+        })
+      );
+
+      const url = await auth.getGithubAuthUrl();
+
+      expect(url).toBe("https://github.com/login/oauth/authorize?state=abc");
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/auth/github/url"),
+        expect.objectContaining({ credentials: "include" })
+      );
+    });
+
+    it("should throw error on failure with message", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 500,
+          jsonData: { message: "Provider unavailable" },
+        })
+      );
+
+      await expect(auth.getGithubAuthUrl()).rejects.toThrow("Provider unavailable");
+    });
+
+    it("should throw error on failure without message", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 500,
+          jsonData: {},
+        })
+      );
+
+      await expect(auth.getGithubAuthUrl()).rejects.toThrow(
+        "Falha ao obter URL de autenticacao Github."
+      );
+    });
+  });
+
   describe("getGoogleAuthUrl", () => {
     it("should return Google auth URL on success", async () => {
       fetchMock.mockResolvedValueOnce(

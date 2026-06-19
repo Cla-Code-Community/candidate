@@ -138,6 +138,20 @@ export async function getGoogleAuthUrl(): Promise<string> {
   return payload.url;
 }
 
+export async function getGithubAuthUrl(): Promise<string> {
+  const response = await fetch(buildUrl("/api/auth/github/url"), {
+    credentials: "include",
+  });
+
+  const payload = await parseResponse(response);
+
+  if (!response.ok) {
+    throw createError(payload, "Falha ao obter URL de autenticacao Github.");
+  }
+
+  return payload.url;
+}
+
 export async function getLinkedinAuthUrl(): Promise<string> {
   const response = await fetch(buildUrl("/api/auth/linkedin/url"), {
     credentials: "include",

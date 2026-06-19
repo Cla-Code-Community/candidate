@@ -3,10 +3,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockRegister = vi.fn();
+const mockGetGoogleAuthUrl = vi.fn();
+const mockGetGithubAuthUrl = vi.fn();
 const mockGetLinkedinAuthUrl = vi.fn();
 
 vi.mock("@/services/authService", () => ({
   register: (...args: any[]) => mockRegister(...args),
+  getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
+  getGithubAuthUrl: (...args: any[]) => mockGetGithubAuthUrl(...args),
   getLinkedinAuthUrl: (...args: any[]) => mockGetLinkedinAuthUrl(...args),
 }));
 
@@ -40,6 +44,8 @@ describe("RegisterSide", () => {
 
   beforeEach(() => {
     mockRegister.mockReset();
+    mockGetGoogleAuthUrl.mockReset();
+    mockGetGithubAuthUrl.mockReset();
     mockGetLinkedinAuthUrl.mockReset();
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -151,6 +157,37 @@ describe("RegisterSide", () => {
       expect(telefoneInput).toBeDisabled();
       expect(passwordInput).toBeDisabled();
     });
+  });
+
+  it("redireciona para GitHub OAuth ao clicar no botao GitHub", async () => {
+    mockGetGithubAuthUrl.mockResolvedValueOnce(
+      "https://github.com/login/oauth/authorize?state=abc"
+    );
+
+    render(<RegisterSide />);
+
+    const buttons = screen.getAllByRole("button");
+    const githubButton = buttons.find(btn => btn.querySelector('svg.fill-gray-900'));
+    fireEvent.click(githubButton!);
+
+    await waitFor(() => {
+      expect(mockGetGithubAuthUrl).toHaveBeenCalled();
+      expect(window.location.href).toBe(
+        "https://github.com/login/oauth/authorize?state=abc"
+      );
+    });
+  });
+
+  it("exibe erro quando GitHub OAuth falha", async () => {
+    mockGetGithubAuthUrl.mockRejectedValueOnce(new Error("Github indisponível"));
+
+    render(<RegisterSide />);
+
+    const buttons = screen.getAllByRole("button");
+    const githubButton = buttons.find(btn => btn.querySelector('svg.fill-gray-900'));
+    fireEvent.click(githubButton!);
+
+    expect(await screen.findByText(/Github indisponível/i)).toBeInTheDocument();
   });
 
   it("redireciona para LinkedIn OAuth ao clicar no botao LinkedIn", async () => {

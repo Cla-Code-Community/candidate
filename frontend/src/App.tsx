@@ -16,6 +16,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function PublicRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return <Loading />;
+  if (user) return <Navigate to="/app" replace />;
+  return <>{children}</>;
+}
+
 function App() {
   const [appCarregando, setAppCarregando] = useState(true);
 
@@ -42,8 +49,8 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+      <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

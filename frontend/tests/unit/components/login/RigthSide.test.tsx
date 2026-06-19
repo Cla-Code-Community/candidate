@@ -4,10 +4,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockLogin = vi.fn();
+const mockGetGoogleAuthUrl = vi.fn();
+const mockGetGithubAuthUrl = vi.fn();
 const mockGetLinkedinAuthUrl = vi.fn();
 
 vi.mock("@/services/authService", () => ({
   login: (...args: any[]) => mockLogin(...args),
+  getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
+  getGithubAuthUrl: (...args: any[]) => mockGetGithubAuthUrl(...args),
   getLinkedinAuthUrl: (...args: any[]) => mockGetLinkedinAuthUrl(...args),
 }));
 
@@ -33,6 +37,8 @@ describe("RigthSide", () => {
 
   beforeEach(() => {
     mockLogin.mockReset();
+    mockGetGoogleAuthUrl.mockReset();
+    mockGetGithubAuthUrl.mockReset();
     mockGetLinkedinAuthUrl.mockReset();
     Object.defineProperty(window, "location", {
       configurable: true,
@@ -159,6 +165,37 @@ describe("RigthSide", () => {
   it("botão de esqueceu a senha está presente", () => {
     render(<RigthSide />);
     expect(screen.getByText(/esqueceu a senha/i)).toBeInTheDocument();
+  });
+
+  it("redireciona para GitHub OAuth ao clicar no botao GitHub", async () => {
+    mockGetGithubAuthUrl.mockResolvedValueOnce(
+      "https://github.com/login/oauth/authorize?state=abc"
+    );
+
+    render(<RigthSide />);
+
+    const buttons = screen.getAllByRole("button");
+    const githubButton = buttons.find(btn => btn.querySelector('svg.fill-gray-900'));
+    fireEvent.click(githubButton!);
+
+    await waitFor(() => {
+      expect(mockGetGithubAuthUrl).toHaveBeenCalled();
+      expect(window.location.href).toBe(
+        "https://github.com/login/oauth/authorize?state=abc"
+      );
+    });
+  });
+
+  it("exibe erro quando GitHub OAuth falha", async () => {
+    mockGetGithubAuthUrl.mockRejectedValueOnce(new Error("Github indisponível"));
+
+    render(<RigthSide />);
+
+    const buttons = screen.getAllByRole("button");
+    const githubButton = buttons.find(btn => btn.querySelector('svg.fill-gray-900'));
+    fireEvent.click(githubButton!);
+
+    expect(await screen.findByText(/Github indisponível/i)).toBeInTheDocument();
   });
 
   it("redireciona para LinkedIn OAuth ao clicar no botao LinkedIn", async () => {
