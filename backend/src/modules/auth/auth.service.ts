@@ -35,6 +35,10 @@ export class AuthService {
       callbackUrl,
     });
 
+    if (!profile.email) {
+      throw new Error("oauth_email_required");
+    }
+
     const user = await findOrCreateUser({
       provider,
       profile,

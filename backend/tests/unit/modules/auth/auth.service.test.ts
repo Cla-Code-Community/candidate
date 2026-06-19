@@ -16,6 +16,10 @@ vi.mock("../../../../src/modules/auth/providers/auth.provider", () => ({
       getAuthUrl: mocks.getAuthUrl,
       exchangeCode: mocks.exchangeCode,
     },
+    linkedin: {
+      getAuthUrl: mocks.getAuthUrl,
+      exchangeCode: mocks.exchangeCode,
+    },
   },
 }));
 
@@ -130,6 +134,19 @@ describe("AuthService", () => {
       await expect(service.handleCallback(validCallbackParams)).rejects.toThrow(
         "db error",
       );
+    });
+
+    it("throws when profile has no email", async () => {
+      mocks.exchangeCode.mockResolvedValueOnce({
+        ...mockProfile,
+        email: undefined,
+      });
+
+      await expect(service.handleCallback(validCallbackParams)).rejects.toThrow(
+        "oauth_email_required",
+      );
+
+      expect(mocks.findOrCreateUser).not.toHaveBeenCalled();
     });
 
     it("calls findOrCreateUser with provider and profile", async () => {

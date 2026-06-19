@@ -3,7 +3,7 @@ import {
   buildAuthorizationUrl,
   discovery,
 } from "openid-client";
-import { OAuthProfile } from "../../types/auth.types";
+import { ExchangeCodeParams, OAuthProfile } from "../../types/auth.types";
 
 let _config: Awaited<ReturnType<typeof discovery>> | null = null;
 
@@ -32,20 +32,18 @@ export async function getLinkedinAuthUrl(state: string): Promise<string> {
 }
 
 export async function exchangeLinkedinCode({
-  code,
+  callbackUrl,
   state,
-}: {
-  code: string;
-  state?: string;
-}): Promise<OAuthProfile> {
+}: ExchangeCodeParams): Promise<OAuthProfile> {
   const config = await getConfig();
 
-  const tokens = await authorizationCodeGrant(
-    config,
-    new URL(
-      `${process.env.APP_URL}/auth/linkedin/callback?code=${code}&state=${state}`,
-    ),
-  );
+  if (!state) {
+    throw new Error("State ausente");
+  }
+
+  const tokens = await authorizationCodeGrant(config, new URL(callbackUrl), {
+    expectedState: state,
+  });
 
   const claims = tokens.claims();
 

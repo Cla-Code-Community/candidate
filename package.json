@@ -25,9 +25,9 @@
     "electron": "electron .",
     "electron:dev": "npm run build:frontend && electron .",
     "dist": "npm run build:frontend && electron-builder",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push"
+    "db:generate": "npm run db:generate --workspace=backend",
+    "db:migrate": "npm run db:migrate --workspace=backend",
+    "db:push": "npm run db:push --workspace=backend"
   },
   "dependencies": {
     "@vitest/coverage-v8": "4.1.8",

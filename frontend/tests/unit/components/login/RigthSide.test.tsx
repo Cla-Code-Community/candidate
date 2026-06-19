@@ -4,9 +4,11 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockLogin = vi.fn();
+const mockGetLinkedinAuthUrl = vi.fn();
 
 vi.mock("@/services/authService", () => ({
   login: (...args: any[]) => mockLogin(...args),
+  getLinkedinAuthUrl: (...args: any[]) => mockGetLinkedinAuthUrl(...args),
 }));
 
 vi.mock("@unpic/react", () => ({
@@ -31,6 +33,7 @@ describe("RigthSide", () => {
 
   beforeEach(() => {
     mockLogin.mockReset();
+    mockGetLinkedinAuthUrl.mockReset();
     Object.defineProperty(window, "location", {
       configurable: true,
       value: { href: "" },
@@ -156,5 +159,23 @@ describe("RigthSide", () => {
   it("botão de esqueceu a senha está presente", () => {
     render(<RigthSide />);
     expect(screen.getByText(/esqueceu a senha/i)).toBeInTheDocument();
+  });
+
+  it("redireciona para LinkedIn OAuth ao clicar no botao LinkedIn", async () => {
+    mockGetLinkedinAuthUrl.mockResolvedValueOnce(
+      "https://www.linkedin.com/oauth/v2/authorization?state=abc"
+    );
+
+    render(<RigthSide />);
+
+    const linkedinButton = screen.getByRole("button", { name: /linkedin/i });
+    fireEvent.click(linkedinButton);
+
+    await waitFor(() => {
+      expect(mockGetLinkedinAuthUrl).toHaveBeenCalled();
+      expect(window.location.href).toBe(
+        "https://www.linkedin.com/oauth/v2/authorization?state=abc"
+      );
+    });
   });
 });

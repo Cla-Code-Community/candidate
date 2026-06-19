@@ -50,16 +50,22 @@ Rode os comandos de verificacao da tabela acima. Se algum falhar, informe e pare
 
 ### Passo 3: Verificar commits
 
+> **Importante:** Este projeto usa um modelo de fork. O remote `origin` aponta para o fork do
+> desenvolvedor (ex: `jeremiassnts/Jobs_Scraper_Global`) e o remote `upstream` aponta para o
+> repositorio principal (`Benevanio/Jobs_Scraper_Global`). O PR sempre deve ser criado do fork
+> (origin) para o upstream, usando a flag `--head` do `gh pr create`.
+
 1. Buscar os commits da branch que estao a frente de develop:
    ```bash
-   git fetch origin develop
-   git log origin/develop..HEAD --oneline
+   git fetch upstream develop
+   git log upstream/develop..HEAD --oneline
    ```
 2. **Se nao houver commits a frente de develop:**
    - Informar: "Esta branch nao tem commits a frente de develop. Nao ha mudancas para abrir PR."
    - Parar a execucao
 3. **Se ja existir um PR aberto para essa branch:**
-   - Verificar com: `gh pr list --head $(git branch --show-current) --repo Benevanio/Jobs_Scraper_Global --state open`
+   - Detectar o owner do fork: `gh repo view --json owner -q .owner.login` (rodado no diretorio do projeto, que aponta para origin)
+   - Verificar com: `gh pr list --head <owner-do-fork>:$(git branch --show-current) --repo Benevanio/Jobs_Scraper_Global --state open`
    - Se existir, informar ao usuario e perguntar se quer atualizar o PR existente ou parar
 
 ### Passo 4: Rodar testes
@@ -81,11 +87,11 @@ Rode os comandos de verificacao da tabela acima. Se algum falhar, informe e pare
 
 1. Obter o diff completo contra develop:
    ```bash
-   git diff origin/develop..HEAD
+   git diff upstream/develop..HEAD
    ```
 2. Obter a lista de commits:
    ```bash
-   git log origin/develop..HEAD --oneline
+   git log upstream/develop..HEAD --oneline
    ```
 3. Gerar um **resumo curto em linguagem natural** das mudancas:
    - Foco no que foi desenvolvido
@@ -130,22 +136,31 @@ Mostrar tudo formatado e perguntar: **"O PR esta correto? Confirma a criacao? (s
 
 ### Passo 8: Criar o PR
 
-1. Verificar se a branch foi enviada ao remote:
+> **Modelo de fork:** O PR e criado do fork (origin) para o upstream (Benevanio/Jobs_Scraper_Global).
+> E necessario usar `--head <owner-do-fork>:<branch>` para que o GitHub identifique corretamente
+> a branch de origem no fork.
+
+1. Verificar se a branch foi enviada ao remote (origin = fork):
    ```bash
    git ls-remote --heads origin $(git branch --show-current)
    ```
    - **Se a branch nao existe no remote:** perguntar ao usuario: "A branch ainda nao foi enviada ao remote. Deseja fazer push agora? (s/n)"
    - Se confirmar, rodar: `git push -u origin $(git branch --show-current)`
    - Se negar, parar a execucao
-2. Criar o PR via GitHub CLI:
+2. Detectar o owner do fork:
+   ```bash
+   FORK_OWNER=$(gh repo view --json owner -q .owner.login)
+   ```
+3. Criar o PR via GitHub CLI:
    ```bash
    gh pr create \
      --repo Benevanio/Jobs_Scraper_Global \
      --base develop \
+     --head "$FORK_OWNER:$(git branch --show-current)" \
      --title "PAV-XX: <titulo>" \
      --body "<body completo>"
    ```
-3. Confirmar ao usuario com o link do PR criado
+4. Confirmar ao usuario com o link do PR criado
 
 ## Erros comuns
 
@@ -153,4 +168,5 @@ Mostrar tudo formatado e perguntar: **"O PR esta correto? Confirma a criacao? (s
 - **Nao confirmar a task com o usuario** — sempre perguntar, mesmo que a branch seja sugestiva
 - **Criar PR sem preview** — sempre mostrar preview e aguardar confirmacao
 - **Bloquear por causa de testes falhando** — mostrar as falhas, mas deixar o usuario decidir
-- **Esquecer de buscar origin/develop atualizado** — sempre rodar `git fetch origin develop` antes de comparar
+- **Esquecer de buscar upstream/develop atualizado** — sempre rodar `git fetch upstream develop` antes de comparar
+- **Nao usar --head no gh pr create** — como o projeto usa fork, e obrigatorio passar `--head <owner-do-fork>:<branch>` para o PR ser criado corretamente

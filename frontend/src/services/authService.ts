@@ -141,3 +141,17 @@ export async function getGoogleAuthUrl(): Promise<string> {
 
   return payload.url;
 }
+
+export async function getLinkedinAuthUrl(): Promise<string> {
+  const response = await fetch(buildUrl("/api/auth/linkedin/url"), {
+    credentials: "include",
+  });
+
+  const payload = await parseResponse(response);
+
+  if (!response.ok) {
+    throw createError(payload, "Falha ao obter URL de autenticacao LinkedIn.");
+  }
+
+  return payload.url;
+}

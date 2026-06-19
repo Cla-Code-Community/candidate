@@ -282,6 +282,33 @@ describe("Integration - Auth Routes", () => {
 
       expect(res.headers.location).toContain("/login?error=oauth_failed");
     });
+
+    it("redireciona ao frontend em callback valido para linkedin", async () => {
+      const res = await request(app)
+        .get(`${BASE}/linkedin/callback?code=li-code-123&state=valid-state-abc123`)
+        .expect(302);
+
+      expect(res.headers.location).toContain("/auth/callback");
+      expect(mockAuthService.handleCallback).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "linkedin",
+          code: "li-code-123",
+          state: "valid-state-abc123",
+        }),
+      );
+    });
+
+    it("redireciona com erro quando profile nao tem email", async () => {
+      mockAuthService.handleCallback.mockRejectedValueOnce(
+        new Error("oauth_email_required"),
+      );
+
+      const res = await request(app)
+        .get(`${BASE}/linkedin/callback?code=abc123&state=valid-state-abc123`)
+        .expect(302);
+
+      expect(res.headers.location).toContain("/login?error=oauth_failed");
+    });
   });
 
   // ── POST /register ────────────────────────────────────────────────────────

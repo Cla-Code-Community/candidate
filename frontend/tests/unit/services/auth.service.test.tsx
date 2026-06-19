@@ -296,4 +296,48 @@ describe("authService", () => {
       );
     });
   });
+
+  describe("getLinkedinAuthUrl", () => {
+    it("should return LinkedIn auth URL on success", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          jsonData: { url: "https://www.linkedin.com/oauth/v2/authorization?state=abc" },
+        })
+      );
+
+      const url = await auth.getLinkedinAuthUrl();
+
+      expect(url).toBe("https://www.linkedin.com/oauth/v2/authorization?state=abc");
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/api/auth/linkedin/url"),
+        expect.objectContaining({ credentials: "include" })
+      );
+    });
+
+    it("should throw error on failure with message", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 500,
+          jsonData: { message: "Provider unavailable" },
+        })
+      );
+
+      await expect(auth.getLinkedinAuthUrl()).rejects.toThrow("Provider unavailable");
+    });
+
+    it("should throw error on failure without message", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 500,
+          jsonData: {},
+        })
+      );
+
+      await expect(auth.getLinkedinAuthUrl()).rejects.toThrow(
+        "Falha ao obter URL de autenticacao LinkedIn."
+      );
+    });
+  });
 });
