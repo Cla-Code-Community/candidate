@@ -1,0 +1,111 @@
+{
+  "title": "Business",
+  "uid": "business-overview",
+  "tags": ["jsg", "business"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Buscas realizadas (últimas 24h)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(job_searches_total[24h]))"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Vagas coletadas (últimas 24h)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(scraper_jobs_found_total[24h]))"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Cache hit rate (24h)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percentunit" } },
+      "targets": [
+        {
+          "expr": "sum(increase(cache_operations_total{result=\"hit\"}[24h])) / sum(increase(cache_operations_total[24h]))"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Usuários cadastrados (total no Postgres)",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "pg_stat_user_tables_n_live_tup{relname=\"users\"}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Buscas por dia",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(job_searches_total[1d]))",
+          "legendFormat": "buscas/dia"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Vagas coletadas por dia, por adapter",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(scraper_jobs_found_total[1d])) by (adapter)",
+          "legendFormat": "{{adapter}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Buscas com vs sem keyword",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(increase(job_searches_total[7d])) by (has_keywords)",
+          "legendFormat": "keywords={{has_keywords}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Vagas salvas (savedJobs) - total no Postgres",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "pg_stat_user_tables_n_live_tup{relname=\"saved_jobs\"}"
+        }
+      ]
+    }
+  ]
+}

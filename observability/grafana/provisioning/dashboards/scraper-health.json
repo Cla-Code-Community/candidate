@@ -1,0 +1,91 @@
+{
+  "title": "Scraper Health",
+  "uid": "scraper-health",
+  "tags": ["jsg", "scraper"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Execuções por adapter",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(scraper_runs_total[5m])) by (adapter)",
+          "legendFormat": "{{adapter}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Duração média por adapter",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "rate(scraper_duration_seconds_sum[10m]) / rate(scraper_duration_seconds_count[10m])",
+          "legendFormat": "{{adapter}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Vagas encontradas (total acumulado)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "scraper_jobs_found_total",
+          "legendFormat": "{{adapter}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Erros por adapter",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "increase(scraper_errors_total[5m])",
+          "legendFormat": "{{adapter}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Duração do pipeline completo",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "rate(scraper_pipeline_duration_seconds_sum[15m]) / rate(scraper_pipeline_duration_seconds_count[15m])",
+          "legendFormat": "duração média"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Vagas por rodada (após dedup)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "rate(scraper_pipeline_jobs_total_sum[15m]) / rate(scraper_pipeline_jobs_total_count[15m])",
+          "legendFormat": "vagas/rodada"
+        }
+      ]
+    }
+  ]
+}

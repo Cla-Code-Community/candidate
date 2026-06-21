@@ -1,0 +1,32 @@
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: true
+      templates:
+        - condition:
+            contains:
+              docker.container.labels.com_docker_compose_service: "backend"
+          config:
+            - type: container
+              paths:
+                - "/var/lib/docker/containers/${data.docker.container.id}/*.log"
+              json.keys_under_root: true
+              json.add_error_key: true
+        - condition:
+            contains:
+              docker.container.labels.com_docker_compose_service: "scraper-go"
+          config:
+            - type: container
+              paths:
+                - "/var/lib/docker/containers/${data.docker.container.id}/*.log"
+              json.keys_under_root: true
+              json.add_error_key: true
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "jsg-logs-%{+yyyy.MM.dd}"
+
+setup.template.name: "jsg-logs"
+setup.template.pattern: "jsg-logs-*"
+setup.kibana:
+  host: "kibana:5601"

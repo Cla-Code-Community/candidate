@@ -11,7 +11,9 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/adapters"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/dedup"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/models"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -22,7 +24,74 @@ type result struct {
 	err  error
 }
 
+// func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeRequest) []models.Job {
+// 	maxConcurrency := req.MaxConcurrency
+// 	if maxConcurrency <= 0 {
+// 		maxConcurrency = defaultMaxConcurrency
+// 	}
+
+// 	type task struct {
+// 		adapter adapters.Adapter
+// 		keyword string
+// 	}
+
+// 	tasks := make([]task, 0, len(adapterList)*len(req.Keywords))
+// 	for _, a := range adapterList {
+// 		for _, kw := range req.Keywords {
+// 			tasks = append(tasks, task{adapter: a, keyword: kw})
+// 		}
+// 	}
+
+// 	sem := make(chan struct{}, maxConcurrency)
+// 	results := make(chan result, len(tasks))
+// 	var wg sync.WaitGroup
+
+// 	for _, t := range tasks {
+// 		wg.Add(1)
+// 		sem <- struct{}{}
+
+// 		go func(t task) {
+// 			defer wg.Done()
+// 			defer func() { <-sem }()
+
+// 			jobs, err := t.adapter.Search(ctx, t.keyword, req)
+// 			results <- result{jobs: jobs, err: err}
+
+// 			if err != nil {
+// 				slog.Warn("adapter falhou",
+// 					"source", t.adapter.SourceName(),
+// 					"keyword", t.keyword,
+// 					"error", err,
+// 				)
+// 				return
+// 			}
+
+// 			slog.Info("adapter concluído",
+// 				"source", t.adapter.SourceName(),
+// 				"keyword", t.keyword,
+// 				"count", len(jobs),
+// 			)
+// 		}(t)
+// 	}
+
+// 	go func() {
+// 		wg.Wait()
+// 		close(results)
+// 	}()
+
+// 	var allJobs []models.Job
+// 	for r := range results {
+// 		if r.err == nil {
+// 			allJobs = append(allJobs, r.jobs...)
+// 		}
+// 	}
+
+// 	return dedup.DedupeJobs(allJobs)
+// }
+
 func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeRequest) []models.Job {
+	pipelineStart := time.Now()
+
 	maxConcurrency := req.MaxConcurrency
 	if maxConcurrency <= 0 {
 		maxConcurrency = defaultMaxConcurrency
@@ -52,20 +121,30 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 			defer wg.Done()
 			defer func() { <-sem }()
 
+			source := t.adapter.SourceName()
+
+			timer := prometheus.NewTimer(metrics.ScrapeDurationSeconds.WithLabelValues(source))
 			jobs, err := t.adapter.Search(ctx, t.keyword, req)
+			timer.ObserveDuration()
+
+			metrics.ScrapeRunsTotal.WithLabelValues(source).Inc()
+
 			results <- result{jobs: jobs, err: err}
 
 			if err != nil {
+				metrics.ScrapeErrorsTotal.WithLabelValues(source).Inc()
 				slog.Warn("adapter falhou",
-					"source", t.adapter.SourceName(),
+					"source", source,
 					"keyword", t.keyword,
 					"error", err,
 				)
 				return
 			}
 
+			metrics.JobsFoundTotal.WithLabelValues(source).Add(float64(len(jobs)))
+
 			slog.Info("adapter concluído",
-				"source", t.adapter.SourceName(),
+				"source", source,
 				"keyword", t.keyword,
 				"count", len(jobs),
 			)
@@ -84,7 +163,12 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 		}
 	}
 
-	return dedup.DedupeJobs(allJobs)
+	deduped := dedup.DedupeJobs(allJobs)
+
+	metrics.PipelineRunDuration.Observe(time.Since(pipelineStart).Seconds())
+	metrics.PipelineJobsTotal.Observe(float64(len(deduped)))
+
+	return deduped
 }
 
 func IndexJobsInValkey(ctx context.Context, rdb *redis.Client, jobs []models.Job, keywords []string) {

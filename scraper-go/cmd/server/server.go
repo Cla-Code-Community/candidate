@@ -15,6 +15,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -55,6 +56,7 @@ func run(adapterList []adapters.Adapter) {
 	// Públicas
 	mux.Handle("POST /scrape", handleScrape(adapterList, kwStore, c, rdb))
 	mux.Handle("GET /health", handleHealth(c))
+	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("GET /api/keywords", handleGetKeywords(kwStore))
 	mux.Handle("POST /api/keywords", handleSaveKeywords(kwStore))
 
