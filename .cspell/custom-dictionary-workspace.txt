@@ -43,6 +43,9 @@ ajustar
 AKVGSK
 aleatório
 além
+alerta
+alertas
+Alertas
 alertmanager
 alfanuméricos
 algumas
@@ -55,14 +58,18 @@ alinhados
 alinhar
 Altamente
 alternativa
+alternativo
 alvo
 ambas
 ambiente
+ambientes
 amigáveis
 amigável
+amostra
 amplas
 andamento
 andybalholm
+anexar
 Ângela
 angelacao
 Anotações
@@ -74,6 +81,7 @@ apareça
 aparece
 aparecem
 aparecer
+aparecerem
 apertado
 apic
 aplica
@@ -81,6 +89,7 @@ aplicado
 aplicam
 aplicar
 aplicável
+apontando
 aponte
 aproveitar
 aproximação
@@ -88,6 +97,7 @@ aquela
 argumento
 armazenadas
 Arquitetura
+artefatos
 asar
 assíncrona
 assíncrono
@@ -98,6 +108,7 @@ atenção
 atingido
 ativa
 ativadas
+ativado
 ativas
 ativos
 atômica
@@ -111,6 +122,7 @@ atualmente
 aumentamos
 Aumentei
 autentica
+automática
 automaticamente
 automático
 autorizadas
@@ -130,6 +142,7 @@ bater
 benetesla
 Benevanio
 beorn
+Biblioteca
 binário
 blockdaemon
 bloco
@@ -160,6 +173,7 @@ cancelado
 cancelamento
 candidatura
 canva
+capacidade
 captura
 capturados
 capturar
@@ -208,13 +222,17 @@ colaterais
 coleções
 coleta
 coletadas
+coletando
+coletar
 colidem
 coloca
 colunas
 comandos
 combinações
 começa
+comentados
 commitar
+compactação
 compartilhado
 compilador
 complementar
@@ -223,6 +241,7 @@ completamente
 complexa
 complexas
 Componentes
+Compor
 comportamentos
 composta
 compostas
@@ -241,6 +260,7 @@ confere
 configuradas
 configurado
 configurados
+Configurar
 conflita
 conflitam
 conflito
@@ -258,12 +278,14 @@ consumidas
 consumidos
 contador
 contagem
+contagens
 contém
 contêm
 contenham
 contentful
 conteúdo
 continuam
+continuar
 controla
 Controle
 Controles
@@ -299,6 +321,7 @@ daqui
 datname
 davecgh
 debuglib
+declarado
 dedupe
 deduplica
 deduplicação
@@ -311,6 +334,7 @@ definidos
 Definimos
 defval
 deixa
+deixe
 dela
 deleção
 delega
@@ -318,6 +342,7 @@ deleta
 deliveryoo
 demais
 departamento
+depende
 dependendo
 depender
 depois
@@ -333,6 +358,7 @@ descrevendo
 deserializar
 desfaz
 desligando
+destino
 destroi
 destruir
 detalhada
@@ -384,6 +410,7 @@ eficiência
 elas
 Elementos
 eles
+elevada
 embutida
 emite
 emitterc
@@ -402,6 +429,7 @@ enfileiradas
 enfileirado
 enfileirar
 Engenheiro
+engenheiros
 enriquece
 enriquecer
 enriquecimento
@@ -419,6 +447,7 @@ equivalente
 ernstandyoung
 ernstyouth
 errado
+Escalabilidade
 escopo
 escreve
 esgotada
@@ -446,6 +475,7 @@ estático
 estavam
 estáveis
 estável
+estender
 estendido
 estilo
 estiverem
@@ -472,11 +502,13 @@ executar
 exemplos
 exige
 exigem
+exigências
 existam
 existem
 existente
 existentes
 existirem
+Expandir
 expectativa
 Expira
 expiração
@@ -494,7 +526,9 @@ exporta
 exportacao
 exportadas
 Exportado
+Exposição
 expostos
+externa
 externamente
 externas
 externo
@@ -505,6 +539,7 @@ falhas
 falhe
 falhou
 falsos
+falta
 fazem
 feitas
 ferramentas
@@ -556,11 +591,14 @@ golangci
 goldmark
 gopkg
 goquery
+grandes
 Grava
 gravar
 greehouse
 groot
+guia
 habilitado
+habilitar
 hashedpassword
 hintrc
 hoje
@@ -598,6 +636,7 @@ importador
 Importando
 importante
 importantes
+Importar
 incluem
 inclui
 incompleto
@@ -627,6 +666,7 @@ inflar
 informada
 informado
 Infraestrutura
+ingestão
 Inicia
 iniciado
 Inicializa
@@ -642,8 +682,11 @@ insere
 inspecionam
 instacart
 Instancia
+instância
 instanciado
 instâncias
+instruções
+Instrumentação
 intacto
 integra
 integração
@@ -669,6 +712,7 @@ Intervalo
 Inválida
 invalidação
 invalidar
+inventário
 invertido
 invertidos
 invés
@@ -717,6 +761,7 @@ loadlib
 localiza
 Localização
 localizado
+localmente
 loga
 logar
 longa
@@ -733,8 +778,11 @@ mantém
 Mantemos
 mantendo
 manter
+mantido
 manualmente
 Mapeando
+mapear
+Mapear
 mapeia
 marca
 marcado
@@ -780,6 +828,7 @@ momento
 momentos
 mondelezinternational
 Monitorar
+montá
 montar
 Mostrando
 motivo
@@ -789,6 +838,7 @@ múltiplas
 múltiplos
 Mvgo
 myuser
+negócio
 Nenhum
 nerdwallet
 nessa
@@ -799,6 +849,7 @@ nodetype
 noemail
 noite
 nolint
+nomeado
 nomes
 normaliza
 normalizada
@@ -815,11 +866,13 @@ nulos
 numbackends
 números
 nunca
+objetivo
 obrigatória
 obrigatório
 observabilidade
 Observação
 Observações
+observáveis
 obtém
 obter
 omitido
@@ -830,7 +883,10 @@ Opcional
 opções
 operação
 operacionais
+operacional
+operacionalmente
 operações
+optar
 ordem
 Orfaos
 órfãos
@@ -894,6 +950,7 @@ persistir
 pesquisa
 pesquisadas
 piechart
+planejar
 planetscale
 pmezard
 pôde
@@ -901,12 +958,16 @@ poderem
 poderia
 poderosa
 pois
+políticas
 ponteiro
 ponto
 Pontos
 populada
 populado
+porém
 porque
+portas
+posições
 positivos
 possível
 possivelmente
@@ -925,6 +986,7 @@ preenchido
 preenchidos
 Prefere
 Preferências
+preferido
 prefixo
 Prefixo
 prefs
@@ -940,6 +1002,7 @@ primeiro
 principais
 printou
 Prioridade
+privilegia
 PROBLEMA
 processa
 Processadas
@@ -960,6 +1023,7 @@ propagar
 propriedades
 próprios
 proteção
+provisionados
 próximas
 próximo
 Próximos
@@ -994,12 +1058,15 @@ receber
 recente
 recoloca
 Recomenda
+Recomendações
 recomendado
+recomendados
 reconecta
 recorre
 recupera
 recuperado
 recuperar
+recursos
 reduzir
 Reescrever
 refatorado
@@ -1009,6 +1076,8 @@ registro
 registros
 regras
 reindexação
+reiniciar
+Reiniciar
 rejeição
 rejeita
 rejeitar
@@ -1019,6 +1088,7 @@ RELATÓRIO
 relevantes
 relname
 remotas
+remova
 removendo
 removida
 removidas
@@ -1034,14 +1104,17 @@ respeita
 respeitando
 respeitar
 respiro
+responde
 Responsável
 respostas
 restantes
 Restaura
+restringir
 restritivo
 Resultado
 resultados
 RESUMO
+retenção
 retomar
 retornadas
 retornado
@@ -1076,6 +1149,7 @@ scrapa
 secreta
 secreto
 Seguem
+seguindo
 seguinte
 segunda
 segundos
@@ -1146,6 +1220,7 @@ subfunções
 subir
 substitui
 substituir
+suficiente
 sufixo
 sugeridos
 sujar
@@ -1161,6 +1236,7 @@ Tabelas
 tablelib
 talvez
 tarefas
+técnica
 temos
 temporária
 temporariamente
@@ -1242,6 +1318,7 @@ válidos
 valkey
 Valkey
 vamos
+variam
 variar
 várias
 variável
@@ -1254,7 +1331,10 @@ vectorset
 veem
 vercel
 verdade
+Verificações
 verificamos
+versionada
+versionado
 versões
 vezes
 viagem

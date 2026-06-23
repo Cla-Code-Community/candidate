@@ -165,9 +165,10 @@ services:
     image: grafana/promtail:3.0.0
     container_name: vagas-promtail
     volumes:
+      - ./observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - promtail_config:/etc/promtail
+      - promtail_config:/etc/promtail/state
     networks:
       - vagas-net
     depends_on:
