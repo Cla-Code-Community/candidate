@@ -23,7 +23,7 @@ const steps = [
   {
     number: "PASSO 03",
     title: "Receba e candidate-se",
-    description: "Visualize as vagas filtradas no dashboard, exporte relatórios e candidate-se com confiança.",
+    description: "Visualize as vagas filtradas, exporte relatórios e candidate-se com confiança.",
     icon: Rocket,
     themeClass: "text-purple-500 dark:text-purple-400",
     bgClass: "group-hover:bg-purple-500/10 group-hover:border-purple-500/30",

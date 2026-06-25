@@ -1,40 +1,21 @@
 import {
   CardDescription,
-  CardTitle,
 } from "@/shared/ui/card";
 import Logo from "@/shared/assets/logo-painel-vagas.svg";
-import { ThemeToggle } from "@/shared/ui/theme-toggle";
-import { useTheme } from "@/shared/hooks/useTheme";
 
 export function JobsHeaderCard() {
-  const { resolvedTheme, toggleTheme } = useTheme();
-
   return (
-    <div className="w-screen bg-[#004726] dark:bg-[#003318] p-6 -mx-4 md:-mx-8 flex flex-col gap-4 md:flex-row md:items-end">
-      <div className="flex items-start justify-between w-full md:w-auto">
-        <CardTitle className="text-3xl text-white">
-          <img src={Logo} alt="Painel de Vagas" className="w-16 md:w-auto" />
-        </CardTitle>
-
-        <div className="md:hidden">
-          <ThemeToggle
-            theme={resolvedTheme}
-            onToggle={toggleTheme}
-          />
+    <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4 shadow-sm md:flex-row md:items-center md:justify-between md:p-5">
+      <div className="flex items-center gap-4">
+        <div className="shrink-0">
+          <img src={Logo} alt="Painel de Vagas" className="h-14 w-14 object-contain" />
         </div>
-      </div>
-
-      <CardDescription className="text-white text-sm md:text-base">
-        Leitura automática dos arquivos
-        <br />
-        XLSX gerados em output.
-      </CardDescription>
-
-      <div className="hidden md:block ml-auto self-start mr-8">
-        <ThemeToggle
-          theme={resolvedTheme}
-          onToggle={toggleTheme}
-        />
+        <div>
+          <h2 className="text-xl font-semibold text-foreground md:text-2xl">Painel de Vagas</h2>
+          <CardDescription className="text-sm text-muted-foreground md:text-base">
+            Leitura automática dos arquivos XLSX gerados em output.
+          </CardDescription>
+        </div>
       </div>
     </div>
   );

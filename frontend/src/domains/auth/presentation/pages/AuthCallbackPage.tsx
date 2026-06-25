@@ -19,7 +19,7 @@ export default function AuthCallback() {
     if (isLoading || !hasRefreshed.current) return;
 
     if (user) {
-      navigate("/app", { replace: true });
+      navigate("/home", { replace: true });
     } else {
       navigate("/login?error=oauth_failed", { replace: true });
     }

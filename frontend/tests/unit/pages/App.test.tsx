@@ -14,6 +14,10 @@ vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => ({ resolvedTheme: "light", toggleTheme: vi.fn() }),
 }));
 
+vi.mock("@/domains/marketing/presentation/pages/LandingPage", () => ({
+  default: () => <main>Funcionalidades</main>,
+}));
+
 vi.mock("@/domains/jobs/application/useJobsData", () => ({
   useJobsData: () => ({
     files: [{ file: "vagas.xlsx" }],

@@ -63,7 +63,7 @@ export function CTASection() {
             to="/login"
             className="group inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-95 text-white font-semibold text-base py-4 px-10 rounded-full transition-all duration-300 hover:scale-[1.02] shadow-lg shadow-blue-500/10"
           >
-            Acessar o Dashboard
+            Acessar vagas
             <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </Link>
 

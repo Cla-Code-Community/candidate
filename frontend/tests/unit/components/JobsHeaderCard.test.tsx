@@ -1,10 +1,6 @@
 import { JobsHeaderCard } from "@/domains/jobs/presentation/components/JobsHeaderCard";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-
-vi.mock("@/shared/hooks/useTheme", () => ({
-  useTheme: () => ({ resolvedTheme: "light", toggleTheme: vi.fn() }),
-}));
+import { describe, expect, it } from "vitest";
 
 describe("JobsHeaderCard", () => {
   it("renderiza logo acessível e descrição", () => {
@@ -17,13 +13,9 @@ describe("JobsHeaderCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("renderiza o botão de alternar tema", () => {
+  it("renderiza o título do painel", () => {
     render(<JobsHeaderCard />);
 
-    const buttons = screen.getAllByRole("button", {
-      name: /ativar tema escuro/i,
-    });
-
-    expect(buttons).toHaveLength(2);
+    expect(screen.getByRole("heading", { name: /painel de vagas/i })).toBeInTheDocument();
   });
 });

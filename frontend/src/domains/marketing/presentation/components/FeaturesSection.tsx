@@ -1,4 +1,4 @@
-import { Globe, Filter, Zap, Brain, Download, LayoutDashboard } from "lucide-react";
+import { Globe, Filter, Zap, Brain, Download, BriefcaseBusiness } from "lucide-react";
 import { motion, Variants } from "framer-motion";
 
 const features = [
@@ -33,9 +33,9 @@ const features = [
     colorClass: "bg-amber-50 dark:bg-amber-950/30 text-amber-500 dark:text-amber-400 group-hover:ring-amber-500/30"
   },
   {
-    title: "Dashboard Interativo",
-    description: "Visualize tendências de mercado, salários e tecnologias mais demandadas.",
-    icon: LayoutDashboard,
+    title: "Vagas organizadas",
+    description: "Visualize tendências de mercado, salários e tecnologias mais demandadas em um só lugar.",
+    icon: BriefcaseBusiness,
     colorClass: "bg-purple-50 dark:bg-purple-950/30 text-purple-500 dark:text-purple-400 group-hover:ring-purple-500/30"
   },
 ];

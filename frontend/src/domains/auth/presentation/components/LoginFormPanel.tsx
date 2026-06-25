@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-  login,
   getGoogleAuthUrl,
   getGithubAuthUrl,
   getLinkedinAuthUrl,
 } from "@/domains/auth/infrastructure/authApi";
+import { useAuth } from "@/domains/auth/application/AuthContext";
 import { Image } from "@unpic/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
@@ -55,6 +55,7 @@ function StarsBackground() {
 
 export default function RightSide() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -132,13 +133,8 @@ export default function RightSide() {
     if (isValid) {
       setIsLoading(true);
       try {
-        const result = await login({ email, password });
-
-        if (result.token) {
-          localStorage.setItem("token", result.token);
-        }
-
-        navigate("/dashboard", { replace: true });
+        await login({ email, password });
+        navigate("/home", { replace: true });
       } catch (error: any) {
         setApiError(
           error.message || "Erro ao fazer login. Verifique suas credenciais.",

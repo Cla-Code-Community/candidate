@@ -10,10 +10,15 @@ const mockGetLinkedinAuthUrl = vi.fn();
 const mockNavigate = vi.fn();
 
 vi.mock("@/domains/auth/infrastructure/authApi", () => ({
-  login: (...args: any[]) => mockLogin(...args),
   getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
   getGithubAuthUrl: (...args: any[]) => mockGetGithubAuthUrl(...args),
   getLinkedinAuthUrl: (...args: any[]) => mockGetLinkedinAuthUrl(...args),
+}));
+
+vi.mock("@/domains/auth/application/AuthContext", () => ({
+  useAuth: () => ({
+    login: (...args: any[]) => mockLogin(...args),
+  }),
 }));
 
 vi.mock("@unpic/react", () => ({
@@ -93,7 +98,7 @@ describe("RigthSide", () => {
   });
 
   it("envia formulário válido e redireciona após login", async () => {
-    mockLogin.mockResolvedValueOnce({ token: "fake-token-123", user: { id: 1, email: "teste@email.com" } });
+    mockLogin.mockResolvedValueOnce(undefined);
     render(<RigthSide />);
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "teste@email.com" } });
     fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
@@ -104,8 +109,7 @@ describe("RigthSide", () => {
         password: "123456",
       });
     });
-    expect(localStorage.getItem("token")).toBe("fake-token-123");
-    expect(mockNavigate).toHaveBeenCalledWith("/app", { replace: true });
+    expect(mockNavigate).toHaveBeenCalledWith("/home", { replace: true });
   });
 
   it("exibe erro quando API retorna erro", async () => {

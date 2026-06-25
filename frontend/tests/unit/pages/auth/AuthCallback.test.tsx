@@ -35,7 +35,7 @@ describe("AuthCallback", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("navega para /app quando user existe", async () => {
+  it("navega para /home quando user existe", async () => {
     const refreshUser = vi.fn();
     mockUseAuth
       .mockReturnValueOnce({ user: null, isLoading: true, refreshUser })
@@ -52,7 +52,7 @@ describe("AuthCallback", () => {
     rerender(<AuthCallback />);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/app", { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith("/home", { replace: true });
     });
   });
 
