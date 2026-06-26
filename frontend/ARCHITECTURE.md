@@ -17,6 +17,6 @@ The frontend is organized around domain boundaries instead of technical file typ
 - `jobs`: job entities, filtering/deduplication/pagination rules, scraper/job API access, dashboard UI.
 - `marketing`: public landing page sections.
 
-## Compatibility
+## Import policy
 
-Legacy paths such as `@/components`, `@/hooks`, `@/services`, `@/types`, and `@/pages` are kept as thin re-export shims. New code should import from `@/app`, `@/domains`, or `@/shared`.
+Code should import from `@/app`, `@/domains`, or `@/shared`. Legacy technical folders such as `src/components`, `src/pages`, `src/hooks`, `src/services`, `src/context`, `src/lib`, and `src/types` were removed to keep a single domain-oriented structure.
