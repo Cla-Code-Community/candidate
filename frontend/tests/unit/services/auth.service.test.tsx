@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fetchMock = vi.fn();
 globalThis.fetch = fetchMock as any;
 
-import * as auth from "@/services/authService";
+import * as auth from "@/domains/auth/infrastructure/authApi";
 
 function mockResponse({
   ok = true,

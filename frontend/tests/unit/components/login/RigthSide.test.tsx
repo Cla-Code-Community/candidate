@@ -7,12 +7,18 @@ const mockLogin = vi.fn();
 const mockGetGoogleAuthUrl = vi.fn();
 const mockGetGithubAuthUrl = vi.fn();
 const mockGetLinkedinAuthUrl = vi.fn();
+const mockNavigate = vi.fn();
 
-vi.mock("@/services/authService", () => ({
-  login: (...args: any[]) => mockLogin(...args),
+vi.mock("@/domains/auth/infrastructure/authApi", () => ({
   getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
   getGithubAuthUrl: (...args: any[]) => mockGetGithubAuthUrl(...args),
   getLinkedinAuthUrl: (...args: any[]) => mockGetLinkedinAuthUrl(...args),
+}));
+
+vi.mock("@/domains/auth/application/AuthContext", () => ({
+  useAuth: () => ({
+    login: (...args: any[]) => mockLogin(...args),
+  }),
 }));
 
 vi.mock("@unpic/react", () => ({
@@ -27,10 +33,10 @@ vi.mock("framer-motion", () => ({
 }));
 
 vi.mock("react-router-dom", () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockNavigate,
 }));
 
-import RigthSide from "@/components/login/RigthSide";
+import RigthSide from "@/domains/auth/presentation/components/LoginFormPanel";
 
 describe("RigthSide", () => {
   const originalLocation = window.location;
@@ -40,6 +46,7 @@ describe("RigthSide", () => {
     mockGetGoogleAuthUrl.mockReset();
     mockGetGithubAuthUrl.mockReset();
     mockGetLinkedinAuthUrl.mockReset();
+    mockNavigate.mockReset();
     Object.defineProperty(window, "location", {
       configurable: true,
       value: { href: "" },
@@ -91,7 +98,7 @@ describe("RigthSide", () => {
   });
 
   it("envia formulário válido e redireciona após login", async () => {
-    mockLogin.mockResolvedValueOnce({ token: "fake-token-123", user: { id: 1, email: "teste@email.com" } });
+    mockLogin.mockResolvedValueOnce(undefined);
     render(<RigthSide />);
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "teste@email.com" } });
     fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
@@ -102,8 +109,7 @@ describe("RigthSide", () => {
         password: "123456",
       });
     });
-    expect(localStorage.getItem("token")).toBe("fake-token-123");
-    expect(window.location.href).toBe("/dashboard");
+    expect(mockNavigate).toHaveBeenCalledWith("/home", { replace: true });
   });
 
   it("exibe erro quando API retorna erro", async () => {

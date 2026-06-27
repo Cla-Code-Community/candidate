@@ -7,7 +7,7 @@ vi.mock("react-dom/client", () => ({
   createRoot: createRootMock,
 }));
 
-vi.mock("@/App", () => ({
+vi.mock("@/app/App", () => ({
   default: () => null,
 }));
 

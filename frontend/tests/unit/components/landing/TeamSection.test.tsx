@@ -12,7 +12,7 @@ vi.mock("swiper/modules", () => ({
   Autoplay: {},
 }));
 
-import TeamSection from "@/components/landing/TeamSection";
+import TeamSection from "@/domains/marketing/presentation/components/TeamSection";
 
 describe("TeamSection", () => {
   afterEach(() => {

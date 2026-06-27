@@ -7,13 +7,13 @@ const mocks = vi.hoisted(() => ({
   runScraperRequestMock: vi.fn(),
 }));
 
-vi.mock("@/services/jobsService", () => ({
+vi.mock("@/domains/jobs/infrastructure/jobsApi", () => ({
   fetchJobFiles: mocks.fetchJobFilesMock,
   fetchJobsByFile: mocks.fetchJobsByFileMock,
   runScraperRequest: mocks.runScraperRequestMock,
 }));
 
-import { useJobsData } from "@/hooks/useJobsData";
+import { useJobsData } from "@/domains/jobs/application/useJobsData";
 
 describe("useJobsData extended", () => {
   beforeEach(() => {

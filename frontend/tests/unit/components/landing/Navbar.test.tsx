@@ -19,14 +19,14 @@ const themeState = vi.hoisted(() => ({
   toggleTheme: vi.fn(),
 }));
 
-vi.mock("@/hooks/useTheme", () => ({
+vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => ({
     resolvedTheme: themeState.resolvedTheme,
     toggleTheme: themeState.toggleTheme,
   }),
 }));
 
-import { Navbar } from "@/components/landing/Navbar";
+import { Navbar } from "@/domains/marketing/presentation/components/Navbar";
 
 describe("Navbar", () => {
   beforeEach(() => {

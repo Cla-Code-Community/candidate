@@ -8,15 +8,15 @@ vi.mock("react-router-dom", () => ({
 }));
 
 const mockUseAuth = vi.fn();
-vi.mock("@/context/AuthContext", () => ({
+vi.mock("@/domains/auth/application/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
-vi.mock("@/Loading", () => ({
+vi.mock("@/shared/ui/Loading", () => ({
   default: () => <div data-testid="loading">Loading...</div>,
 }));
 
-import AuthCallback from "@/pages/auth/AuthCallback";
+import AuthCallback from "@/domains/auth/presentation/pages/AuthCallbackPage";
 
 describe("AuthCallback", () => {
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe("AuthCallback", () => {
     expect(screen.getByTestId("loading")).toBeInTheDocument();
   });
 
-  it("navega para /app quando user existe", async () => {
+  it("navega para /home quando user existe", async () => {
     const refreshUser = vi.fn();
     mockUseAuth
       .mockReturnValueOnce({ user: null, isLoading: true, refreshUser })
@@ -52,7 +52,7 @@ describe("AuthCallback", () => {
     rerender(<AuthCallback />);
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/app", { replace: true });
+      expect(mockNavigate).toHaveBeenCalledWith("/home", { replace: true });
     });
   });
 

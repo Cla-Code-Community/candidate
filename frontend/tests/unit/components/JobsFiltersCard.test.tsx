@@ -1,8 +1,8 @@
-import { JobsFiltersCard } from "@/components/JobsFiltersCard";
+import { JobsFiltersCard } from "@/domains/jobs/presentation/components/JobsFiltersCard";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/components/KeywordsModal", () => ({
+vi.mock("@/domains/jobs/presentation/components/KeywordsModal", () => ({
   KeywordsModal: () => <div>Gerenciar filtros</div>,
 }));
 

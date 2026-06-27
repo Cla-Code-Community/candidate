@@ -1,7 +1,11 @@
-import { fetchJobFiles, fetchJobsByFile, fetchKeywords, saveKeywords } from "@/services/jobsService";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { fetchJobFiles, fetchJobsByFile, fetchKeywords, saveKeywords } from "@/domains/jobs/infrastructure/jobsApi";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("jobsService", () => {
+  beforeEach(() => {
+    vi.stubEnv("VITE_API_BASE_URL", "");
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();

@@ -2,15 +2,15 @@ import "@testing-library/jest-dom/vitest";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/components/login/LeftSide", () => ({
+vi.mock("@/domains/auth/presentation/components/AuthVisualPanel", () => ({
   default: () => <div>Left Side Mock</div>,
 }));
 
-vi.mock("@/components/login/RigthSide", () => ({
+vi.mock("@/domains/auth/presentation/components/LoginFormPanel", () => ({
   default: () => <div>Right Side Mock</div>,
 }));
 
-import LoginPage from "@/pages/login/LoginPage";
+import LoginPage from "@/domains/auth/presentation/pages/LoginPage";
 
 describe("LoginPage", () => {
   it("renderiza os dois lados da tela de login", () => {

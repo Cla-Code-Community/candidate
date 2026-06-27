@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ThemeToggle } from "../../../src/components/ui/theme-toggle";
+import { ThemeToggle } from "../../../src/shared/ui/theme-toggle";
 
 describe("ThemeToggle", () => {
   it("aciona callback ao clicar", () => {

@@ -1,4 +1,4 @@
-import { useJobsPagination } from "@/hooks/useJobsPagination";
+import { useJobsPagination } from "@/domains/jobs/application/useJobsPagination";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

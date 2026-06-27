@@ -6,12 +6,12 @@ const mocks = vi.hoisted(() => ({
   fetchJobsByFileMock: vi.fn(async () => ({ jobs: [{ titulo: "Dev" }], file: "vagas.xlsx", modifiedAt: 1, total: 1 })),
 }));
 
-vi.mock("@/services/jobsService", () => ({
+vi.mock("@/domains/jobs/infrastructure/jobsApi", () => ({
   fetchJobFiles: mocks.fetchJobFilesMock,
   fetchJobsByFile: mocks.fetchJobsByFileMock,
 }));
 
-import { useJobsData } from "@/hooks/useJobsData";
+import { useJobsData } from "@/domains/jobs/application/useJobsData";
 
 describe("useJobsData", () => {
   it("carrega arquivos e jobs iniciais", async () => {

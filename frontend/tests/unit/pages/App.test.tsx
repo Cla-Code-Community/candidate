@@ -10,11 +10,15 @@ vi.stubGlobal("IntersectionObserver", class {
   constructor(public callback: IntersectionObserverCallback) {}
 });
 
-vi.mock("@/hooks/useTheme", () => ({
+vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => ({ resolvedTheme: "light", toggleTheme: vi.fn() }),
 }));
 
-vi.mock("@/hooks/useJobsData", () => ({
+vi.mock("@/domains/marketing/presentation/pages/LandingPage", () => ({
+  default: () => <main>Funcionalidades</main>,
+}));
+
+vi.mock("@/domains/jobs/application/useJobsData", () => ({
   useJobsData: () => ({
     files: [{ file: "vagas.xlsx" }],
     selectedFile: "vagas.xlsx",
@@ -29,7 +33,7 @@ vi.mock("@/hooks/useJobsData", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useJobsFiltering", () => ({
+vi.mock("@/domains/jobs/application/useJobsFiltering", () => ({
   useJobsFiltering: () => ({
     search: "",
     setSearch: vi.fn(),
@@ -40,7 +44,7 @@ vi.mock("@/hooks/useJobsFiltering", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useJobsPagination", () => ({
+vi.mock("@/domains/jobs/application/useJobsPagination", () => ({
   useJobsPagination: () => ({
     currentPage: 1,
     setCurrentPage: vi.fn(),
@@ -52,7 +56,7 @@ vi.mock("@/hooks/useJobsPagination", () => ({
   }),
 }));
 
-import App from "@/App";
+import App from "@/app/App";
 
 describe("App", () => {
   it("renderiza a landing page após o loading", () => {

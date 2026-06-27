@@ -6,8 +6,9 @@ const mockRegister = vi.fn();
 const mockGetGoogleAuthUrl = vi.fn();
 const mockGetGithubAuthUrl = vi.fn();
 const mockGetLinkedinAuthUrl = vi.fn();
+const mockNavigate = vi.fn();
 
-vi.mock("@/services/authService", () => ({
+vi.mock("@/domains/auth/infrastructure/authApi", () => ({
   register: (...args: any[]) => mockRegister(...args),
   getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
   getGithubAuthUrl: (...args: any[]) => mockGetGithubAuthUrl(...args),
@@ -37,7 +38,11 @@ vi.mock("react-phone-number-input", () => ({
   ),
 }));
 
-import RegisterSide from "@/components/login/RegisterSide";
+vi.mock("react-router-dom", () => ({
+  useNavigate: () => mockNavigate,
+}));
+
+import RegisterSide from "@/domains/auth/presentation/components/RegisterFormPanel";
 
 describe("RegisterSide", () => {
   const originalLocation = window.location;
@@ -47,6 +52,7 @@ describe("RegisterSide", () => {
     mockGetGoogleAuthUrl.mockReset();
     mockGetGithubAuthUrl.mockReset();
     mockGetLinkedinAuthUrl.mockReset();
+    mockNavigate.mockReset();
     Object.defineProperty(window, "location", {
       configurable: true,
       value: { href: "" },
@@ -119,7 +125,9 @@ describe("RegisterSide", () => {
         role: "admin",
       });
     });
-    expect(window.location.href).toBe("/login?registered=true");
+    expect(mockNavigate).toHaveBeenCalledWith("/login?registered=true", {
+      replace: true,
+    });
   });
 
   it("envia formulário válido como usuário (sem tecnologias/nível)", async () => {

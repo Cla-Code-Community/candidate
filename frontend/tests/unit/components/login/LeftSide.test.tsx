@@ -11,7 +11,7 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => vi.fn(),
 }));
 
-import LeftSide from "@/components/login/LeftSide";
+import LeftSide from "@/domains/auth/presentation/components/AuthVisualPanel";
 
 describe("LeftSide", () => {
   it("renderiza conteúdo principal e links sociais", () => {
