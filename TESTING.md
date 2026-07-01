@@ -134,69 +134,74 @@ Validar presenca de:
 
 Severidade: alta.
 
-### FE-002 - Loading state do modal de filtros
+### FE-002 - Funcionamento da Navbar
 
 Passos:
-1. Abrir modal.
-2. Confirmar estado Carregando keywords.
+1. Clicar em "Funcionalidades".
+2. Clicar em "Time".
+3. Clicar em "Como Funciona".
+4. Clicar em "Pronto?".
+5. Clicar em "Realizar o Login".
 
 Esperado:
-- Texto de loading visivel ate resposta.
+- Itens de menu rolam até a seção correspondente.
+- "Realizar o Login" redireciona para página de login.
 
 Severidade: media.
 
-### FE-003 - Estado vazio na tabela
+### FE-003 - Botao "Comece Agora" redireciona para Login
 
 Passos:
-1. Aplicar busca sem correspondencias.
+1. Acessar http://localhost:5173.
+2. Clicar no botão "Comece Agora".
 
 Esperado:
-- Mensagem Nenhuma vaga encontrada com os filtros atuais.
+- Usuário é redirecionado para a página de login.
 
 Severidade: media.
 
-### FE-004 - Tratamento de erro no card da tabela
+### FE-004 - Botao "Como Funciona" redireciona para aba de "Como Funciona"
 
 Passos:
-1. Forcar erro de API.
+1. Acessar http://localhost:5173.
+2. Clicar no botão "Como Funciona".
 
 Esperado:
-- Banner de erro visivel.
-- Sem loop infinito de render.
-
-Severidade: alta.
-
-### FE-005 - Busca local
-
-Passos:
-1. Inserir texto com acentos e sem acentos.
-
-Esperado:
-- Busca normaliza diacriticos e filtra corretamente.
+- Usuário é redirecionado para a seção de Funcionamento.
 
 Severidade: media.
 
-### FE-006 - Filtro por palavra-chave local
+### FE-005 - Botao "Ver Perfil" redireciona ao GitHub
 
 Passos:
-1. Selecionar palavras no dropdown.
-2. Remover filtros selecionados.
+1. Acessar http://localhost:5173.
+2. Clicar no botão "Ver Perfil".
 
 Esperado:
-- Lista reduz conforme filtros.
-- Remocao atualiza resultado.
+- Usuário é redirecionado para a página do GitHub.
+- Link abre em uma nova aba.
 
 Severidade: media.
 
-### FE-007 - Paginacao
+### FE-006 - Botao "Acessar Dashboard" redireciona para Login
 
 Passos:
-1. Navegar paginas.
-2. Alterar itens por pagina para limites 1 e 10.
+1. Acessar http://localhost:5173.
+2. Clicar no botão "Acessar Dashboard".
 
 Esperado:
-- Clamp de page size entre 1 e 10.
-- Controles prev/next coerentes.
+- Usuário é redirecionado para a página de login.
+
+Severidade: media.
+
+### FE-007 - Botao "Explorar Funcionalidades" redireciona para a aba de funcionalidades
+
+Passos:
+1. Acessar http://localhost:5173.
+2. Clicar no botão "Explorar Funcionalidades".
+
+Esperado:
+- Usuário é redirecionado para a seção de funcionalidades.
 
 Severidade: media.
 
@@ -204,34 +209,104 @@ Severidade: media.
 
 Passos:
 1. Alternar tema via toggle.
-2. Recarregar pagina.
+2. Recarregar página.
 
 Esperado:
 - Tema persiste via localStorage.
 
 Severidade: baixa.
 
-### FE-009 - Navegacao geral
+### FE-009 - Links do Footer
 
 Passos:
-1. Confirmar ausencia de rotas/paginas adicionais.
+1. Acessar http://localhost:5173.
+2. Rolar até o footer.
+3. Clicar em cada link: Funcionalidades, Como Funciona, Preços, Status, Termos de Uso, Privacidade, Contato.
 
 Esperado:
-- SPA unica sem quebra por navegacao.
-
-Severidade: baixa.
-
-### FE-010 - Componentes quebrados
-
-Passos:
-1. Interagir com botoes spam/lido, limpar filtro, modal e paginação.
-
-Esperado:
-- Nenhum componente dispara erro fatal no console.
+- Cada link redireciona para seção ou página correta.
+- Links externos abrem em nova aba.
 
 Severidade: alta.
 
-## 8. Casos de teste backend/API
+## 8. Caso de testes de Login
+
+### LOG-001 - Login com campos vazios
+
+Passos:
+1. Acessar http://localhost:5173/login.
+2. Tentar fazer login com campos vazios.
+
+Esperado:
+- Campo email exibe mensagem de validação.
+- Campo senha exibe mensagem de validação.
+- Login não é submetido.
+
+Severidade: alta.
+
+### LOG-002 - Login com email incorreto
+
+Passos:
+1. Acessar http://localhost:5173/login.
+2. Inserir email inválido (ex: "naoeumemail@gmail").
+3. Inserir senha válida.
+4. Clicar em "Entrar".
+
+Esperado:
+- O sistema barra o login com a informação genérica de falha ao fazer login.
+
+Severidade: alta.
+
+### LOG-003 - Login com senha incorreta
+
+Passos:
+1. Acessar http://localhost:5173/login.
+2. Inserir email válido.
+3. Inserir senha incorreta (ex: "senha123456").
+4. Clicar em "Entrar".
+
+Esperado:
+- O sistema barra o login com a informação genérica de falha ao fazer login.
+
+Severidade: alta.
+
+### LOG-004 - Login com credenciais corretas
+
+Pré-condições:
+- Usuário cadastrado no sistema.
+- Email: user@example.com
+- Senha: StrongP@ssw0rd
+
+Passos:
+1. Acessar http://localhost:5173/login.
+2. Logar no sistema com as credenciais corretas.
+
+Esperado:
+- O sistema aceita as credenciais e avança à tela de Dashboard.
+
+Severidade: alta.
+
+### LOG-005 - Login API com credenciais invalidas
+
+Passos:
+1. POST /api/auth/login com credenciais incorretas.
+
+Esperado:
+- O sistema informa um erro de não autorizado com o status code 401.
+
+Severidade: alta.
+
+### LOG-006 - Login API com credenciais validas
+
+Passos:
+1. POST /api/auth/login com credenciais corretas.
+
+Esperado:
+- O sistema informa uma mensagem de sucesso com o status code 200.
+
+Severidade: alta.
+
+## 9. Casos de teste backend/API
 
 ### BE-001 - Healthcheck
 
@@ -353,7 +428,7 @@ Esperado:
 
 Severidade: critica.
 
-## 9. Casos de integracao
+## 10. Casos de integracao
 
 ### INT-001 - Frontend consumindo backend via proxy Vite
 
@@ -408,7 +483,7 @@ Esperado:
 
 Severidade: alta.
 
-## 10. Casos mobile/responsividade
+## 11. Casos mobile/responsividade
 
 ### MOB-001 - Breakpoint 360x640
 
@@ -443,7 +518,7 @@ Esperado:
 
 Severidade: media.
 
-## 11. Casos UX/UI
+## 12. Casos UX/UI
 
 ### UX-001 - Feedback visual de loading
 
@@ -474,7 +549,7 @@ Validar:
 
 Severidade: media.
 
-## 12. Tratamento de erros
+## 13. Tratamento de erros
 
 ### ERR-001 - 401 nao autenticado
 
@@ -500,7 +575,7 @@ Cobrir indisponibilidade de banco/valkey.
 
 Cobrir exibicao de mensagem sem crash da tela.
 
-## 13. Regressao minima
+## 14. Regressao minima
 
 Executar antes de qualquer release:
 
@@ -510,14 +585,14 @@ Executar antes de qualquer release:
 4. INT-001, INT-003, INT-004
 5. MOB-001, MOB-003
 
-## 14. Criterios de aceite
+## 15. Criterios de aceite
 
 - Nenhum bug bloqueante ou critica aberto nos fluxos de entrada.
 - Frontend nao pode travar em erros de API.
 - Healthcheck deve responder 200 continuamente.
 - Erros de contrato entre frontend e backend devem estar mapeados e aceitos formalmente ou corrigidos.
 
-## 15. Bugs encontrados
+## 16. Bugs encontrados
 
 ### BUG-001
 
