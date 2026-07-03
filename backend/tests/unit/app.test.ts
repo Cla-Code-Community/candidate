@@ -108,9 +108,9 @@ describe("jobsApiApp", () => {
 
   // ── health ────────────────────────────────────────────────────────────
 
-  it("GET /api/health retorna ok", async () => {
+  it("GET /health retorna ok", async () => {
     const app = createJobsApiApp();
-    const res = await request(app).get("/api/health").expect(200);
+    const res = await request(app).get("/health").expect(200);
     expect(res.body).toEqual({ ok: true });
   });
 
@@ -119,7 +119,7 @@ describe("jobsApiApp", () => {
   it("permite CORS para origem autorizada", async () => {
     const app = createJobsApiApp();
     const res = await request(app)
-      .get("/api/health")
+      .get("/health")
       .set("Origin", "http://localhost:5173")
       .expect(200);
 
@@ -131,7 +131,7 @@ describe("jobsApiApp", () => {
   it("bloqueia origens não autorizadas", async () => {
     const app = createJobsApiApp();
     const res = await request(app)
-      .get("/api/health")
+      .get("/health")
       .set("Origin", "https://malicioso.example")
       .expect(403);
 
@@ -143,7 +143,7 @@ describe("jobsApiApp", () => {
     const app = createJobsApiApp();
 
     const allowed = await request(app)
-      .get("/api/health")
+      .get("/health")
       .set("Origin", "https://meuapp.com")
       .expect(200);
 
@@ -152,7 +152,7 @@ describe("jobsApiApp", () => {
     );
 
     const blocked = await request(app)
-      .get("/api/health")
+      .get("/health")
       .set("Origin", "http://localhost:5173")
       .expect(403);
 
@@ -164,7 +164,7 @@ describe("jobsApiApp", () => {
 
   it("adiciona headers de segurança", async () => {
     const app = createJobsApiApp();
-    const res = await request(app).get("/api/health").expect(200);
+    const res = await request(app).get("/health").expect(200);
 
     expect(res.headers["x-content-type-options"]).toBe("nosniff");
     expect(res.headers["x-frame-options"]).toBe("DENY");
@@ -175,10 +175,10 @@ describe("jobsApiApp", () => {
 
   // ── jobs/search ───────────────────────────────────────────────────────
 
-  it("GET /api/jobs/search com keywords filtra via cacheSearchKeywords", async () => {
+  it("GET /jobs/search com keywords filtra via cacheSearchKeywords", async () => {
     const app = createJobsApiApp();
     const res = await request(app)
-      .get("/api/jobs/search")
+      .get("/jobs/search")
       .query({ keywords: "React,Node.js" })
       .expect(200);
 
@@ -191,9 +191,9 @@ describe("jobsApiApp", () => {
     expect(res.body.source).toContain("valkey_filtered_by_keywords");
   });
 
-  it("GET /api/jobs/search sem keywords usa índice global", async () => {
+  it("GET /jobs/search sem keywords usa índice global", async () => {
     const app = createJobsApiApp();
-    const res = await request(app).get("/api/jobs/search").expect(200);
+    const res = await request(app).get("/jobs/search").expect(200);
 
     expect(mocks.cacheAbsoluteSMembers).toHaveBeenCalledWith(
       "scraper:jobs:index",
@@ -202,7 +202,7 @@ describe("jobsApiApp", () => {
     expect(res.body.source).toBe("valkey_global_index");
   });
 
-  it("GET /api/jobs/search retorna paginação correta", async () => {
+  it("GET /jobs/search retorna paginação correta", async () => {
     mocks.parsePagination.mockReturnValue({ page: 2, limit: 10 });
     mocks.paginate.mockReturnValue({
       data: ["id-1"],
@@ -221,7 +221,7 @@ describe("jobsApiApp", () => {
 
     const app = createJobsApiApp();
     const res = await request(app)
-      .get("/api/jobs/search")
+      .get("/jobs/search")
       .query({ page: "2", limit: "10" })
       .expect(200);
 
@@ -232,12 +232,12 @@ describe("jobsApiApp", () => {
     expect(res.body.hasNext).toBe(false);
   });
 
-  it("GET /api/jobs/search retorna 500 quando cacheSearchKeywords falha", async () => {
+  it("GET /jobs/search retorna 500 quando cacheSearchKeywords falha", async () => {
     mocks.cacheSearchKeywords.mockRejectedValueOnce(new Error("valkey down"));
     const app = createJobsApiApp();
 
     const res = await request(app)
-      .get("/api/jobs/search")
+      .get("/jobs/search")
       .query({ keywords: "Java" })
       .expect(500);
 
@@ -246,20 +246,20 @@ describe("jobsApiApp", () => {
     expect(mocks.logWarn).toHaveBeenCalled();
   });
 
-  it("GET /api/jobs/search retorna 500 quando cacheAbsoluteSMembers falha", async () => {
+  it("GET /jobs/search retorna 500 quando cacheAbsoluteSMembers falha", async () => {
     mocks.cacheAbsoluteSMembers.mockRejectedValueOnce(new Error("valkey down"));
     const app = createJobsApiApp();
 
-    const res = await request(app).get("/api/jobs/search").expect(500);
+    const res = await request(app).get("/jobs/search").expect(500);
 
     expect(res.body.message).toBe("Erro ao recuperar vagas em memória.");
   });
 
   // ── keywords ──────────────────────────────────────────────────────────
 
-  it("GET /api/keywords retorna keywords do banco", async () => {
+  it("GET /keywords retorna keywords do banco", async () => {
     const app = createJobsApiApp();
-    const res = await request(app).get("/api/keywords").expect(200);
+    const res = await request(app).get("/keywords").expect(200);
 
     expect(res.body).toEqual({
       ok: true,
@@ -270,7 +270,7 @@ describe("jobsApiApp", () => {
     });
   });
 
-  it("GET /api/keywords retorna 500 quando db falha", async () => {
+  it("GET /keywords retorna 500 quando db falha", async () => {
     // Sobrescreve o mock estático do db para rejeitar nessa chamada
     const { db } = await import("../../src/db/client.js");
     vi.spyOn(db, "select").mockImplementationOnce(() => {
@@ -278,14 +278,14 @@ describe("jobsApiApp", () => {
     });
 
     const app = createJobsApiApp();
-    const res = await request(app).get("/api/keywords").expect(500);
+    const res = await request(app).get("/keywords").expect(500);
     expect(res.body.message).toBe("Erro ao buscar keywords.");
   });
 
-  it("POST /api/keywords enfileira keyword e retorna 202", async () => {
+  it("POST /keywords enfileira keyword e retorna 202", async () => {
     const app = createJobsApiApp();
     const res = await request(app)
-      .post("/api/keywords")
+      .post("/keywords")
       .send({ keyword: "Rust" })
       .expect(202);
 
@@ -301,10 +301,10 @@ describe("jobsApiApp", () => {
     });
   });
 
-  it("POST /api/keywords retorna 400 quando keyword está ausente", async () => {
+  it("POST /keywords retorna 400 quando keyword está ausente", async () => {
     const app = createJobsApiApp();
 
-    const res = await request(app).post("/api/keywords").send({}).expect(400);
+    const res = await request(app).post("/keywords").send({}).expect(400);
 
     expect(res.body.message).toBe(
       "O campo 'keyword' deve ser uma string não vazia.",
@@ -312,11 +312,11 @@ describe("jobsApiApp", () => {
     expect(mocks.publish).not.toHaveBeenCalled();
   });
 
-  it("POST /api/keywords retorna 400 quando keyword é string vazia", async () => {
+  it("POST /keywords retorna 400 quando keyword é string vazia", async () => {
     const app = createJobsApiApp();
 
     const res = await request(app)
-      .post("/api/keywords")
+      .post("/keywords")
       .send({ keyword: "   " })
       .expect(400);
 
@@ -325,7 +325,7 @@ describe("jobsApiApp", () => {
     );
   });
 
-  it("POST /api/keywords retorna 400 quando keyword não é string", async () => {
+  it("POST /keywords retorna 400 quando keyword não é string", async () => {
     // Arrays não são strings — a rota rejeita com 400 se keyword.trim() não existir
     // ou com 500 se explodir antes. Ajusta a expectativa ao comportamento real da rota:
     // req.body?.keyword?.trim() em um array retorna undefined → cai no if → 400
@@ -333,7 +333,7 @@ describe("jobsApiApp", () => {
     const app = createJobsApiApp();
 
     const res = await request(app)
-      .post("/api/keywords")
+      .post("/keywords")
       .send({ keyword: 123 }) // número: typeof !== "string" → falha na guard
       .expect(400);
 

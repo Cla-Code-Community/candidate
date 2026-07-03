@@ -89,46 +89,46 @@ Cache & Indexes:
 
 ## Endpoints principais
 
-Base: `/api`
+Base: `/`
 
 - Sistema
-  - `GET /api/health` — verifica disponibilidade (retorna `{ ok: true }`).
+  - `GET /health` — verifica disponibilidade (retorna `{ ok: true }`).
   - `GET /docs` — UI do Swagger (quando habilitado).
 
 - Auth / OAuth
-  - `GET /api/auth/:provider/url` — retorna URL de autenticação (ex: `google`, `github`, `linkedin`).
-  - `GET /api/auth/:provider/callback` — callback OAuth — processa código/state e cria sessão.
+  - `GET /auth/:provider/url` — retorna URL de autenticação (ex: `google`, `github`, `linkedin`).
+  - `GET /auth/:provider/callback` — callback OAuth — processa código/state e cria sessão.
 
 - Credenciais (email/senha)
-  - `POST /api/auth/register` — registra usuário (cria `users`, `credentials`, `userPreferences`) e inicia sessão.
-  - `POST /api/auth/login` — autentica e inicia sessão.
-  - `POST /api/auth/logout` — destroi sessão.
-  - `GET /api/auth/me` — retorna id do usuário autenticado.
+  - `POST /auth/register` — registra usuário (cria `users`, `credentials`, `userPreferences`) e inicia sessão.
+  - `POST /auth/login` — autentica e inicia sessão.
+  - `POST /auth/logout` — destroi sessão.
+  - `GET /auth/me` — retorna id do usuário autenticado.
 
 - Usuários
-  - `GET /api/users/profile` — retorna perfil do usuário autenticado.
-  - `PATCH /api/users/profile` — atualiza campos do perfil.
-  - `GET /api/users/preferences` — obtém preferências do usuário.
-  - `POST /api/users/preferences` — cria preferências (caso não existam).
-  - `PATCH /api/users/preferences` — atualiza preferências.
+  - `GET /users/profile` — retorna perfil do usuário autenticado.
+  - `PATCH /users/profile` — atualiza campos do perfil.
+  - `GET /users/preferences` — obtém preferências do usuário.
+  - `POST /users/preferences` — cria preferências (caso não existam).
+  - `PATCH /users/preferences` — atualiza preferências.
 
 - Jobs
-  - `GET /api/jobs/search?keywords=...` — busca vagas utilizando índices/Valkey/Redis. Retorna paginação e fonte (`source`).
+  - `GET /jobs/search?keywords=...` — busca vagas utilizando índices/Valkey/Redis. Retorna paginação e fonte (`source`).
 
 - Keywords
-  - `GET /api/keywords` — lista keywords persistidas no banco.
-  - `POST /api/keywords` — enfileira uma keyword para processamento pelo serviço Go (retorna 202).
+  - `GET /keywords` — lista keywords persistidas no banco.
+  - `POST /keywords` — enfileira uma keyword para processamento pelo serviço Go (retorna 202).
 
 - Vagas salvas (Saved Jobs)
-  - `GET /api/saved-jobs` — lista vagas salvas do usuário.
-  - `GET /api/saved-jobs/:id` — obtém vaga salva por id.
-  - `POST /api/saved-jobs` — cria nova vaga salva.
-  - `PATCH /api/saved-jobs/:id` — atualiza vaga salva.
-  - `DELETE /api/saved-jobs/:id` — remove vaga salva.
+  - `GET /saved-jobs` — lista vagas salvas do usuário.
+  - `GET /saved-jobs/:id` — obtém vaga salva por id.
+  - `POST /saved-jobs` — cria nova vaga salva.
+  - `PATCH /saved-jobs/:id` — atualiza vaga salva.
+  - `DELETE /saved-jobs/:id` — remove vaga salva.
 
 Observações de segurança nas rotas:
 
-- Rotas sob `/api/users`, `/api/jobs`, `/api/keywords` e `/api/saved-jobs` usam `withSession` + `requireAuth` (quando aplicável).
+- Rotas sob `/users`, `/jobs`, `/keywords` e `/saved-jobs` usam `withSession` + `requireAuth` (quando aplicável).
 - `auth` usa `withSession` para armazenar OAuth state e criar sessão.
 
 ## Variáveis de ambiente importantes

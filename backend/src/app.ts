@@ -9,9 +9,12 @@ import { requireAuth } from "./middleware/requireAuth";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { withSession } from "./middleware/withSession";
 import { authRoutes } from "./routes/auth.routes";
+import adminRoutes from "./routes/admin.routes";
 import { jobsRoutes } from "./routes/jobs.routes";
 import { keywordsRoutes } from "./routes/keywords.routes";
 import { savedJobsRoutes } from "./routes/savedJobs.routes";
+import superAdminRoutes from "./routes/superAdmin.routes";
+import supportRoutes from "./routes/support.routes";
 import { userRoutes } from "./routes/users.routes";
 
 export function createJobsApiApp() {
@@ -33,15 +36,18 @@ export function createJobsApiApp() {
 
   app.set("trust proxy", 1);
 
-  app.use("/api/auth", withSession, authRoutes);
-  app.use("/api/users", withSession, requireAuth, userRoutes);
-  app.use("/api/jobs", withSession, requireAuth, jobsRoutes);
-  app.use("/api/keywords", withSession, requireAuth, keywordsRoutes);
-  app.use("/api/saved-jobs", withSession, requireAuth, savedJobsRoutes);
+  app.use("/auth", withSession, authRoutes);
+  app.use("/users", withSession, requireAuth, userRoutes);
+  app.use("/jobs", withSession, requireAuth, jobsRoutes);
+  app.use("/keywords", withSession, requireAuth, keywordsRoutes);
+  app.use("/saved-jobs", withSession, requireAuth, savedJobsRoutes);
+  app.use("/admin", withSession, supportRoutes);
+  app.use("/admin", withSession, adminRoutes);
+  app.use("/admin", withSession, superAdminRoutes);
 
   /**
    * @swagger
-   * /api/health:
+   * /health:
    *   get:
    *     summary: Verifica se a API está online
    *     tags: [System]
@@ -49,7 +55,7 @@ export function createJobsApiApp() {
    *       200:
    *         description: API funcionando
    */
-  app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.get("/health", (_req, res) => res.json({ ok: true }));
 
   app.get("/metrics", async (_req, res) => {
     res.set("Content-Type", register.contentType);

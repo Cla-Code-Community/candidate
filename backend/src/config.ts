@@ -27,6 +27,11 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
   return fallback;
 }
 
+export const config = {
+  scraperUrl: process.env.SCRAPER_URL ?? "http://scraper-go:8081",
+  prometheusUrl: process.env.PROMETHEUS_URL ?? "http://prometheus:9090",
+};
+
 function parseNumber(value: string | undefined, fallback: number): number {
   if (value === undefined) return fallback;
   const parsed = Number(value);

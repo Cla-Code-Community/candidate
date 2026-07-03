@@ -94,6 +94,11 @@ export async function cacheAbsoluteSMembers(
   return await client.sMembers(absoluteKey);
 }
 
+export async function cacheAbsoluteSCard(absoluteKey: string): Promise<number> {
+  const client = await getCache();
+  return await client.sCard(absoluteKey);
+}
+
 /**
  * Realiza uma busca cruzada (Interseção) entre múltiplos índices de palavras-chave no Valkey.
  * Se apenas uma palavra-chave for enviada, retorna os membros dela diretamente.
@@ -145,4 +150,9 @@ export async function cacheGetJobsByIds(ids: string[]): Promise<unknown[]> {
       }
     })
     .filter(Boolean);
+}
+
+export async function cachePing(): Promise<string> {
+  const client = await getCache();
+  return await client.ping();
 }

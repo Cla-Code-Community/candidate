@@ -1,0 +1,22 @@
+meta {
+  name: Update Role
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{base_url}}/admin/users/01cac0ad-01a3-4e1b-8afb-c262031956f9/role
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "role": "super_admin"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

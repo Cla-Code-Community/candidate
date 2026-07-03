@@ -5,10 +5,10 @@ import cors from "cors";
 const VERCEL_PREVIEW_RE = /^https:\/\/painel-vagas-[a-z0-9-]+\.vercel\.app$/;
 
 const DEFAULT_ALLOWED_ORIGINS = [
-  "https://painel-vagas-lake.vercel.app",
-  "https://painel-vagas-git-master-bene-teslas-projects.vercel.app",
-  "https://painel-vagas-m6hbzlqeh-bene-teslas-projects.vercel.app",
-  "https://jobsglobalscraper.ddns.net",
+  "https://candidate.app.br",
+  "https://admin.candidate.app.br",
+  "https://support.candidate.app.br",
+  "https://api.candidate.app.br",
   "http://localhost:5173",
   "http://localhost:5174",
 ];
@@ -27,7 +27,9 @@ export const corsOptions: cors.CorsOptions = {
 
     if (VERCEL_PREVIEW_RE.test(origin)) return callback(null, true);
 
-    const allowedOrigins = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
+    const allowedOrigins = parseAllowedOrigins(
+      process.env.CORS_ALLOWED_ORIGINS,
+    );
     if (allowedOrigins.has(origin)) return callback(null, true);
 
     callback(new Error("Origin not allowed by CORS"));

@@ -11,7 +11,8 @@ export class CredentialsController {
       const input = RegisterSchema.parse(req.body);
       const { user, session: userSession } = await this.service.register(input);
 
-      req.session.userId = user.id;
+      req.session.userId = userSession.userId;
+      req.session.role = userSession.role;
       await req.session.save();
 
       return res.status(201).json({ user, session: userSession });
@@ -30,7 +31,8 @@ export class CredentialsController {
       const input = LoginSchema.parse(req.body);
       const { user, session: userSession } = await this.service.login(input);
 
-      req.session.userId = user.id;
+      req.session.userId = userSession.userId;
+      req.session.role = userSession.role;
       await req.session.save();
 
       return res.json({ user, session: userSession });

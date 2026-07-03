@@ -61,6 +61,7 @@ const mockUser = {
   username: "testuser",
   displayName: "Test User",
   emailVerified: false,
+  role: "user",
 };
 
 const mockCredential = {
@@ -114,7 +115,7 @@ describe("CredentialsService", () => {
       const result = await service.register(registerInput);
 
       expect(result.user).toMatchObject({ email: mockUser.email });
-      expect(result.session).toEqual({ userId: mockUser.id });
+      expect(result.session).toEqual({ userId: mockUser.id, role: "user" });
     });
 
     it("lança erro quando credential já existe para o email", async () => {
@@ -160,10 +161,10 @@ describe("CredentialsService", () => {
       ).rejects.toThrow();
     });
 
-    it("session contém apenas userId", async () => {
+    it("session contém userId e role", async () => {
       const { session } = await service.register(registerInput);
 
-      expect(Object.keys(session)).toEqual(["userId"]);
+      expect(session).toEqual({ userId: "uuid-user-1", role: "user" });
     });
   });
 
@@ -177,7 +178,7 @@ describe("CredentialsService", () => {
       const result = await service.login(loginInput);
 
       expect(result.user).toEqual(mockUser);
-      expect(result.session).toEqual({ userId: mockUser.id });
+      expect(result.session).toEqual({ userId: mockUser.id, role: "user" });
     });
 
     it("lança 'Credenciais inválidas' quando credential não existe", async () => {

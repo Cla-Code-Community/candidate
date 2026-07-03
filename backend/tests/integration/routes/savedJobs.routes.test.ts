@@ -69,7 +69,7 @@ const createPayload = {
 
 describe("Integration - SavedJobs Routes", () => {
   let app: ReturnType<typeof createJobsApiApp>;
-  const BASE = "/api/saved-jobs";
+  const BASE = "/saved-jobs";
 
   beforeEach(() => {
     vi.clearAllMocks();

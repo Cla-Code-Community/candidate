@@ -40,11 +40,11 @@ describe("CredentialsController", () => {
     serviceMock = {
       register: vi.fn().mockResolvedValue({
         user: { id: "user_123", email: "dev@teste.com" },
-        session: { id: "sess_abc" },
+        session: { userId: "user_123", role: "user" },
       }),
       login: vi.fn().mockResolvedValue({
         user: { id: "user_123", email: "dev@teste.com" },
-        session: { id: "sess_abc" },
+        session: { userId: "user_123", role: "user" },
       }),
       // ← fix: findById agora existe no mock
       findById: vi.fn().mockResolvedValue({
@@ -60,6 +60,7 @@ describe("CredentialsController", () => {
       body: {},
       session: {
         userId: undefined,
+        role: undefined,
         save: vi.fn((cb) => {
           if (cb) cb(null);
           return Promise.resolve();
@@ -88,6 +89,7 @@ describe("CredentialsController", () => {
 
       expect(serviceMock.register).toHaveBeenCalledWith(reqMock.body);
       expect(reqMock.session.userId).toBe("user_123");
+      expect(reqMock.session.role).toBe("user");
       expect(reqMock.session.save).toHaveBeenCalled();
       expect(resMock.status).toHaveBeenCalledWith(201);
     });
@@ -129,8 +131,11 @@ describe("CredentialsController", () => {
 
       expect(resMock.json).toHaveBeenCalledWith({
         user: { id: "user_123", email: "dev@teste.com" },
-        session: { id: "sess_abc" },
+        session: { userId: "user_123", role: "user" },
       });
+      expect(reqMock.session.userId).toBe("user_123");
+      expect(reqMock.session.role).toBe("user");
+      expect(reqMock.session.save).toHaveBeenCalled();
     });
 
     it("deve retornar 401 se as credenciais forem inválidas", async () => {

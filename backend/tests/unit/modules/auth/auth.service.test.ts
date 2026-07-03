@@ -47,6 +47,7 @@ const mockUser = {
   id: "uuid-123",
   username: "hudson",
   email: "user@example.com",
+  role: "user",
 };
 
 describe("AuthService", () => {
@@ -99,11 +100,13 @@ describe("AuthService", () => {
   });
 
   describe("createSession", () => {
-    it("returns session with userId", async () => {
-      const session = await service.createSession({ id: "uuid-123" });
+    it("returns session with userId and role", async () => {
+      const session = await service.createSession({
+        id: "uuid-123",
+        role: "user",
+      });
 
-      // O código-fonte retorna apenas { userId } — sem accessToken
-      expect(session).toEqual({ userId: "uuid-123" });
+      expect(session).toEqual({ userId: "uuid-123", role: "user" });
     });
   });
 
@@ -115,8 +118,7 @@ describe("AuthService", () => {
       const result = await service.handleCallback(validCallbackParams);
 
       expect(result.user).toEqual(mockUser);
-      // Sessão retorna apenas userId, conforme implementação atual
-      expect(result.session).toEqual({ userId: "uuid-123" });
+      expect(result.session).toEqual({ userId: "uuid-123", role: "user" });
     });
 
     it("throws when exchangeCode fails", async () => {

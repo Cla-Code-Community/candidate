@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { defineConfig } from "vite";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const apiTarget = process.env.VITE_API_PROXY_TARGET || "http://localhost:3001";
 
 export default defineConfig({
   plugins: [react()],
@@ -15,8 +16,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": {
-        target: "https://jobsglobalscraper.ddns.net",
+      "^/(auth|users|jobs|keywords|saved-jobs)": {
+        target: apiTarget,
         changeOrigin: true,
       },
     },
