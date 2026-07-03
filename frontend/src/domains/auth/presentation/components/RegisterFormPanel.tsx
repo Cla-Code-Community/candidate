@@ -1,16 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-  getGithubAuthUrl,
-  getGoogleAuthUrl,
-  getLinkedinAuthUrl,
-  register,
-} from "@/services/authService";
+
 import { Image } from "@unpic/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { FormEvent, useState } from "react";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import {
+  getGithubAuthUrl,
+  getGoogleAuthUrl,
+  getLinkedinAuthUrl,
+  register,
+} from "../../infrastructure/authApi";
 
 const STATIC_STARS = Array.from({ length: 40 }).map((_, i) => {
   const random = (min: number, max: number) =>
