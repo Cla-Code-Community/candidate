@@ -1,10 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
 import { getIronSession } from "iron-session";
+import { UserRole } from "../db/schema/users";
 import { sessionOptions } from "../lib/session";
 
 export interface SessionData {
   userId?: string;
-  role?: string;
+  role?: UserRole;
 }
 
 declare module "express-serve-static-core" {

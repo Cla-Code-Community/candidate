@@ -71,9 +71,13 @@ export class AuthService {
     });
   }
 
-  async createSession(user: { id: string }): Promise<Session> {
+  async createSession(user: {
+    id: string;
+    role: User["role"];
+  }): Promise<Session> {
     return {
       userId: user.id,
+      role: user.role,
     };
   }
 }

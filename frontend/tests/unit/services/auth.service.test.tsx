@@ -49,7 +49,7 @@ describe("authService", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/login"),
+        expect.stringContaining("/auth/login"),
         expect.objectContaining({
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -105,7 +105,7 @@ describe("authService", () => {
       });
 
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/register"),
+        expect.stringContaining("/auth/register"),
         expect.objectContaining({
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -221,7 +221,7 @@ describe("authService", () => {
       expect(user.email).toBe("bene@test.com");
 
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/me"),
+        expect.stringContaining("/auth/me"),
         { credentials: "include" }
       );
     });
@@ -265,7 +265,7 @@ describe("authService", () => {
 
       expect(url).toBe("https://github.com/login/oauth/authorize?state=abc");
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/github/url"),
+        expect.stringContaining("/auth/github/url"),
         expect.objectContaining({ credentials: "include" })
       );
     });
@@ -309,7 +309,7 @@ describe("authService", () => {
 
       expect(url).toBe("https://accounts.google.com/o/oauth2/auth?state=abc");
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/google/url"),
+        expect.stringContaining("/auth/google/url"),
         expect.objectContaining({ credentials: "include" })
       );
     });
@@ -353,7 +353,7 @@ describe("authService", () => {
 
       expect(url).toBe("https://www.linkedin.com/oauth/v2/authorization?state=abc");
       expect(fetchMock).toHaveBeenCalledWith(
-        expect.stringContaining("/api/auth/linkedin/url"),
+        expect.stringContaining("/auth/linkedin/url"),
         expect.objectContaining({ credentials: "include" })
       );
     });

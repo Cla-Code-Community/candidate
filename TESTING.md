@@ -34,21 +34,21 @@ Validar o comportamento real da aplicacao no estado atual do codigo, cobrindo fr
 
 ### Backend implementado
 
-- GET /api/health publico.
+- GET /health publico.
 - Rotas de auth:
-1. GET /api/auth/:provider/url
-2. GET /api/auth/:provider/callback
-3. POST /api/auth/register
-4. POST /api/auth/login
-5. POST /api/auth/logout
-6. GET /api/auth/me
+1. GET /auth/:provider/url
+2. GET /auth/:provider/callback
+3. POST /auth/register
+4. POST /auth/login
+5. POST /auth/logout
+6. GET /auth/me
 - Rotas protegidas por sessao + requireAuth:
-1. GET /api/jobs/search
-2. GET /api/keywords
-3. POST /api/keywords
-4. GET/PATCH /api/users/profile
-5. GET/POST/PATCH /api/users/preferences
-6. GET/GET:id/POST/PATCH:id/DELETE:id /api/saved-jobs
+1. GET /jobs/search
+2. GET /keywords
+3. POST /keywords
+4. GET/PATCH /users/profile
+5. GET/POST/PATCH /users/preferences
+6. GET/GET:id/POST/PATCH:id/DELETE:id /saved-jobs
 
 ### Diferencas reais entre frontend e backend atual
 

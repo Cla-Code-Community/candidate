@@ -1,6 +1,7 @@
 import { createClient } from "redis";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  cacheAbsoluteSCard,
   cacheAbsoluteSMembers,
   cacheDel,
   cacheGet,
@@ -31,6 +32,7 @@ vi.mock("redis", () => {
     set: vi.fn(),
     del: vi.fn(),
     sMembers: vi.fn(),
+    sCard: vi.fn(),
     sUnion: vi.fn(),
     mGet: vi.fn(),
   };
@@ -134,6 +136,17 @@ describe("Valkey Cache Lib", () => {
         "scraper:jobs:custom_key",
       );
       expect(result).toEqual(["id_1", "id_2"]);
+    });
+
+    it("deve contar membros de um Set sem injetar o namespace user:", async () => {
+      mockClientInstance.sCard.mockResolvedValue(42);
+
+      const result = await cacheAbsoluteSCard("scraper:jobs:index");
+
+      expect(mockClientInstance.sCard).toHaveBeenCalledWith(
+        "scraper:jobs:index",
+      );
+      expect(result).toBe(42);
     });
   });
 

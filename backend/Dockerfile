@@ -7,6 +7,10 @@ COPY package*.json ./
 COPY backend/package*.json ./backend/
 
 # Instala tudo com workspaces (tsx vem da raiz)
+RUN npm config set fetch-retries 5 \
+  && npm config set fetch-retry-factor 2 \
+  && npm config set fetch-retry-mintimeout 20000 \
+  && npm config set fetch-retry-maxtimeout 120000
 RUN npm ci --workspace=backend --include-workspace-root
 
 # Copia o código do backend

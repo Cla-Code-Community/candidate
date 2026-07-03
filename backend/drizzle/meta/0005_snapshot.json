@@ -1,5 +1,5 @@
 {
-  "id": "d46d415d-9787-44ad-962a-a2405d5896e8",
+  "id": "90722bf3-fd38-4edf-ade3-fb593727320d",
   "prevId": "5f2483f7-3b14-415f-93bc-c9a77d90b2b1",
   "version": "7",
   "dialect": "postgresql",
@@ -542,6 +542,21 @@
           "primaryKey": false,
           "notNull": false
         },
+        "role": {
+          "name": "role",
+          "type": "user_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'user'"
+        },
+        "is_blocked": {
+          "name": "is_blocked",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp",
@@ -555,6 +570,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "last_login_at": {
+          "name": "last_login_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -597,7 +618,18 @@
       "isRLSEnabled": false
     }
   },
-  "enums": {},
+  "enums": {
+    "public.user_role": {
+      "name": "user_role",
+      "schema": "public",
+      "values": [
+        "user",
+        "support",
+        "admin",
+        "super_admin"
+      ]
+    }
+  },
   "schemas": {},
   "sequences": {},
   "roles": {},

@@ -48,6 +48,7 @@ import { createJobsApiApp } from "../../../src/app";
 
 const fixtureOAuthSession = {
   userId: undefined as string | undefined,
+  role: undefined as string | undefined,
   oauth_state: "valid-state-abc123",
   save: vi.fn().mockResolvedValue(undefined),
   destroy: vi.fn().mockResolvedValue(undefined),
@@ -55,6 +56,7 @@ const fixtureOAuthSession = {
 
 const fixtureCredentialsSession = {
   userId: undefined as string | undefined,
+  role: undefined as string | undefined,
   save: vi.fn().mockResolvedValue(undefined),
   destroy: vi.fn().mockResolvedValue(undefined),
 };
@@ -64,6 +66,7 @@ const fixtureUser = {
   email: "user@example.com",
   username: "usertest",
   displayName: "User Test",
+  role: "user",
 };
 
 const registerPayload = {
@@ -81,11 +84,16 @@ const loginPayload = {
 
 describe("Integration - Auth Routes", () => {
   let app: ReturnType<typeof createJobsApiApp>;
-  const BASE = "/api/auth";
+  const BASE = "/auth";
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("APP_URL", "http://localhost:3001/api");
+    fixtureCredentialsSession.userId = undefined;
+    fixtureCredentialsSession.role = undefined;
+    fixtureOAuthSession.userId = undefined;
+    fixtureOAuthSession.role = undefined;
+    fixtureOAuthSession.oauth_state = "valid-state-abc123";
 
     // Sessão padrão para rotas OAuth (AuthController)
     vi.mocked(getIronSession).mockResolvedValue({
@@ -98,17 +106,17 @@ describe("Integration - Auth Routes", () => {
     );
     mockAuthService.handleCallback.mockResolvedValue({
       user: fixtureUser,
-      session: { userId: fixtureUser.id },
+      session: { userId: fixtureUser.id, role: fixtureUser.role },
     });
 
     // Defaults do CredentialsService
     mockCredentialsService.register.mockResolvedValue({
       user: fixtureUser,
-      session: { userId: fixtureUser.id },
+      session: { userId: fixtureUser.id, role: fixtureUser.role },
     });
     mockCredentialsService.login.mockResolvedValue({
       user: fixtureUser,
-      session: { userId: fixtureUser.id },
+      session: { userId: fixtureUser.id, role: fixtureUser.role },
     });
 
     mockCredentialsService.findById.mockResolvedValue(fixtureUser);
@@ -209,6 +217,7 @@ describe("Integration - Auth Routes", () => {
         oauth_state: "valid-state-abc123",
         save: vi.fn().mockResolvedValue(undefined),
         userId: undefined as string | undefined,
+        role: undefined as string | undefined,
       };
       vi.mocked(getIronSession).mockResolvedValue(session as any);
 
@@ -217,6 +226,8 @@ describe("Integration - Auth Routes", () => {
         .expect(302);
 
       expect(session.oauth_state).toBeUndefined();
+      expect(session.userId).toBe(fixtureUser.id);
+      expect(session.role).toBe(fixtureUser.role);
       expect(session.save).toHaveBeenCalled();
     });
 
@@ -333,6 +344,8 @@ describe("Integration - Auth Routes", () => {
 
       expect(res.body).toHaveProperty("user");
       expect(res.body.user).toHaveProperty("email", fixtureUser.email);
+      expect(fixtureCredentialsSession.userId).toBe(fixtureUser.id);
+      expect(fixtureCredentialsSession.role).toBe(fixtureUser.role);
     });
 
     it("chama register com email, password e name", async () => {
@@ -421,6 +434,8 @@ describe("Integration - Auth Routes", () => {
 
       expect(res.body).toHaveProperty("user");
       expect(res.body.user).toHaveProperty("id", fixtureUser.id);
+      expect(fixtureCredentialsSession.userId).toBe(fixtureUser.id);
+      expect(fixtureCredentialsSession.role).toBe(fixtureUser.role);
     });
 
     it("chama login com email e password corretos", async () => {

@@ -68,6 +68,7 @@ export class AuthController {
       });
 
       req.session.userId = result.session.userId;
+      req.session.role = result.session.role;
       await req.session.save();
 
       return res.redirect(`${frontendUrl}/auth/callback`);

@@ -13,6 +13,18 @@ export const updateProfileSchema = z
       .min(3)
       .max(30)
       .regex(/^[a-z0-9_]+$/),
+    phone: z
+      .string()
+      .max(20)
+      .regex(/^\+?[0-9() -]+$/, "Telefone inválido")
+      .nullable(),
+    cpf: z
+      .string()
+      .max(14)
+      .regex(/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/, "CPF inválido")
+      .nullable(),
+    technologies: z.array(z.string().min(1)).max(30),
+    level: z.string().max(50).nullable(),
   })
   .partial();
 

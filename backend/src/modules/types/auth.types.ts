@@ -40,7 +40,9 @@ export type ExchangeCodeParams = z.infer<typeof ExchangeCodeParamsSchema>;
 // --- Session ---
 export const SessionSchema = z.object({
   userId: z.string().uuid("ID de usuário inválido"),
+  role: z.enum(["user", "support", "admin", "super_admin"] as const),
 });
+
 export type Session = z.infer<typeof SessionSchema>;
 
 export interface OAuthProviderImplementation {

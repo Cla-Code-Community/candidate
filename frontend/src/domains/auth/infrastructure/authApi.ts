@@ -47,7 +47,7 @@ function createError(payload: any, fallback: string) {
 }
 
 export async function login(credentials: LoginCredentials) {
-  const response = await fetch(buildUrl("/api/auth/login"), {
+  const response = await fetch(buildUrl("/auth/login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(credentials),
@@ -64,7 +64,7 @@ export async function login(credentials: LoginCredentials) {
 }
 
 export async function register(userData: RegisterData) {
-  const response = await fetch(buildUrl("/api/auth/register"), {
+  const response = await fetch(buildUrl("/auth/register"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -90,7 +90,7 @@ export async function register(userData: RegisterData) {
 }
 
 export async function logout() {
-  const response = await fetch(buildUrl("/api/auth/logout"), {
+  const response = await fetch(buildUrl("/auth/logout"), {
     method: "POST",
     credentials: "include",
   });
@@ -105,7 +105,7 @@ export async function logout() {
 }
 
 export async function getCurrentUser() {
-  const response = await fetch(buildUrl("/api/auth/me"), {
+  const response = await fetch(buildUrl("/auth/me"), {
     credentials: "include",
   });
 
@@ -119,7 +119,7 @@ export async function getCurrentUser() {
 }
 
 export async function getGoogleAuthUrl(): Promise<string> {
-  const response = await fetch(buildUrl("/api/auth/google/url"), {
+  const response = await fetch(buildUrl("/auth/google/url"), {
     credentials: "include",
   });
 
@@ -133,7 +133,7 @@ export async function getGoogleAuthUrl(): Promise<string> {
 }
 
 export async function getGithubAuthUrl(): Promise<string> {
-  const response = await fetch(buildUrl("/api/auth/github/url"), {
+  const response = await fetch(buildUrl("/auth/github/url"), {
     credentials: "include",
   });
 
@@ -147,7 +147,7 @@ export async function getGithubAuthUrl(): Promise<string> {
 }
 
 export async function getLinkedinAuthUrl(): Promise<string> {
-  const response = await fetch(buildUrl("/api/auth/linkedin/url"), {
+  const response = await fetch(buildUrl("/auth/linkedin/url"), {
     credentials: "include",
   });
 

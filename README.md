@@ -149,45 +149,45 @@ Os comandos abaixo existem hoje no repositório e foram conferidos nos package.j
 
 ## API backend (estado atual)
 
-Base: /api
+Base: /
 
 Sistema:
 
-- GET /api/health
+- GET /health
 
 Autenticação:
 
-- GET /api/auth/:provider/url
-- GET /api/auth/:provider/callback
-- POST /api/auth/register
-- POST /api/auth/login
-- POST /api/auth/logout
-- GET /api/auth/me
+- GET /auth/:provider/url
+- GET /auth/:provider/callback
+- POST /auth/register
+- POST /auth/login
+- POST /auth/logout
+- GET /auth/me
 
 Usuários:
 
-- GET /api/users/profile
-- PATCH /api/users/profile
-- GET /api/users/preferences
-- POST /api/users/preferences
-- PATCH /api/users/preferences
+- GET /users/profile
+- PATCH /users/profile
+- GET /users/preferences
+- POST /users/preferences
+- PATCH /users/preferences
 
 Jobs:
 
-- GET /api/jobs/search
+- GET /jobs/search
 
 Keywords:
 
-- GET /api/keywords
-- POST /api/keywords
+- GET /keywords
+- POST /keywords
 
 Saved jobs:
 
-- GET /api/saved-jobs
-- GET /api/saved-jobs/:id
-- POST /api/saved-jobs
-- PATCH /api/saved-jobs/:id
-- DELETE /api/saved-jobs/:id
+- GET /saved-jobs
+- GET /saved-jobs/:id
+- POST /saved-jobs
+- PATCH /saved-jobs/:id
+- DELETE /saved-jobs/:id
 
 Swagger:
 

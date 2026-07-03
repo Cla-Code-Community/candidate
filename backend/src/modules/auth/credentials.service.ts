@@ -65,7 +65,7 @@ export class CredentialsService {
     await db.insert(credentials).values({ userId: user.id, email, passwordHash });
     await db.insert(userPreferences).values({ userId: user.id });
 
-    return { user, session: { userId: user.id } };
+    return { user, session: { userId: user.id, role: user.role } };
   }
 
   async login(input: LoginInput): Promise<{ user: User; session: Session }> {
@@ -84,6 +84,6 @@ export class CredentialsService {
     });
     if (!user) throw new Error("Usuário não encontrado");
 
-    return { user, session: { userId: user.id } };
+    return { user, session: { userId: user.id, role: user.role } };
   }
 }

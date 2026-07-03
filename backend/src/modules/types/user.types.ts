@@ -9,6 +9,14 @@ export type UserPreferences = InferSelectModel<typeof userPreferences>;
 export type UpdateProfileData = Partial<
   Pick<
     NewUser,
-    "displayName" | "firstName" | "lastName" | "avatarUrl" | "username"
+    | "displayName"
+    | "firstName"
+    | "lastName"
+    | "avatarUrl"
+    | "username"
+    | "phone"
+    | "cpf"
+    | "technologies"
+    | "level"
   >
 >;

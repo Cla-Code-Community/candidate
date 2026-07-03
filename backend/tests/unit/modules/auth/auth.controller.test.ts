@@ -36,7 +36,10 @@ describe("AuthController", () => {
       getAuthUrl: vi.fn().mockResolvedValue("https://provider.com/auth"),
       handleCallback: vi
         .fn()
-        .mockResolvedValue({ user: { id: "1" }, session: { userId: "1" } }),
+        .mockResolvedValue({
+          user: { id: "1" },
+          session: { userId: "1", role: "user" },
+        }),
     };
 
     authController = new AuthController(authServiceMock);
@@ -45,6 +48,7 @@ describe("AuthController", () => {
       save: vi.fn().mockResolvedValue(undefined),
       oauth_state: undefined,
       userId: undefined,
+      role: undefined,
     };
 
     reqMock = {
@@ -103,6 +107,7 @@ describe("AuthController", () => {
 
       expect(sessionMock.oauth_state).toBeUndefined();
       expect(sessionMock.userId).toBe("1");
+      expect(sessionMock.role).toBe("user");
       expect(sessionMock.save).toHaveBeenCalled();
       expect(authServiceMock.handleCallback).toHaveBeenCalledWith(
         expect.objectContaining({

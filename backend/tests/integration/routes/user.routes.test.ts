@@ -62,7 +62,7 @@ const preferencesPayload = {
 
 describe("Integration - Users Routes", () => {
   let app: ReturnType<typeof createJobsApiApp>;
-  const BASE = "/api/users";
+  const BASE = "/users";
 
   beforeEach(() => {
     vi.clearAllMocks();
