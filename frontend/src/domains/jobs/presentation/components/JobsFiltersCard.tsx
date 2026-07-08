@@ -1,7 +1,7 @@
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
-import type { JobFile, JobsMeta } from "@/domains/jobs/domain/job.types";
+import type { JobsPaginationMeta } from "@/domains/jobs/application/useJobsData";
 import {
   useMemo,
   useState,
@@ -13,7 +13,6 @@ import {
 import {
   FiBriefcase,
   FiCheck,
-  FiFileText,
   FiFilter,
   FiPlus,
   FiSearch,
@@ -30,10 +29,7 @@ interface JobsFiltersCardProps {
   onRemoveFilter: (filterToRemove: string) => void;
   onClearFilters: () => void;
   keywords: string[];
-  selectedFile: string;
-  setSelectedFile: Dispatch<SetStateAction<string>>;
-  files: JobFile[];
-  meta: JobsMeta;
+  meta: JobsPaginationMeta;
   actions?: ReactNode;
 }
 
@@ -56,11 +52,7 @@ export function JobsFiltersCard({
   onRemoveFilter,
   onClearFilters,
   keywords,
-  selectedFile,
-  setSelectedFile,
-  files,
   meta,
-  actions,
 }: JobsFiltersCardProps) {
   const [seeKeywordsModal, setSeeKeywordsModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -99,7 +91,10 @@ export function JobsFiltersCard({
     }
 
     setSearch((current) => {
-      const currentTerms = getSelectedFilters(current, []);
+      const currentTerms = current
+        .split(/[,;/]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
 
       if (currentTerms.includes(nextTerm)) {
         return current;
@@ -132,7 +127,6 @@ export function JobsFiltersCard({
                 <FiPlus className="h-4 w-4" />
               </button>
             </form>
-            <div className="flex items-center gap-2">{actions}</div>
           </div>
 
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
@@ -151,28 +145,7 @@ export function JobsFiltersCard({
                 ))}
               </select>
 
-              <select
-                aria-label="Selecionar arquivo"
-                className="h-12 min-w-[180px] rounded-2xl border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#14AE5C]/40 dark:border-[#35506f] dark:bg-[#0b1527] dark:text-slate-100"
-                value={selectedFile}
-                onChange={(event) => setSelectedFile(event.target.value)}
-              >
-                {files.map((file) => (
-                  <option key={file.file} value={file.file}>
-                    {file.file}
-                  </option>
-                ))}
-              </select>
-
               <div>
-                <Badge
-                  variant="secondary"
-                  className="gap-1.5 rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs text-slate-700 dark:border-[#35506f] dark:bg-[#24324c] dark:text-slate-100"
-                >
-                  <FiFileText className="h-3.5 w-3.5" />
-                  {meta.file || "Sem arquivo"}
-                </Badge>
-
                 <Badge className="gap-1.5 rounded-full bg-[#0c6b35] px-3 py-1 text-xs text-white">
                   <FiBriefcase className="h-3.5 w-3.5" />
                   {meta.total} vagas
