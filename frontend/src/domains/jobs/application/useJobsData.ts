@@ -1,12 +1,16 @@
-import { fetchJobFiles, fetchJobsByFile, runScraperRequest } from "@/domains/jobs/infrastructure/jobsApi";
+import {
+  fetchJobFiles,
+  fetchJobsByFile,
+  runScraperRequest,
+} from "@/domains/jobs/infrastructure/jobsApi";
 import type { Job, JobFile, JobsMeta } from "@/domains/jobs/domain/job.types";
 import { useCallback, useEffect, useState } from "react";
 
 const EMPTY_META: JobsMeta = { file: "", modifiedAt: null, total: 0 };
 
-export function useJobsData() {
+export function useJobsData(initialSelectedFile = "") {
   const [files, setFiles] = useState<JobFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState("");
+  const [selectedFile, setSelectedFile] = useState(initialSelectedFile);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [meta, setMeta] = useState<JobsMeta>(EMPTY_META);
   const [loading, setLoading] = useState(false);
@@ -38,7 +42,11 @@ export function useJobsData() {
     } catch (err: unknown) {
       setJobs([]);
       setMeta(EMPTY_META);
-      setError(err instanceof Error ? err.message : "Erro inesperado ao carregar vagas.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erro inesperado ao carregar vagas.",
+      );
     } finally {
       setLoading(false);
     }
@@ -48,7 +56,7 @@ export function useJobsData() {
     async function initializeFiles() {
       const foundFiles = await loadFiles();
       if (foundFiles[0]?.file) {
-        setSelectedFile(foundFiles[0].file);
+        setSelectedFile((current) => current || foundFiles[0].file);
       }
     }
 
@@ -94,7 +102,11 @@ export function useJobsData() {
 
       await loadJobs(nextFile);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro inesperado ao executar o scraper.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Erro inesperado ao executar o scraper.",
+      );
     } finally {
       setScraping(false);
     }

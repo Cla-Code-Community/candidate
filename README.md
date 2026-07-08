@@ -74,15 +74,88 @@ Objetivo de produto: fornecer uma base robusta para busca, filtragem e gestão d
 
 - Node.js >= 22
 - npm
-- Docker e Docker Compose (opcional, recomendado para ambiente completo)
+- Docker Desktop com Docker Compose
 
-### Instalação
+### Caminho recomendado: stack completa com Docker
+
+Use este fluxo para subir Postgres, Valkey, scraper Go, backend e frontend com a mesma rede Docker.
+
+1. Instale as dependências locais:
 
 ```bash
-npm install
+npm ci
 ```
 
-### Execução web (frontend + backend)
+2. Crie o `.env` da raiz a partir do exemplo versionado:
+
+```bash
+cp .env.example .env
+```
+
+No Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+3. Crie a rede Docker compartilhada, se ela ainda não existir:
+
+```bash
+docker network create vagas-net
+```
+
+Se a rede já existir, o Docker vai avisar e você pode seguir para o próximo passo.
+
+4. Suba Postgres e Valkey:
+
+```bash
+docker compose -f docker-compose.infra.yml up -d
+```
+
+5. Suba scraper, backend e frontend:
+
+```bash
+docker compose up --build -d
+```
+
+6. Aplique as migrations do backend:
+
+```bash
+docker compose exec backend npm run db:migrate
+```
+
+7. Acesse os serviços:
+
+- Frontend: http://localhost:5173
+- Backend health: http://localhost:3001/health
+- Scraper health: http://localhost:8081/health
+- Vagas salvas no scraper: http://localhost:8081/admin/jobs/count
+
+### Desenvolvimento com Node local
+
+Use este fluxo quando quiser rodar frontend/backend fora do Docker. Mantenha Postgres e Valkey ativos no Docker e configure URLs locais nos arquivos `.env`.
+
+Arquivos esperados:
+
+- `.env`: usado pela infra/scraper e por comandos auxiliares.
+- `backend/.env`: usado pelo backend local.
+- `frontend/.env`: usado pelo Vite local.
+
+Criação dos arquivos locais:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+No Windows PowerShell:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
+Copy-Item frontend/.env.example frontend/.env
+```
+
+Comandos:
 
 ```bash
 npm run dev
@@ -174,6 +247,8 @@ Usuários:
 
 Jobs:
 
+- GET /jobs
+- GET /jobs/files
 - GET /jobs/search
 
 Keywords:
@@ -195,27 +270,30 @@ Swagger:
 
 ## Docker (infra + aplicação)
 
-Este projeto separa infraestrutura de aplicação em dois arquivos compose.
+Este projeto separa infraestrutura e aplicação em dois arquivos Compose:
 
-1. Criar rede compartilhada (necessário uma vez):
+- `docker-compose.infra.yml`: Postgres + Valkey.
+- `docker-compose.yml`: scraper Go + backend + frontend.
 
-```bash
-docker network create vagas-net
-```
-
-2. Subir infra (Postgres + Valkey):
+Subir infraestrutura:
 
 ```bash
 docker compose -f docker-compose.infra.yml up -d
 ```
 
-3. Subir aplicação (scraper-go + backend + frontend):
+Subir aplicação:
 
 ```bash
 docker compose up --build -d
 ```
 
-4. Logs:
+Aplicar migrations:
+
+```bash
+docker compose exec backend npm run db:migrate
+```
+
+Ver logs:
 
 ```bash
 docker compose logs -f backend
@@ -223,18 +301,35 @@ docker compose logs -f frontend
 docker compose logs -f scraper-go
 ```
 
-5. Encerrar:
+Encerrar:
 
 ```bash
 docker compose down
 docker compose -f docker-compose.infra.yml down
 ```
 
+Observação: os volumes Docker preservam os dados do Postgres e do Valkey entre execuções. Se você alterar `POSTGRES_USER`, `POSTGRES_PASSWORD` ou `POSTGRES_DB` depois da primeira inicialização, será necessário recriar o volume do Postgres ou manter os valores antigos.
+
+Dentro dos containers, serviços devem usar os nomes da rede Docker:
+
+- Postgres: `postgres:5432`
+- Valkey: `valkey:6379`
+- Scraper: `scraper-go:8081`
+
+Por isso o `docker-compose.yml` sobrescreve `DATABASE_URL`, `VALKEY_URL`, `GO_SCRAPER_URL` e `SCRAPER_URL` para os valores internos corretos.
+
 Serviços padrão:
 
 - Frontend: http://localhost:5173
 - Backend: http://localhost:3001
 - Scraper Go: http://localhost:8081
+
+Endpoints úteis do scraper:
+
+- Health: http://localhost:8081/health
+- Status da execução: http://localhost:8081/admin/scrape/status
+- Contagem de vagas salvas: http://localhost:8081/admin/jobs/count
+- Lista de vagas salvas: http://localhost:8081/admin/jobs
 
 ## Desktop com Electron
 
@@ -259,13 +354,23 @@ Saída esperada do instalador:
 
 ## Variáveis de ambiente
 
-Arquivo base:
+Arquivos de exemplo:
 
+- .env.example
 - backend/.env.example
+- frontend/.env.example
 
-Arquivo local:
+Arquivos locais ignorados pelo Git:
 
+- .env
 - backend/.env
+- frontend/.env
+
+Uso recomendado:
+
+- Docker Compose: copie `.env.example` para `.env`. O Compose usa esse arquivo para infra, scraper, backend e build do frontend.
+- Backend local via Node: use `backend/.env`.
+- Frontend local via Vite: use `frontend/.env`.
 
 Variáveis centrais de operação:
 

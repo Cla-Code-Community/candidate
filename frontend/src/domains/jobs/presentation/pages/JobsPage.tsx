@@ -3,10 +3,16 @@ import { JobsTableCard } from "@/domains/jobs/presentation/components/JobsTableC
 import { Button } from "@/shared/ui/button";
 import { useJobsData } from "@/domains/jobs/application/useJobsData";
 import { useJobsFiltering } from "@/domains/jobs/application/useJobsFiltering";
-import { useJobsPagination } from "@/domains/jobs/application/useJobsPagination";
 import type { JobsMeta } from "@/domains/jobs/domain/job.types";
-import { useCallback, type SetStateAction } from "react";
+import {
+  clampPageSize,
+  getCurrentPage,
+  getTotalPages,
+  paginateItems,
+} from "@/domains/jobs/domain/jobPagination";
+import { useCallback, useEffect, useMemo, type SetStateAction } from "react";
 import { FiRefreshCw } from "react-icons/fi";
+import { useSearchParams } from "react-router-dom";
 
 function formatDate(timestamp: JobsMeta["modifiedAt"]): string {
   if (!timestamp) {
@@ -15,7 +21,44 @@ function formatDate(timestamp: JobsMeta["modifiedAt"]): string {
   return new Date(timestamp).toLocaleString("pt-BR");
 }
 
+function parsePositiveInteger(value: string | null, fallback: number) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(1, Math.trunc(parsed));
+}
+
+function getKeywordFilter(searchParams: URLSearchParams) {
+  return searchParams
+    .getAll("keyword")
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+function getSearchTerms(search: string) {
+  return search
+    .split(/[,;/]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function JobsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const search = searchParams.get("q") ?? "";
+  const keywordFilter = useMemo(
+    () => getKeywordFilter(searchParams),
+    [searchParams],
+  );
+  const selectedFileParam = searchParams.get("file") ?? "";
+  const page = parsePositiveInteger(searchParams.get("page"), 1);
+  const pageSize = clampPageSize(
+    parsePositiveInteger(searchParams.get("pageSize"), 5),
+  );
+
   const {
     files,
     selectedFile,
@@ -26,65 +69,155 @@ function JobsPage() {
     scraping,
     error,
     triggerScraper,
-  } = useJobsData();
+  } = useJobsData(selectedFileParam);
 
-  const {
+  const { keywords, filteredJobs } = useJobsFiltering(
+    jobs,
     search,
-    setSearch,
     keywordFilter,
-    setKeywordFilter,
-    keywords,
-    filteredJobs,
-  } = useJobsFiltering(jobs);
+  );
 
-  const {
-    currentPage,
-    setCurrentPage,
-    pageSize,
-    setPageSize,
-    resetPagination,
-    totalPages,
-    paginatedJobs,
-  } = useJobsPagination({
-    filteredJobs,
-  });
+  const totalPages = useMemo(
+    () => getTotalPages(filteredJobs.length, pageSize),
+    [filteredJobs.length, pageSize],
+  );
+  const currentPage = getCurrentPage(page, totalPages);
+  const paginatedJobs = useMemo(
+    () => paginateItems(filteredJobs, currentPage, pageSize),
+    [filteredJobs, currentPage, pageSize],
+  );
+
+  const updateSearchParams = useCallback(
+    (
+      updates: Record<string, string | string[] | null>,
+      options: { resetPage?: boolean; replace?: boolean } = {},
+    ) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+
+          Object.entries(updates).forEach(([key, value]) => {
+            next.delete(key);
+
+            if (Array.isArray(value)) {
+              value.filter(Boolean).forEach((item) => next.append(key, item));
+              return;
+            }
+
+            if (value) {
+              next.set(key, value);
+            }
+          });
+
+          if (options.resetPage) {
+            next.delete("page");
+          }
+
+          return next;
+        },
+        { replace: options.replace },
+      );
+    },
+    [setSearchParams],
+  );
+
+  useEffect(() => {
+    if (selectedFileParam && selectedFileParam !== selectedFile) {
+      setSelectedFile(selectedFileParam);
+    }
+  }, [selectedFileParam, selectedFile, setSelectedFile]);
+
+  useEffect(() => {
+    if (selectedFile && selectedFile !== selectedFileParam) {
+      updateSearchParams({ file: selectedFile }, { replace: true });
+    }
+  }, [selectedFile, selectedFileParam, updateSearchParams]);
+
+  useEffect(() => {
+    if (page !== currentPage) {
+      updateSearchParams(
+        { page: currentPage === 1 ? null : String(currentPage) },
+        { replace: true },
+      );
+    }
+  }, [currentPage, page, updateSearchParams]);
 
   const handleSearchChange = useCallback(
     (value: SetStateAction<string>) => {
-      setSearch((previous) =>
-        typeof value === "function" ? value(previous) : value,
+      const nextSearch = typeof value === "function" ? value(search) : value;
+      updateSearchParams(
+        { q: nextSearch.trim() ? nextSearch : null },
+        { resetPage: true },
       );
-      resetPagination();
     },
-    [setSearch, resetPagination],
+    [search, updateSearchParams],
   );
 
   const handleKeywordFilterChange = useCallback(
     (value: SetStateAction<string[]>) => {
-      setKeywordFilter((previous) =>
-        typeof value === "function" ? value(previous) : value,
-      );
-      resetPagination();
+      const nextKeywordFilter =
+        typeof value === "function" ? value(keywordFilter) : value;
+      updateSearchParams({ keyword: nextKeywordFilter }, { resetPage: true });
     },
-    [setKeywordFilter, resetPagination],
+    [keywordFilter, updateSearchParams],
   );
+
+  const handleRemoveFilter = useCallback(
+    (filterToRemove: string) => {
+      const nextKeywordFilter = keywordFilter.filter(
+        (item) => item !== filterToRemove,
+      );
+      const nextSearch = getSearchTerms(search)
+        .filter((item) => item !== filterToRemove)
+        .join(", ");
+
+      updateSearchParams(
+        {
+          keyword: nextKeywordFilter,
+          q: nextSearch || null,
+        },
+        { resetPage: true },
+      );
+    },
+    [keywordFilter, search, updateSearchParams],
+  );
+
+  const handleClearFilters = useCallback(() => {
+    updateSearchParams(
+      {
+        keyword: [],
+        q: null,
+      },
+      { resetPage: true },
+    );
+  }, [updateSearchParams]);
 
   const handleSelectedFileChange = useCallback(
     (value: SetStateAction<string>) => {
-      setSelectedFile((previous) =>
-        typeof value === "function" ? value(previous) : value,
-      );
-      resetPagination();
+      const nextFile =
+        typeof value === "function" ? value(selectedFile) : value;
+      setSelectedFile(nextFile);
+      updateSearchParams({ file: nextFile || null }, { resetPage: true });
     },
-    [setSelectedFile, resetPagination],
+    [selectedFile, setSelectedFile, updateSearchParams],
+  );
+
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      updateSearchParams({ page: nextPage === 1 ? null : String(nextPage) });
+    },
+    [updateSearchParams],
   );
 
   const handlePageSizeChange = useCallback(
     (value: number) => {
-      setPageSize(value);
-      resetPagination();
+      const nextPageSize = clampPageSize(value);
+      updateSearchParams(
+        { pageSize: nextPageSize === 5 ? null : String(nextPageSize) },
+        { resetPage: true },
+      );
     },
-    [setPageSize, resetPagination],
+    [updateSearchParams],
   );
 
   const handleScraper = useCallback(() => {
@@ -98,6 +231,8 @@ function JobsPage() {
         setSearch={handleSearchChange}
         keywordFilter={keywordFilter}
         setKeywordFilter={handleKeywordFilterChange}
+        onRemoveFilter={handleRemoveFilter}
+        onClearFilters={handleClearFilters}
         keywords={keywords}
         selectedFile={selectedFile}
         setSelectedFile={handleSelectedFileChange}
@@ -129,7 +264,7 @@ function JobsPage() {
         currentPage={currentPage}
         totalPages={totalPages}
         pageSize={pageSize}
-        onPageChange={setCurrentPage}
+        onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
       />
     </section>

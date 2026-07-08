@@ -122,15 +122,19 @@ cd scraper-go
 go run ./cmd/server
 ```
 
-Docker: há um `Dockerfile` em `scraper-go/`.
+Docker: há um `Dockerfile` em `scraper-go/`. No Docker Compose, configure `VALKEY_URL=redis://valkey:6379/0` no `.env` da raiz para que o scraper acesse o Valkey pelo nome do serviço na rede Docker.
 
 ## Endpoints HTTP
 
 O serviço expõe endpoints HTTP (implementação em `cmd/server` e arquivos associados). Principais rotas:
 
 - POST `/scrape` — body JSON com `ScrapeRequest` para disparar uma busca em todas as fontes configuradas. Retorna `ScrapeResponse` com `jobs`, `total`, `cachedAt` e `fromCache`.
+- GET `/health` — verifica se o scraper está online e qual cache está em uso.
 - GET `/api/keywords` — retorna as keywords atualmente carregadas.
 - POST `/api/keywords` — atualiza/persiste as keywords (aceita `keywords: string[]`).
+- GET `/admin/scrape/status` — informa se existe uma execução em andamento.
+- GET `/admin/jobs/count` — retorna a quantidade de vagas persistidas no Valkey.
+- GET `/admin/jobs` — lista as vagas persistidas no Valkey.
 
 Exemplo de `ScrapeRequest` (JSON):
 
@@ -230,7 +234,7 @@ Boas práticas nos adaptadores:
 
 ## Variáveis de ambiente importantes
 
-- `REDIS_URL` / `VALKEY_URL` — conexão Redis/Valkey.
+- `VALKEY_URL` — conexão Redis/Valkey. Em Docker Compose, use `redis://valkey:6379/0`; em execução local fora do Docker, use uma URL acessível pelo host, por exemplo `redis://localhost:6379/0`.
 - `JOOBLE_API_KEY` — Jooble integration.
 - `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` — Adzuna API.
 - Configurações de logging e quota podem ser definidas via `.env`.

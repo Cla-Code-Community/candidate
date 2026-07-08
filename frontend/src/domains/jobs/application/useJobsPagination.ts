@@ -14,7 +14,7 @@ interface UseJobsPaginationParams {
 
 export function useJobsPagination({
   filteredJobs,
-  initialPageSize = 4,
+  initialPageSize = 5,
 }: UseJobsPaginationParams) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSizeState] = useState(clampPageSize(initialPageSize));

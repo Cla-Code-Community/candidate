@@ -3,7 +3,7 @@ export function clampPageSize(value: number) {
     return 1;
   }
 
-  return Math.min(10, Math.max(1, Math.trunc(value)));
+  return Math.min(50, Math.max(1, Math.trunc(value)));
 }
 
 export function getTotalPages(totalItems: number, pageSize: number) {

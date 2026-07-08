@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const hookState = vi.hoisted(() => ({
@@ -23,29 +24,8 @@ const hookState = vi.hoisted(() => ({
     triggerScraper: vi.fn(async () => {}),
   },
   useJobsFilteringValue: {
-    search: "",
-    setSearch: vi.fn(),
-    keywordFilter: [],
-    setKeywordFilter: vi.fn(),
     keywords: ["React"],
     filteredJobs: [
-      {
-        titulo: "Dev",
-        empresa: "ACME",
-        local: "BR",
-        palavra: "React",
-        link: "x",
-      },
-    ],
-  },
-  useJobsPaginationValue: {
-    currentPage: 1,
-    setCurrentPage: vi.fn(),
-    pageSize: 10,
-    setPageSize: vi.fn(),
-    resetPagination: vi.fn(),
-    totalPages: 1,
-    paginatedJobs: [
       {
         titulo: "Dev",
         empresa: "ACME",
@@ -65,10 +45,6 @@ vi.mock("@/domains/jobs/application/useJobsData", () => ({
 
 vi.mock("@/domains/jobs/application/useJobsFiltering", () => ({
   useJobsFiltering: () => hookState.useJobsFilteringValue,
-}));
-
-vi.mock("@/domains/jobs/application/useJobsPagination", () => ({
-  useJobsPagination: () => hookState.useJobsPaginationValue,
 }));
 
 vi.mock("@/domains/jobs/presentation/components/JobsFiltersCard", () => ({
@@ -97,6 +73,12 @@ vi.mock("@/domains/jobs/presentation/components/JobsFiltersCard", () => ({
         >
           set keyword updater
         </button>
+        <button type="button" onClick={() => props.onRemoveFilter("React")}>
+          remove filter
+        </button>
+        <button type="button" onClick={() => props.onClearFilters()}>
+          clear filters
+        </button>
         <button
           type="button"
           onClick={() => props.setSelectedFile("historico.xlsx")}
@@ -123,6 +105,9 @@ vi.mock("@/domains/jobs/presentation/components/JobsTableCard", () => ({
       <div>
         <div>loading: {String(props.loading)}</div>
         <div>error: {props.error || "none"}</div>
+        <button type="button" onClick={() => props.onPageChange(2)}>
+          change page
+        </button>
         <button type="button" onClick={() => props.onPageSizeChange(25)}>
           change page size
         </button>
@@ -131,20 +116,48 @@ vi.mock("@/domains/jobs/presentation/components/JobsTableCard", () => ({
   },
 }));
 
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location">{location.search}</div>;
+}
+
+function renderPage(initialEntry = "/vagas") {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <JobsPage />
+      <LocationDisplay />
+    </MemoryRouter>,
+  );
+}
+
 import JobsPage from "@/domains/jobs/presentation/pages/JobsPage";
 
 describe("JobsPage", () => {
   beforeEach(() => {
     hookState.useJobsDataValue.setSelectedFile.mockClear();
     hookState.useJobsDataValue.triggerScraper.mockClear();
-    hookState.useJobsFilteringValue.setSearch.mockClear();
-    hookState.useJobsFilteringValue.setKeywordFilter.mockClear();
-    hookState.useJobsPaginationValue.setPageSize.mockClear();
-    hookState.useJobsPaginationValue.resetPagination.mockClear();
+    hookState.useJobsDataValue.scraping = false;
+    hookState.useJobsDataValue.error = "";
+    hookState.useJobsDataValue.meta = {
+      file: "vagas.xlsx",
+      modifiedAt: 123,
+      total: 1,
+    };
+    hookState.useJobsFilteringValue.filteredJobs = [
+      {
+        titulo: "Dev",
+        empresa: "ACME",
+        local: "BR",
+        palavra: "React",
+        link: "x",
+      },
+    ];
+    hookState.capturedFiltersProps = null;
+    hookState.capturedTableProps = null;
   });
 
   it("renderiza filtros, tabela e dispara callback de scraper", () => {
-    render(<JobsPage />);
+    renderPage();
 
     expect(
       screen.getByRole("button", { name: /buscar vagas/i }),
@@ -159,70 +172,102 @@ describe("JobsPage", () => {
   it("exibe estado de scraping como loading e texto de busca em andamento", () => {
     hookState.useJobsDataValue.scraping = true;
 
-    render(<JobsPage />);
+    renderPage();
 
     expect(
       screen.getByRole("button", { name: /buscando vagas/i }),
     ).toBeDisabled();
     expect(screen.getByText("loading: true")).toBeInTheDocument();
-
-    hookState.useJobsDataValue.scraping = false;
   });
 
-  it("executa handlers de filtros com valores e updater functions", () => {
-    render(<JobsPage />);
+  it("inicializa filtros e paginacao a partir da URL", () => {
+    renderPage(
+      "/vagas?q=frontend&keyword=React&file=vagas.xlsx&page=2&pageSize=25",
+    );
+
+    expect(hookState.capturedFiltersProps.search).toBe("frontend");
+    expect(hookState.capturedFiltersProps.keywordFilter).toEqual(["React"]);
+    expect(hookState.capturedTableProps.currentPage).toBe(1);
+    expect(hookState.capturedTableProps.pageSize).toBe(25);
+  });
+
+  it("executa handlers atualizando searchParams", () => {
+    renderPage("/vagas?q=React&keyword=React&page=3");
 
     fireEvent.click(screen.getByRole("button", { name: /set search value/i }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /set search updater/i }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /set keyword value/i }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /set keyword updater/i }),
-    );
-    fireEvent.click(screen.getByRole("button", { name: /set file value/i }));
-    fireEvent.click(screen.getByRole("button", { name: /set file updater/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("q=frontend");
+    expect(screen.getByTestId("location")).not.toHaveTextContent("page=3");
 
-    expect(hookState.useJobsFilteringValue.setSearch).toHaveBeenCalledTimes(2);
-    expect(
-      hookState.useJobsFilteringValue.setKeywordFilter,
-    ).toHaveBeenCalledTimes(2);
-    expect(hookState.useJobsDataValue.setSelectedFile).toHaveBeenCalledTimes(2);
-    expect(
-      hookState.useJobsPaginationValue.resetPagination,
-    ).toHaveBeenCalledTimes(6);
+    fireEvent.click(screen.getByRole("button", { name: /set keyword value/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("keyword=Node");
+
+    fireEvent.click(screen.getByRole("button", { name: /set file value/i }));
+    expect(hookState.useJobsDataValue.setSelectedFile).toHaveBeenCalledWith(
+      "historico.xlsx",
+    );
   });
 
-  it("dispara troca de page size com reset de pagina e propaga erro", () => {
-    hookState.useJobsDataValue.error = "erro ao carregar";
+  it("remove, limpa filtros e atualiza paginacao na URL", () => {
+    hookState.useJobsFilteringValue.filteredJobs = Array.from(
+      { length: 30 },
+      (_, index) => ({
+        titulo: `Dev ${index}`,
+        empresa: "ACME",
+        local: "BR",
+        palavra: "React",
+        link: String(index),
+      }),
+    );
 
-    render(<JobsPage />);
+    renderPage("/vagas?q=React%2C%20Node&keyword=React&page=3&pageSize=10");
+
+    fireEvent.click(screen.getByRole("button", { name: /remove filter/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("q=Node");
+    expect(screen.getByTestId("location")).not.toHaveTextContent("keyword=");
+
+    fireEvent.click(screen.getByRole("button", { name: /^change page$/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("page=2");
 
     fireEvent.click(screen.getByRole("button", { name: /change page size/i }));
+    expect(screen.getByTestId("location")).toHaveTextContent("pageSize=25");
+    expect(screen.getByTestId("location")).not.toHaveTextContent("page=2");
 
-    expect(hookState.useJobsPaginationValue.setPageSize).toHaveBeenCalledWith(
-      25,
-    );
-    expect(hookState.useJobsPaginationValue.resetPagination).toHaveBeenCalled();
-    expect(screen.getByText("error: erro ao carregar")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /clear filters/i }));
+    expect(screen.getByTestId("location")).not.toHaveTextContent("q=");
+    expect(screen.getByTestId("location")).not.toHaveTextContent("keyword=");
 
-    hookState.useJobsDataValue.error = "";
+    hookState.useJobsFilteringValue.filteredJobs = [
+      {
+        titulo: "Dev",
+        empresa: "ACME",
+        local: "BR",
+        palavra: "React",
+        link: "x",
+      },
+    ];
   });
 
-  it("formata data vazia como hífen quando modifiedAt é null", () => {
+  it("propaga erro", () => {
+    hookState.useJobsDataValue.error = "erro ao carregar";
+
+    renderPage();
+
+    expect(screen.getByText("error: erro ao carregar")).toBeInTheDocument();
+  });
+
+  it("formata data vazia como hifen quando modifiedAt e null", () => {
     hookState.useJobsDataValue.meta = {
       file: "vagas.xlsx",
       modifiedAt: null,
       total: 1,
     };
 
-    render(<JobsPage />);
-    expect(hookState.capturedTableProps).toBeDefined();
+    renderPage();
     expect(hookState.capturedTableProps.meta.modifiedAt).toBeNull();
     expect(hookState.capturedTableProps.formatDate(null)).toBe("-");
   });
 
-  it("formata data corretamente quando modifiedAt é um timestamp válido", () => {
+  it("formata data corretamente quando modifiedAt e um timestamp valido", () => {
     const timestamp = new Date("2024-01-15").getTime();
     hookState.useJobsDataValue.meta = {
       file: "vagas.xlsx",
@@ -230,7 +275,7 @@ describe("JobsPage", () => {
       total: 1,
     };
 
-    render(<JobsPage />);
+    renderPage();
 
     expect(hookState.capturedTableProps.meta.modifiedAt).toBe(timestamp);
     expect(hookState.capturedTableProps.formatDate(timestamp)).toBe(

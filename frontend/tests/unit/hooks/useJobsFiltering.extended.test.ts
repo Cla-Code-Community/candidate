@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { useJobsFiltering } from "@/domains/jobs/application/useJobsFiltering";
@@ -15,11 +15,9 @@ describe("useJobsFiltering extended", () => {
       },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
-
-    act(() => {
-      result.current.setSearch("sênior companhia são");
-    });
+    const { result } = renderHook(() =>
+      useJobsFiltering(jobs, "sênior companhia são", []),
+    );
 
     expect(result.current.filteredJobs).toHaveLength(1);
   });
@@ -42,7 +40,7 @@ describe("useJobsFiltering extended", () => {
       },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
+    const { result } = renderHook(() => useJobsFiltering(jobs, "", []));
 
     expect(result.current.filteredJobs).toHaveLength(1);
     expect(result.current.filteredJobs[0].palavra).toContain("React");
@@ -55,11 +53,7 @@ describe("useJobsFiltering extended", () => {
       { titulo: "B", empresa: "B", local: "B", palavra: "Go", link: "2" },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
-
-    act(() => {
-      result.current.setKeywordFilter(["Go"]);
-    });
+    const { result } = renderHook(() => useJobsFiltering(jobs, "", ["Go"]));
 
     expect(result.current.filteredJobs).toHaveLength(1);
     expect(result.current.filteredJobs[0].titulo).toBe("B");
@@ -77,11 +71,7 @@ describe("useJobsFiltering extended", () => {
       },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
-
-    act(() => {
-      result.current.setSearch("qa");
-    });
+    const { result } = renderHook(() => useJobsFiltering(jobs, "qa", []));
 
     expect(result.current.filteredJobs).toHaveLength(1);
     expect(result.current.keywords).toContain("QA");
@@ -105,7 +95,7 @@ describe("useJobsFiltering extended", () => {
       },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
+    const { result } = renderHook(() => useJobsFiltering(jobs, "", []));
 
     expect(result.current.filteredJobs).toHaveLength(1);
     expect(result.current.filteredJobs[0].palavra).toContain("React");
@@ -132,7 +122,7 @@ describe("useJobsFiltering extended", () => {
       },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
+    const { result } = renderHook(() => useJobsFiltering(jobs, "", []));
 
     expect(result.current.filteredJobs).toHaveLength(1);
     expect(result.current.filteredJobs[0].palavra).toContain("React");
@@ -159,7 +149,7 @@ describe("useJobsFiltering extended", () => {
       },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
+    const { result } = renderHook(() => useJobsFiltering(jobs, "", []));
 
     // Ambos devem ser dedplicados pois nao tem link valido
     expect(result.current.filteredJobs).toHaveLength(1);
@@ -167,30 +157,44 @@ describe("useJobsFiltering extended", () => {
 
   it("combina multiplos filtros de keywords", () => {
     const jobs = [
-      { titulo: "A", empresa: "A", local: "A", palavra: "React, Node", link: "1" },
+      {
+        titulo: "A",
+        empresa: "A",
+        local: "A",
+        palavra: "React, Node",
+        link: "1",
+      },
       { titulo: "B", empresa: "B", local: "B", palavra: "Go, Rust", link: "2" },
-      { titulo: "C", empresa: "C", local: "C", palavra: "React, Go", link: "3" },
+      {
+        titulo: "C",
+        empresa: "C",
+        local: "C",
+        palavra: "React, Go",
+        link: "3",
+      },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
-
-    act(() => {
-      result.current.setKeywordFilter(["React", "Go"]);
-    });
+    const { result } = renderHook(() =>
+      useJobsFiltering(jobs, "", ["React", "Go"]),
+    );
 
     expect(result.current.filteredJobs).toHaveLength(3);
   });
 
   it("retorna lista vazia quando busca nao tem resultado", () => {
     const jobs = [
-      { titulo: "Dev", empresa: "ACME", local: "SP", palavra: "React", link: "1" },
+      {
+        titulo: "Dev",
+        empresa: "ACME",
+        local: "SP",
+        palavra: "React",
+        link: "1",
+      },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
-
-    act(() => {
-      result.current.setSearch("XYZ123NoMatch");
-    });
+    const { result } = renderHook(() =>
+      useJobsFiltering(jobs, "XYZ123NoMatch", []),
+    );
 
     expect(result.current.filteredJobs).toHaveLength(0);
   });
@@ -207,7 +211,7 @@ describe("useJobsFiltering extended", () => {
       },
     ];
 
-    const { result } = renderHook(() => useJobsFiltering(jobs));
+    const { result } = renderHook(() => useJobsFiltering(jobs, "", []));
 
     expect(result.current.keywords).toContain("React");
     expect(result.current.keywords).toContain("Node");

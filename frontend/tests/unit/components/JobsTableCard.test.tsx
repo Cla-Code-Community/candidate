@@ -30,7 +30,7 @@ const baseProps = {
   formatDate: () => "agora",
   currentPage: 1,
   totalPages: 5,
-  pageSize: 4,
+  pageSize: 5,
   onPageChange: vi.fn(),
   onPageSizeChange: vi.fn(),
 };
@@ -40,8 +40,15 @@ describe("JobsTableCard", () => {
     render(<JobsTableCard {...baseProps} />);
 
     expect(screen.getByText("Vagas Encontradas")).toBeInTheDocument();
-    expect(screen.getByText(/Resultados: 1 vaga encontrada/i)).toBeInTheDocument();
-    expect(screen.getByText("Abrir vaga")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Resultados: 1 vaga encontrada/i),
+    ).toBeInTheDocument();
+    const titleLink = screen.getByRole("link", { name: "Dev" });
+    expect(titleLink).toHaveAttribute("href", "https://x");
+    expect(screen.queryByText("Abrir vaga")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("columnheader", { name: "Link" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("JavaScript")).toBeInTheDocument();
     expect(screen.getByText("UX-UI")).toBeInTheDocument();
     expect(screen.getByText(/spam/i)).toBeInTheDocument();
