@@ -216,17 +216,19 @@ export function JobsTableCard({
               className="flex w-fit items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm"
             >
               <span className="text-muted-foreground">Itens por página</span>
-              <input
+              <select
                 id="page-size"
                 aria-label="Itens por página"
-                type="number"
-                min={1}
-                max={10}
-                step={1}
-                className="w-14 rounded-md bg-transparent text-center font-semibold text-foreground outline-none"
+                className="w-20 rounded-md bg-background px-2 py-1 text-center font-semibold text-foreground outline-none transition-colors"
                 value={pageSize}
                 onChange={(event) => onPageSizeChange(Number(event.target.value))}
-              />
+              >
+                {[5, 10, 25, 50].map((size) => (
+                  <option key={size} value={size} className="bg-background text-foreground">
+                    {size}
+                  </option>
+                ))}
+              </select>
             </label>
 
             <nav className="flex items-center gap-1 self-end md:self-auto" aria-label="Paginação">
