@@ -2,47 +2,71 @@ import { useJobsPagination } from "@/domains/jobs/application/useJobsPagination"
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-const JOBS = Array.from({ length: 5 }).map((_, index) => ({ titulo: `Job ${index}` }));
+const JOBS = Array.from({ length: 5 }).map((_, index) => ({
+  titulo: `Job ${index}`,
+}));
 
 describe("useJobsPagination", () => {
+  it("usa 5 itens por pagina como padrao", () => {
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS }),
+    );
+
+    expect(result.current.pageSize).toBe(5);
+  });
+
   it("calcula paginas e lista paginada", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }),
+    );
     expect(result.current.totalPages).toBe(3);
     expect(result.current.paginatedJobs).toHaveLength(2);
   });
 
   it("nao permite pagina menor que 1", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }),
+    );
     act(() => result.current.setCurrentPage(0));
     expect(result.current.currentPage).toBe(1);
   });
 
-  it("limita itens por pagina entre 1 e 10", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: 20 }));
+  it("limita itens por pagina entre 1 e 50", () => {
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: 80 }),
+    );
 
-    expect(result.current.pageSize).toBe(10);
+    expect(result.current.pageSize).toBe(50);
 
     act(() => result.current.setPageSize(-3));
     expect(result.current.pageSize).toBe(1);
   });
 
   it("trata NaN como page size invalido e retorna 1", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: NaN }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: NaN }),
+    );
     expect(result.current.pageSize).toBe(1);
   });
 
   it("trata Infinity como page size invalido e retorna 1", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: Infinity }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: Infinity }),
+    );
     expect(result.current.pageSize).toBe(1);
   });
 
   it("trata -Infinity como page size invalido e retorna 1", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: -Infinity }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: -Infinity }),
+    );
     expect(result.current.pageSize).toBe(1);
   });
 
   it("reseta paginacao para pagina 1", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }),
+    );
 
     act(() => result.current.setCurrentPage(3));
     expect(result.current.currentPage).toBe(3);
@@ -52,7 +76,9 @@ describe("useJobsPagination", () => {
   });
 
   it("permite pageSize ser alterado com funcao updater", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }),
+    );
 
     act(() => result.current.setPageSize((prev) => prev + 1));
     expect(result.current.pageSize).toBe(3);
@@ -62,7 +88,9 @@ describe("useJobsPagination", () => {
   });
 
   it("permite currentPage ser alterado com funcao updater", () => {
-    const { result } = renderHook(() => useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }));
+    const { result } = renderHook(() =>
+      useJobsPagination({ filteredJobs: JOBS, initialPageSize: 2 }),
+    );
 
     act(() => result.current.setCurrentPage((prev) => prev + 1));
     expect(result.current.currentPage).toBe(2);

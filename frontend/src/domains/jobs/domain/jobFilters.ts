@@ -86,10 +86,17 @@ export function dedupeJobs(jobs: Job[]) {
       continue;
     }
 
-    const mergedKeywords = [...new Set([...splitJobKeywords(existing), ...splitJobKeywords(job)])];
+    const mergedKeywords = [
+      ...new Set([...splitJobKeywords(existing), ...splitJobKeywords(job)]),
+    ];
     const mergedSources = [
       ...new Set(
-        [...(existing.sources ?? []), ...(job.sources ?? []), existing.source, job.source]
+        [
+          ...(existing.sources ?? []),
+          ...(job.sources ?? []),
+          existing.source,
+          job.source,
+        ]
           .map((source) => String(source || "").trim())
           .filter(Boolean),
       ),
@@ -113,12 +120,25 @@ export function dedupeJobs(jobs: Job[]) {
 }
 
 export function getAvailableKeywords(jobs: Job[]) {
-  const values = Array.from(new Set(jobs.flatMap((job) => splitJobKeywords(job))));
+  const values = Array.from(
+    new Set(jobs.flatMap((job) => splitJobKeywords(job))),
+  );
   return values.sort((a, b) => a.localeCompare(b));
 }
 
-export function filterJobs(jobs: Job[], search: string, keywordFilter: string[]) {
-  const term = normalizeComparableText(search);
+function getSearchTerms(search: string) {
+  return search
+    .split(/[,;/]+/)
+    .map((term) => normalizeComparableText(term))
+    .filter(Boolean);
+}
+
+export function filterJobs(
+  jobs: Job[],
+  search: string,
+  keywordFilter: string[],
+) {
+  const terms = getSearchTerms(search);
 
   return jobs.filter((job) => {
     const currentKeywords = splitJobKeywords(job);
@@ -130,14 +150,21 @@ export function filterJobs(jobs: Job[], search: string, keywordFilter: string[])
       return false;
     }
 
-    if (!term) {
+    if (terms.length === 0) {
       return true;
     }
 
     const text = normalizeComparableText(
-      [job.titulo, job.empresa, job.local, job.link, job.palavra, ...(job.keywords || [])].join(" "),
+      [
+        job.titulo,
+        job.empresa,
+        job.local,
+        job.link,
+        job.palavra,
+        ...(job.keywords || []),
+      ].join(" "),
     );
 
-    return text.includes(term);
+    return terms.every((term) => text.includes(term));
   });
 }
