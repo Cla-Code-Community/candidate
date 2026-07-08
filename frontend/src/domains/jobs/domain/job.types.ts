@@ -1,27 +1,23 @@
 export interface Job {
-  palavra?: string | null;
+  keyword?: string | null;
   keywords?: string[] | null;
-  titulo?: string | null;
-  empresa?: string | null;
+  title?: string | null;
+  company?: string | null;
   source?: string | null;
   sources?: string[] | null;
-  local?: string | null;
-  link?: string | null;
-}
-
-export interface JobFile {
-  file: string;
+  location?: string | null;
+  url?: string | null;
 }
 
 export interface JobsMeta {
-  file: string;
-  modifiedAt: string | number | null;
+  hasNext: boolean;
+  hasPrev: boolean;
+  limit: number;
+  page: number;
   total: number;
+  totalPages: number;
 }
 
-export interface JobsResponse {
+export interface JobsResponse extends JobsMeta {
   jobs: Job[];
-  file: string;
-  modifiedAt: string | number | null;
-  total: number;
 }
