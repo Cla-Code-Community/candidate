@@ -3,28 +3,35 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const baseProps = {
-  meta: { file: "vagas.xlsx", modifiedAt: 1, total: 1 },
+  meta: {
+    total: 1,
+    hasNext: false,
+    hasPrev: false,
+    page: 1,
+    limit: 5,
+    totalPages: 5,
+  },
   filteredJobs: [
     {
-      titulo: "Dev",
-      empresa: "ACME",
-      local: "BR",
-      palavra: "JavaScript, UX-UI",
+      title: "Dev",
+      company: "ACME",
+      location: "BR",
+      keyword: "JavaScript, UX-UI",
       source: "LinkedIn",
-      link: "https://x",
+      url: "https://x",
     },
   ],
   paginatedJobs: [
     {
-      titulo: "Dev",
-      empresa: "ACME",
-      local: "BR",
-      palavra: "JavaScript, UX-UI",
+      title: "Dev",
+      company: "ACME",
+      location: "BR",
+      keyword: "JavaScript, UX-UI",
       source: "LinkedIn",
-      link: "https://x",
+      url: "https://x",
     },
   ],
-  jobs: [{ titulo: "Dev" }],
+  jobs: [{ title: "Dev" }],
   loading: false,
   error: "",
   formatDate: () => "agora",
