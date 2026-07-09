@@ -10,6 +10,11 @@ const mocks = vi.hoisted(() => ({
   logWarn: vi.fn(),
   parsePagination: vi.fn(),
   paginate: vi.fn(),
+  dbOrderBy: vi.fn(),
+  dbWhere: vi.fn(),
+  dbInsert: vi.fn(),
+  dbInsertValues: vi.fn(),
+  dbInsertConflict: vi.fn(),
 }));
 
 vi.mock("../../src/lib/cache.js", () => ({
@@ -32,18 +37,20 @@ vi.mock("../../src/db/client.js", () => ({
   db: {
     select: () => ({
       from: () => ({
-        orderBy: () =>
-          Promise.resolve([
-            { keyword: "Java", source: "user" },
-            { keyword: "Node.js", source: "user" },
-          ]),
+        where: mocks.dbWhere,
       }),
     }),
+    insert: mocks.dbInsert,
   },
 }));
 
 vi.mock("../../src/db/schema.js", () => ({
-  keywords: { keyword: "keyword", source: "source", createdAt: "createdAt" },
+  keywords: {
+    userId: "userId",
+    keyword: "keyword",
+    source: "source",
+    createdAt: "createdAt",
+  },
 }));
 
 vi.mock("../../src/logger.js", () => ({
@@ -102,6 +109,16 @@ describe("jobsApiApp", () => {
       { id: "id-1", title: "Dev Java", company: "ACME" },
       { id: "id-2", title: "Dev Node", company: "Globo" },
     ]);
+    mocks.dbOrderBy.mockResolvedValue([
+      { keyword: "Java", source: "user" },
+      { keyword: "Node.js", source: "user" },
+    ]);
+    mocks.dbWhere.mockReturnValue({ orderBy: mocks.dbOrderBy });
+    mocks.dbInsertConflict.mockResolvedValue(undefined);
+    mocks.dbInsertValues.mockReturnValue({
+      onConflictDoNothing: mocks.dbInsertConflict,
+    });
+    mocks.dbInsert.mockReturnValue({ values: mocks.dbInsertValues });
     mocks.getCache.mockResolvedValue({ lPush: vi.fn() });
     mocks.publish.mockResolvedValue(undefined);
   });
@@ -133,6 +150,16 @@ describe("jobsApiApp", () => {
     const res = await request(app)
       .get("/health")
       .set("Origin", "https://malicioso.example")
+      .expect(403);
+
+    expect(res.body.message).toBe("Origem não permitida.");
+  });
+
+  it("bloqueia previews do Vercel fora da allowlist explícita", async () => {
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/health")
+      .set("Origin", "https://painel-vagas-preview.vercel.app")
       .expect(403);
 
     expect(res.body.message).toBe("Origem não permitida.");
@@ -294,7 +321,13 @@ describe("jobsApiApp", () => {
       expect.anything(),
       "Rust",
       "user",
+      "test-user-id",
     );
+    expect(mocks.dbInsertValues).toHaveBeenCalledWith({
+      keyword: "Rust",
+      source: "user",
+      userId: "test-user-id",
+    });
     expect(res.body).toEqual({
       ok: true,
       message: "Keyword enfileirada para processamento.",

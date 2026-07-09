@@ -1,6 +1,11 @@
 import type { Request, Response } from "express";
+import { z } from "zod";
 import type { AuditService } from "../audit/audit.service";
 import type { ObservabilityService } from "./observability.service";
+
+const DashboardQuerySchema = z.object({
+  range: z.enum(["5m", "15m", "1h", "6h", "24h"]).optional(),
+});
 
 export class ObservabilityController {
   constructor(
@@ -29,6 +34,20 @@ export class ObservabilityController {
       this.auditService.fromRequest(req, "observability.metrics");
       return res.json(result);
     } catch {
+      return res.status(500).json({ error: "Erro interno" });
+    }
+  }
+
+  async getDashboards(req: Request, res: Response) {
+    try {
+      const query = DashboardQuerySchema.parse(req.query);
+      const result = await this.service.getDashboards(query.range);
+      this.auditService.fromRequest(req, "observability.dashboards");
+      return res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.format() });
+      }
       return res.status(500).json({ error: "Erro interno" });
     }
   }

@@ -8,6 +8,7 @@ import { HealthService } from "../modules/admin/observability/health.service";
 import { MetricsService } from "../modules/admin/observability/metrics.service";
 import { ObservabilityController } from "../modules/admin/observability/observability.controller";
 import { ObservabilityService } from "../modules/admin/observability/observability.service";
+import { PermissionsController } from "../modules/admin/permissions/permissions.controller";
 import { ScrapersController } from "../modules/admin/scrapers/scrapers.controller";
 import { ScrapersService } from "../modules/admin/scrapers/scrapers.service";
 import { AdminUsersController } from "../modules/admin/users/adminUsers.controller";
@@ -37,3 +38,4 @@ export const observabilityCtrl = new ObservabilityController(
   new ObservabilityService(healthService, metricsService),
   auditService,
 );
+export const permissionsCtrl = new PermissionsController(auditService);

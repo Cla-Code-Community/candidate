@@ -3,6 +3,7 @@ import { MetricsService } from "./metrics.service";
 import type {
   HealthcheckResult,
   MetricSnapshot,
+  ObservabilityDashboards,
   ObservabilityOverview,
 } from "./observability.types";
 
@@ -18,6 +19,10 @@ export class ObservabilityService {
 
   async getMetrics(): Promise<MetricSnapshot> {
     return this.metricsService.getSnapshot();
+  }
+
+  async getDashboards(range?: string): Promise<ObservabilityDashboards> {
+    return this.metricsService.getDashboards(range);
   }
 
   async getOverview(): Promise<ObservabilityOverview> {

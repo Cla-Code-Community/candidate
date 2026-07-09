@@ -1,8 +1,25 @@
-import { loadEnv } from "vite";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
 
+function loadTestEnv(mode = "test") {
+  const cwd = process.cwd();
+  const files = [".env", `.env.${mode}`];
+  const env = {};
+
+  for (const file of files) {
+    const path = resolve(cwd, file);
+    if (existsSync(path)) {
+      Object.assign(env, config({ path }).parsed);
+    }
+  }
+
+  return env;
+}
+
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode ?? "test", process.cwd(), "");
+  const env = loadTestEnv(mode ?? "test");
 
   return {
     test: {

@@ -1,9 +1,5 @@
 import cors from "cors";
 
-// Regex cobre qualquer preview do Vercel: painel-vagas-*.vercel.app
-// (hash-based e branch-based, ex: git-master-bene-teslas-projects)
-const VERCEL_PREVIEW_RE = /^https:\/\/painel-vagas-[a-z0-9-]+\.vercel\.app$/;
-
 const DEFAULT_ALLOWED_ORIGINS = [
   "https://candidate.app.br",
   "https://admin.candidate.app.br",
@@ -24,8 +20,6 @@ function parseAllowedOrigins(value: string | undefined): Set<string> {
 export const corsOptions: cors.CorsOptions = {
   origin(origin, callback) {
     if (!origin) return callback(null, true);
-
-    if (VERCEL_PREVIEW_RE.test(origin)) return callback(null, true);
 
     const allowedOrigins = parseAllowedOrigins(
       process.env.CORS_ALLOWED_ORIGINS,

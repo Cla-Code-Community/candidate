@@ -4,26 +4,27 @@ import {
   requirePermission,
   requireRole,
 } from "../modules/admin/permissions/requireRole";
-import { usersCtrl } from "./admin.context";
+import { permissionsCtrl, usersCtrl } from "./admin.context";
 
 const router = Router();
 
 router.use(requireAuth, requireRole("super_admin"));
 
-router.get(
-  "/users",
-  requirePermission("users", "read"),
-  usersCtrl.listUsers.bind(usersCtrl),
-);
-router.get(
-  "/users/:id",
-  requirePermission("users", "read"),
-  usersCtrl.getUserById.bind(usersCtrl),
-);
 router.patch(
   "/users/:id/role",
   requirePermission("users", "change_role"),
   usersCtrl.changeRole.bind(usersCtrl),
+);
+router.delete(
+  "/users/:id",
+  requirePermission("users", "delete"),
+  usersCtrl.deleteUser.bind(usersCtrl),
+);
+
+router.patch(
+  "/permissions/rules",
+  requirePermission("permissions", "manage"),
+  permissionsCtrl.updateRules.bind(permissionsCtrl),
 );
 
 export default router;
