@@ -119,7 +119,6 @@ services:
       - PROMETHEUS_URL=http://prometheus:9090
       - SCRAPER_URL=http://scraper-go:8081
       - GO_SCRAPER_URL=http://scraper-go:8081
-      - SCRAPER_URL=http://scraper-go:8081
       - KEYWORDS_STORAGE_MODE=${KEYWORDS_STORAGE_MODE:-env}
       - CACHE_TTL_MS=${CACHE_TTL_MS:-600000}
       - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-vagas-full}
