@@ -247,8 +247,6 @@ Usuários:
 
 Jobs:
 
-- GET /jobs
-- GET /jobs/files
 - GET /jobs/search
 
 Keywords:

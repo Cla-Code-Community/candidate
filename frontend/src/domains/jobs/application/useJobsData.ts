@@ -1,44 +1,44 @@
 import {
-  fetchJobFiles,
-  fetchJobsByFile,
+  fetchJobsByAPI,
   runScraperRequest,
 } from "@/domains/jobs/infrastructure/jobsApi";
-import type { Job, JobFile, JobsMeta } from "@/domains/jobs/domain/job.types";
+import type { Job, JobsResponse } from "@/domains/jobs/domain/job.types";
 import { useCallback, useEffect, useState } from "react";
 
-const EMPTY_META: JobsMeta = { file: "", modifiedAt: null, total: 0 };
+export type JobsPaginationMeta = Omit<JobsResponse, "jobs">;
 
-export function useJobsData(initialSelectedFile = "") {
-  const [files, setFiles] = useState<JobFile[]>([]);
-  const [selectedFile, setSelectedFile] = useState(initialSelectedFile);
+const EMPTY_META: JobsPaginationMeta = {
+  total: 0,
+  hasNext: false,
+  hasPrev: false,
+  page: 0,
+  limit: 0,
+  totalPages: 0,
+};
+
+export function useJobsData(page: number = 1, limit: number = 5) {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [meta, setMeta] = useState<JobsMeta>(EMPTY_META);
+  const [meta, setMeta] = useState<JobsPaginationMeta>(EMPTY_META);
   const [loading, setLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [error, setError] = useState("");
 
-  const loadFiles = useCallback(async () => {
-    const foundFiles = await fetchJobFiles();
-    setFiles(foundFiles);
-    return foundFiles;
-  }, []);
-
-  const loadJobs = useCallback(async (fileName: string) => {
+  const loadJobs = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const data = await fetchJobsByFile(fileName);
-      setJobs(data.jobs);
+      const data = await fetchJobsByAPI(page, limit);
+      setJobs(data.jobs ?? []);
+      
       setMeta({
-        file: data.file,
-        modifiedAt: data.modifiedAt,
-        total: data.total,
+        total: data.total ?? 0,
+        hasNext: data.hasNext ?? false,
+        hasPrev: data.hasPrev ?? false,
+        page: data.page ?? page,
+        limit: data.limit ?? limit,
+        totalPages: data.totalPages ?? 0,
       });
-
-      if (data.file && data.file !== fileName) {
-        setSelectedFile(data.file);
-      }
     } catch (err: unknown) {
       setJobs([]);
       setMeta(EMPTY_META);
@@ -50,34 +50,22 @@ export function useJobsData(initialSelectedFile = "") {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit]);
 
   useEffect(() => {
-    async function initializeFiles() {
-      const foundFiles = await loadFiles();
-      if (foundFiles[0]?.file) {
-        setSelectedFile((current) => current || foundFiles[0].file);
-      }
-    }
+    let isMounted = true;
 
-    initializeFiles().catch(() => {
-      setError("Nao foi possivel listar arquivos .xlsx da pasta output.");
-    });
-  }, [loadFiles]);
+    const initialize = async () => {
+      if (!isMounted) return;
+      await loadJobs();
+    };
 
-  useEffect(() => {
-    const syncState = setTimeout(() => {
-      if (!selectedFile) {
-        setJobs([]);
-        setMeta(EMPTY_META);
-        return;
-      }
+    initialize();
 
-      loadJobs(selectedFile);
-    }, 0);
-
-    return () => clearTimeout(syncState);
-  }, [selectedFile, loadJobs]);
+    return () => {
+      isMounted = false;
+    };
+  }, [loadJobs]);
 
   const triggerScraper = useCallback(async () => {
     setScraping(true);
@@ -85,22 +73,7 @@ export function useJobsData(initialSelectedFile = "") {
 
     try {
       await runScraperRequest();
-      const foundFiles = await loadFiles();
-      const nextFile = foundFiles[0]?.file ?? "";
-
-      if (!nextFile) {
-        setSelectedFile("");
-        setJobs([]);
-        setMeta(EMPTY_META);
-        return;
-      }
-
-      if (nextFile !== selectedFile) {
-        setSelectedFile(nextFile);
-        return;
-      }
-
-      await loadJobs(nextFile);
+      await loadJobs();
     } catch (err: unknown) {
       setError(
         err instanceof Error
@@ -110,12 +83,9 @@ export function useJobsData(initialSelectedFile = "") {
     } finally {
       setScraping(false);
     }
-  }, [loadFiles, loadJobs, selectedFile]);
+  }, [loadJobs]);
 
   return {
-    files,
-    selectedFile,
-    setSelectedFile,
     jobs,
     meta,
     loading,
