@@ -5,7 +5,6 @@ import { userPreferences } from "../../db/schema";
 import { credentials } from "../../db/schema/credentials";
 import type { User } from "../../db/schema/users";
 import { users } from "../../db/schema/users";
-import { generateUsername } from "../../utils/generateUsername";
 import type { Session } from "../types/auth.types";
 import {
   LoginInput,
@@ -13,6 +12,7 @@ import {
   RegisterInput,
   RegisterSchema,
 } from "../types/credentials.types";
+import { createUser } from "../users/functions/createUser";
 
 const argonOptions = {
   type: argon2.argon2id,
@@ -32,7 +32,8 @@ export class CredentialsService {
   async register(
     input: RegisterInput,
   ): Promise<{ user: User; session: Session }> {
-    const { email, password, name, phone, cpf, technologies, level, role } = RegisterSchema.parse(input);
+    const { email, password, name, phone, cpf, technologies, level } =
+      RegisterSchema.parse(input);
 
     const existingCredential = await db.query.credentials.findFirst({
       where: eq(credentials.email, email),
@@ -45,27 +46,29 @@ export class CredentialsService {
     if (existingUser) throw new Error("Email já cadastrado");
 
     const passwordHash = await argon2.hash(password, argonOptions);
-    const username = await generateUsername(name ?? email.split("@")[0], db);
 
-    const [user] = await db
-      .insert(users)
-      .values({ 
-        email, 
-        displayName: name, 
-        username, 
-        emailVerified: false,
-        phone,
-        cpf,
-        technologies,
-        level,
-        role
-      })
-      .returning();
+    return db.transaction(async (tx) => {
+      const user = await createUser(
+        {
+          email,
+          displayName: name ?? null,
+          phone: phone ?? null,
+          cpf: cpf ?? null,
+          technologies,
+          level: level ?? null,
+        },
+        tx,
+      );
 
-    await db.insert(credentials).values({ userId: user.id, email, passwordHash });
-    await db.insert(userPreferences).values({ userId: user.id });
+      await tx.insert(credentials).values({
+        userId: user.id,
+        email,
+        passwordHash,
+      });
+      await tx.insert(userPreferences).values({ userId: user.id });
 
-    return { user, session: { userId: user.id, role: user.role } };
+      return { user, session: { userId: user.id, role: user.role } };
+    });
   }
 
   async login(input: LoginInput): Promise<{ user: User; session: Session }> {

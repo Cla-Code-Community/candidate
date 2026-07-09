@@ -41,13 +41,14 @@ describe("publish", () => {
 
   it("serializa o evento corretamente", async () => {
     const client = makeClient();
-    await publish(client as any, "Node.js", "scraper");
+    await publish(client as any, "Node.js", "scraper", "user-1");
 
     const [, payload] = getCall(client) as [string, string];
     const event = JSON.parse(payload);
 
     expect(event.keyword).toBe("Node.js");
     expect(event.source).toBe("scraper");
+    expect(event.userId).toBe("user-1");
     expect(event.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 

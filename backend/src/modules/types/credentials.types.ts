@@ -8,7 +8,6 @@ export const RegisterSchema = z.object({
   cpf: z.string().optional(),
   technologies: z.array(z.string()).optional(),
   level: z.string().optional(),
-  role: z.enum(["user", "admin"]).optional().default("user"),
 });
 
 export const LoginSchema = z.object({

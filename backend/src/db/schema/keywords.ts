@@ -7,11 +7,16 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { InferInsertModel, InferSelectModel } from "drizzle-orm";
+import { users } from "./users";
 
 export const keywords = pgTable(
   "keywords",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
 
     keyword: text("keyword").notNull(),
     source: text("source", { enum: ["user", "scraper"] })
@@ -21,7 +26,10 @@ export const keywords = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
-    keywordUnique: uniqueIndex("keywords_keyword_unique").on(table.keyword),
+    userKeywordUnique: uniqueIndex("keywords_user_keyword_unique").on(
+      table.userId,
+      table.keyword,
+    ),
   }),
 );
 

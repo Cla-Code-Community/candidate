@@ -2,35 +2,58 @@ import { db } from "../../../db/client";
 import { users } from "../../../db/schema/users";
 import { DB } from "../../../db/types/types";
 import { generateUsername } from "../../../utils/generateUsername";
-import { OAuthProfile } from "../../types/auth.types";
 import { findUserByEmail } from "./findUsers";
 
-type CreateUserParams = {
-  profile: OAuthProfile;
+export type CreateUserParams = {
+  email: string | null;
+  displayName?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  avatarUrl?: string | null;
+  username?: string | null;
+  phone?: string | null;
+  cpf?: string | null;
+  technologies?: string[] | null;
+  level?: string | null;
 };
 
-export async function createUser({ profile }: CreateUserParams, tx: DB = db) {
-  const baseName =
-    profile.username || profile.name || profile.email?.split("@")[0] || "user";
+type CreateUserOptions = {
+  onEmailConflict?: "throw" | "returnExisting";
+};
 
-  const username = await generateUsername(baseName, tx);
+export async function createUser(
+  profile: CreateUserParams,
+  tx: DB = db,
+  options: CreateUserOptions = {},
+) {
+  const baseName =
+    profile.username ||
+    profile.displayName ||
+    profile.email?.split("@")[0] ||
+    "user";
+
+  const username = profile.username ?? (await generateUsername(baseName, tx));
 
   try {
     const result = await tx
       .insert(users)
       .values({
-        email: profile.email ?? null,
-        displayName: profile.name ?? null,
-        firstName: profile.given_name ?? null,
-        lastName: profile.family_name ?? null,
-        avatarUrl: profile.picture ?? null,
+        email: profile.email,
+        firstName: profile.firstName ?? null,
+        lastName: profile.lastName ?? null,
+        displayName: profile.displayName ?? null,
         username,
+        avatarUrl: profile.avatarUrl ?? null,
+        phone: profile.phone ?? null,
+        cpf: profile.cpf ?? null,
+        technologies: profile.technologies ?? undefined,
+        level: profile.level ?? null,
       })
       .returning();
 
     return result[0];
   } catch (err: any) {
-    if (err.code === "23505") {
+    if (err.code === "23505" && options.onEmailConflict === "returnExisting") {
       if (!profile.email) throw err;
 
       const existingUser = await findUserByEmail(profile.email, tx);

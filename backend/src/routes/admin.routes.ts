@@ -7,6 +7,7 @@ import {
 import {
   auditCtrl,
   observabilityCtrl,
+  permissionsCtrl,
   scrapersCtrl,
   usersCtrl,
 } from "./admin.context";
@@ -15,6 +16,16 @@ const router = Router();
 
 router.use(requireAuth, requireRole("admin"));
 
+router.get(
+  "/users",
+  requirePermission("users", "read"),
+  usersCtrl.listUsers.bind(usersCtrl),
+);
+router.get(
+  "/users/:id",
+  requirePermission("users", "read"),
+  usersCtrl.getUserById.bind(usersCtrl),
+);
 router.patch(
   "/users/:id/block",
   requirePermission("users", "block"),
@@ -42,11 +53,22 @@ router.get(
   requirePermission("observability", "metrics"),
   observabilityCtrl.getMetrics.bind(observabilityCtrl),
 );
+router.get(
+  "/observability/dashboards",
+  requirePermission("observability", "metrics"),
+  observabilityCtrl.getDashboards.bind(observabilityCtrl),
+);
 
 router.get(
   "/audit",
   requirePermission("audit", "read"),
   auditCtrl.getLogs.bind(auditCtrl),
+);
+
+router.get(
+  "/permissions/rules",
+  requirePermission("permissions", "read"),
+  permissionsCtrl.listRules.bind(permissionsCtrl),
 );
 
 export default router;

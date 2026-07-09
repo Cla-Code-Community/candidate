@@ -1,3 +1,86 @@
+# services:
+#   scraper-go:
+#     build:
+#       context: ./scraper-go
+#       dockerfile: Dockerfile
+#     container_name: vagas-scraper-go
+#     env_file:
+#       - ./.env
+#     volumes:
+#       - ./.env:/app/.env:ro
+#     environment:
+#       - GO_SCRAPER_ADDR=:8081
+#     ports:
+#       - "8081:8081"
+#     healthcheck:
+#       test: ["CMD", "wget", "--spider", "http://localhost:8081/health"]
+#       interval: 5s
+#       timeout: 3s
+#       retries: 5
+#       start_period: 5s
+#     networks:
+#       - vagas-net
+#     restart: unless-stopped
+
+#   backend:
+#     build:
+#       context: .
+#       dockerfile: backend/Dockerfile
+#     container_name: vagas-backend
+#     env_file:
+#       - ./backend/.env
+#     environment:
+#       - PORT=3001
+#       - GO_SCRAPER_URL=http://scraper-go:8081
+#       - KEYWORDS_STORAGE_MODE=${KEYWORDS_STORAGE_MODE:-env}
+#       - CACHE_TTL_MS=${CACHE_TTL_MS:-600000}
+#       - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-vagas-full}
+#     volumes:
+#       - ./backend/output:/app/output
+#     ports:
+#       - "3001:3001"
+#     depends_on:
+#       scraper-go:
+#         condition: service_healthy
+#     networks:
+#       - vagas-net
+#     restart: unless-stopped
+
+#   frontend:
+#     build:
+#       context: .
+#       dockerfile: frontend/Dockerfile
+#     container_name: vagas-frontend
+#     environment:
+#       - VITE_API_PROXY_TARGET=http://backend:3001
+#     ports:
+#       - "5173:80"
+#     depends_on:
+#       - backend
+#     networks:
+#       - vagas-net
+#     restart: unless-stopped
+
+# networks:
+#   vagas-net:
+#     external: true
+
+
+#   front_admin:
+#   build:
+#     context: .
+#     dockerfile: front_admin/Dockerfile
+#   container_name: vagas-front-admin
+#   environment:
+#     - VITE_API_PROXY_TARGET=http://backend:3001
+#   ports:
+#     - "5174:80"
+#   depends_on:
+#     - backend
+#   networks:
+#     - vagas-net
+#   restart: unless-stopped
+
 services:
   scraper-go:
     build:
@@ -26,14 +109,15 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: docker/node.Dockerfile
+      target: backend
     container_name: vagas-backend
     env_file:
       - ./.env
     environment:
       - PORT=3001
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - VALKEY_URL=redis://valkey:6379/0
+      - PROMETHEUS_URL=http://prometheus:9090
+      - SCRAPER_URL=http://scraper-go:8081
       - GO_SCRAPER_URL=http://scraper-go:8081
       - SCRAPER_URL=http://scraper-go:8081
       - KEYWORDS_STORAGE_MODE=${KEYWORDS_STORAGE_MODE:-env}
@@ -53,14 +137,33 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
-      args:
-        VITE_API_BASE_URL: http://localhost:3001
+      dockerfile: docker/node.Dockerfile
+      target: frontend-runtime
     container_name: vagas-frontend
+    env_file:
+    - ./frontend/.env
     environment:
       - VITE_API_PROXY_TARGET=http://backend:3001
     ports:
       - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - vagas-net
+    restart: unless-stopped
+
+  front_admin:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      target: front-admin-runtime
+    container_name: vagas-front-admin
+    env_file:
+    - ./front_admin/.env
+    environment:
+      - VITE_API_PROXY_TARGET=http://backend:3001
+    ports:
+      - "5174:80"
     depends_on:
       - backend
     networks:

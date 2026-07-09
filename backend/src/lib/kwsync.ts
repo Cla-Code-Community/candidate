@@ -8,6 +8,7 @@ export interface KeywordEvent {
   keyword: string;
   source: "user" | "scraper";
   createdAt: string;
+  userId?: string;
 }
 
 /**
@@ -18,17 +19,22 @@ export async function publish(
   client: RedisClientType,
   keyword: string,
   source: KeywordEvent["source"] = "user",
+  userId?: string,
 ): Promise<void> {
   const event: KeywordEvent = {
     keyword,
     source,
     createdAt: new Date().toISOString(),
+    ...(userId ? { userId } : {}),
   };
 
   try {
     // Usando o cliente bruto conectado ao Valkey para injetar na fila absoluta do scraper
     await client.lPush(PENDING_KEY, JSON.stringify(event));
-    logger.info({ keyword, source }, "kwsync: keyword enfileirada com sucesso");
+    logger.info(
+      { keyword, source, userId },
+      "kwsync: keyword enfileirada com sucesso",
+    );
   } catch (err) {
     logger.error(
       { err, keyword },
