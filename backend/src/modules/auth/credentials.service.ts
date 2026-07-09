@@ -5,6 +5,7 @@ import { userPreferences } from "../../db/schema";
 import { credentials } from "../../db/schema/credentials";
 import type { User } from "../../db/schema/users";
 import { users } from "../../db/schema/users";
+import { AppError } from "../../lib/errors";
 import { generateUsername } from "../../utils/generateUsername";
 import type { Session } from "../types/auth.types";
 import {
@@ -32,37 +33,44 @@ export class CredentialsService {
   async register(
     input: RegisterInput,
   ): Promise<{ user: User; session: Session }> {
-    const { email, password, name, phone, cpf, technologies, level, role } = RegisterSchema.parse(input);
+    const { email, password, name, phone, cpf, technologies, level, role } =
+      RegisterSchema.parse(input);
 
     const existingCredential = await db.query.credentials.findFirst({
       where: eq(credentials.email, email),
     });
-    if (existingCredential) throw new Error("Email já cadastrado");
+    if (existingCredential) {
+      throw AppError.conflict("Email já cadastrado");
+    }
 
     const existingUser = await db.query.users.findFirst({
       where: eq(users.email, email),
     });
-    if (existingUser) throw new Error("Email já cadastrado");
+    if (existingUser) {
+      throw AppError.conflict("Email já cadastrado");
+    }
 
     const passwordHash = await argon2.hash(password, argonOptions);
     const username = await generateUsername(name ?? email.split("@")[0], db);
 
     const [user] = await db
       .insert(users)
-      .values({ 
-        email, 
-        displayName: name, 
-        username, 
+      .values({
+        email,
+        displayName: name,
+        username,
         emailVerified: false,
         phone,
         cpf,
         technologies,
         level,
-        role
+        role,
       })
       .returning();
 
-    await db.insert(credentials).values({ userId: user.id, email, passwordHash });
+    await db
+      .insert(credentials)
+      .values({ userId: user.id, email, passwordHash });
     await db.insert(userPreferences).values({ userId: user.id });
 
     return { user, session: { userId: user.id, role: user.role } };
@@ -74,15 +82,21 @@ export class CredentialsService {
     const credential = await db.query.credentials.findFirst({
       where: eq(credentials.email, email),
     });
-    if (!credential) throw new Error("Credenciais inválidas");
+    if (!credential) {
+      throw AppError.unauthorized("Credenciais inválidas");
+    }
 
     const valid = await argon2.verify(credential.passwordHash, password);
-    if (!valid) throw new Error("Credenciais inválidas");
+    if (!valid) {
+      throw AppError.unauthorized("Credenciais inválidas");
+    }
 
     const user = await db.query.users.findFirst({
       where: eq(users.id, credential.userId),
     });
-    if (!user) throw new Error("Usuário não encontrado");
+    if (!user) {
+      throw AppError.notFound("Usuário não encontrado");
+    }
 
     return { user, session: { userId: user.id, role: user.role } };
   }

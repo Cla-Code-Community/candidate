@@ -1,6 +1,6 @@
-
 import { getIronSession } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppError } from "../../../../src/lib/errors";
 import { SavedJobsController } from "../../../../src/modules/savedJobs/savedJobs.controller";
 
 vi.mock("iron-session", () => ({
@@ -17,11 +17,9 @@ const mockService = {
 
 function createMockResponse() {
   const res = {} as any;
-
   res.status = vi.fn().mockReturnValue(res);
   res.json = vi.fn().mockReturnValue(res);
   res.send = vi.fn().mockReturnValue(res);
-
   return res;
 }
 
@@ -34,294 +32,173 @@ describe("SavedJobsController", () => {
   });
 
   describe("getAll", () => {
-    it("retorna 401 quando não autenticado", async () => {
+    it("lança UNAUTHORIZED quando não autenticado", async () => {
       (getIronSession as any).mockResolvedValue({});
-
-      const req = {} as any;
-      const res = createMockResponse();
-
-      await controller.getAll(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(401);
+      await expect(
+        controller.getAll({} as any, createMockResponse()),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED", statusCode: 401 });
     });
 
     it("retorna vagas", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
       mockService.getAll.mockResolvedValue([{ id: "1" }]);
-
-      const req = {} as any;
       const res = createMockResponse();
 
-      await controller.getAll(req, res);
+      await controller.getAll({} as any, res);
 
       expect(mockService.getAll).toHaveBeenCalledWith("user-1");
       expect(res.json).toHaveBeenCalledWith([{ id: "1" }]);
     });
 
-    it("retorna erro 500", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
+    it("propaga erro inesperado", async () => {
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.getAll.mockRejectedValue(new Error("database error"));
 
-      mockService.getAll.mockRejectedValue(
-        new Error("database error"),
-      );
-
-      const req = {} as any;
-      const res = createMockResponse();
-
-      await controller.getAll(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
+      await expect(
+        controller.getAll({} as any, createMockResponse()),
+      ).rejects.toThrow("database error");
     });
   });
 
   describe("getById", () => {
-    it("retorna 401", async () => {
+    it("lança UNAUTHORIZED", async () => {
       (getIronSession as any).mockResolvedValue({});
-
-      const req = {
-        params: { id: "1" },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.getById(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(401);
+      await expect(
+        controller.getById(
+          { params: { id: "1" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toBeInstanceOf(AppError);
     });
 
-    it("retorna 404", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
+    it("lança NOT_FOUND", async () => {
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
       mockService.getById.mockResolvedValue(null);
 
-      const req = {
-        params: { id: "1" },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.getById(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
+      await expect(
+        controller.getById(
+          { params: { id: "1" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND", statusCode: 404 });
     });
 
     it("retorna vaga", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
-      mockService.getById.mockResolvedValue({
-        id: "1",
-      });
-
-      const req = {
-        params: { id: "1" },
-      } as any;
-
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.getById.mockResolvedValue({ id: "1" });
       const res = createMockResponse();
 
-      await controller.getById(req, res);
+      await controller.getById({ params: { id: "1" } } as any, res);
 
       expect(res.json).toHaveBeenCalled();
     });
   });
 
   describe("create", () => {
-    it("retorna 401", async () => {
+    it("lança UNAUTHORIZED", async () => {
       (getIronSession as any).mockResolvedValue({});
-
-      const req = {
-        body: {},
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.create(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-    });
-
-    it("retorna 400 quando body inválido", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
-      const req = {
-        body: {
-          jobLink: "link-invalido",
-        },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.create(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
+      await expect(
+        controller.create({ body: {} } as any, createMockResponse()),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     });
 
     it("cria vaga", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
-      mockService.create.mockResolvedValue({
-        id: "1",
-      });
-
-      const req = {
-        body: {
-          jobLink: "https://google.com",
-        },
-      } as any;
-
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.create.mockResolvedValue({ id: "1" });
       const res = createMockResponse();
 
-      await controller.create(req, res);
+      await controller.create(
+        { body: { jobLink: "https://google.com" } } as any,
+        res,
+      );
 
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    it("retorna 409 quando vaga já existe", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
+    it("lança CONFLICT quando vaga já existe", async () => {
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.create.mockRejectedValue(AppError.conflict("Vaga já salva."));
 
-      mockService.create.mockRejectedValue(
-        new Error("Vaga já salva."),
-      );
-
-      const req = {
-        body: {
-          jobLink: "https://google.com",
-        },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.create(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(409);
+      await expect(
+        controller.create(
+          { body: { jobLink: "https://google.com" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toMatchObject({ code: "CONFLICT", statusCode: 409 });
     });
   });
 
   describe("update", () => {
-    it("retorna 401", async () => {
+    it("lança UNAUTHORIZED", async () => {
       (getIronSession as any).mockResolvedValue({});
-
-      const req = {
-        params: { id: "1" },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.update(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-    });
-
-    it("retorna 400 para payload inválido", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
-      const req = {
-        params: { id: "1" },
-        body: {
-          jobLink: "url inválida",
-        },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.update(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
+      await expect(
+        controller.update(
+          { params: { id: "1" }, body: {} } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     });
 
     it("atualiza vaga", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
-      mockService.update.mockResolvedValue({
-        id: "1",
-      });
-
-      const req = {
-        params: { id: "1" },
-        body: {
-          notes: "teste",
-        },
-      } as any;
-
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.update.mockResolvedValue({ id: "1" });
       const res = createMockResponse();
 
-      await controller.update(req, res);
+      await controller.update(
+        { params: { id: "1" }, body: { notes: "teste" } } as any,
+        res,
+      );
 
       expect(res.json).toHaveBeenCalled();
+    });
+
+    it("lança NOT_FOUND quando service não encontra", async () => {
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.update.mockRejectedValue(
+        AppError.notFound("Vaga não encontrada"),
+      );
+
+      await expect(
+        controller.update(
+          { params: { id: "1" }, body: { notes: "x" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND", statusCode: 404 });
     });
   });
 
   describe("delete", () => {
-    it("retorna 401", async () => {
+    it("lança UNAUTHORIZED", async () => {
       (getIronSession as any).mockResolvedValue({});
-
-      const req = {
-        params: { id: "1" },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.delete(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(401);
+      await expect(
+        controller.delete(
+          { params: { id: "1" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     });
 
     it("remove vaga", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
       mockService.delete.mockResolvedValue(undefined);
-
-      const req = {
-        params: { id: "1" },
-      } as any;
-
       const res = createMockResponse();
 
-      await controller.delete(req, res);
+      await controller.delete({ params: { id: "1" } } as any, res);
 
       expect(res.status).toHaveBeenCalledWith(204);
       expect(res.send).toHaveBeenCalled();
     });
 
-    it("retorna erro desconhecido", async () => {
-      (getIronSession as any).mockResolvedValue({
-        userId: "user-1",
-      });
-
+    it("propaga erro desconhecido", async () => {
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
       mockService.delete.mockRejectedValue("erro");
 
-      const req = {
-        params: { id: "1" },
-      } as any;
-
-      const res = createMockResponse();
-
-      await controller.delete(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        error: "Erro desconhecido",
-      });
+      await expect(
+        controller.delete(
+          { params: { id: "1" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toBe("erro");
     });
   });
 });

@@ -1,40 +1,21 @@
 import { randomBytes } from "crypto";
 import { Request, Response } from "express";
-import { z } from "zod";
-import {
-  AuthCallbackParamsSchema,
-  OAuthProviderSchema,
-} from "../types/auth.types.js";
-
+import type { OAuthProvider } from "../types/auth.types.js";
+import { AuthCallbackParamsSchema } from "../types/auth.types.js";
 import { AuthService } from "./auth.service.js";
 
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   async getUrl(req: Request, res: Response) {
-    try {
-      const provider = OAuthProviderSchema.parse(req.params.provider);
+    const provider = req.params.provider as OAuthProvider;
+    const state = randomBytes(16).toString("hex");
 
-      const state = randomBytes(16).toString("hex");
+    (req.session as { oauth_state?: string }).oauth_state = state;
+    await req.session.save();
 
-      (req.session as any).oauth_state = state;
-      await req.session.save();
-
-      const url = await this.authService.getAuthUrl(provider, state);
-
-      return res.json({ url });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({
-          error: "Provider inválido",
-          details: error.message,
-        });
-      }
-
-      return res.status(400).json({
-        error: (error as Error).message,
-      });
-    }
+    const url = await this.authService.getAuthUrl(provider, state);
+    return res.json({ url });
   }
 
   async callback(req: Request, res: Response) {
@@ -50,7 +31,7 @@ export class AuthController {
         callbackUrl,
       });
 
-      const oauthState = (req.session as any).oauth_state;
+      const oauthState = (req.session as { oauth_state?: string }).oauth_state;
 
       if (!oauthState) {
         return res.redirect(`${frontendUrl}/login?error=oauth_state_missing`);
@@ -60,7 +41,7 @@ export class AuthController {
         return res.redirect(`${frontendUrl}/login?error=oauth_state_invalid`);
       }
 
-      delete (req.session as any).oauth_state;
+      delete (req.session as { oauth_state?: string }).oauth_state;
 
       const result = await this.authService.handleCallback({
         ...params,

@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppError } from "../../../src/lib/errors";
 
 // ── AuthService mock ──────────────────────────────────────────────────────────
 
@@ -173,17 +174,24 @@ describe("Integration - Auth Routes", () => {
     it("retorna 400 para provider inválido (ZodError)", async () => {
       const res = await request(app).get(`${BASE}/twitter/url`).expect(400);
 
-      expect(res.body).toHaveProperty("error", "Provider inválido");
+      expect(res.body).toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Dados inválidos",
+      });
+      expect(res.body.details).toHaveProperty("provider");
     });
 
-    it("retorna 400 quando getAuthUrl lança erro", async () => {
+    it("retorna 500 quando getAuthUrl lança erro", async () => {
       mockAuthService.getAuthUrl.mockRejectedValueOnce(
         new Error("OAuth config ausente"),
       );
 
-      const res = await request(app).get(`${BASE}/github/url`).expect(400);
+      const res = await request(app).get(`${BASE}/github/url`).expect(500);
 
-      expect(res.body).toHaveProperty("error", "OAuth config ausente");
+      expect(res.body).toMatchObject({
+        code: "INTERNAL_ERROR",
+        message: "Erro interno.",
+      });
     });
   });
 
@@ -374,7 +382,11 @@ describe("Integration - Auth Routes", () => {
         .send({ ...registerPayload, email: "nao-e-email" })
         .expect(400);
 
-      expect(res.body).toHaveProperty("error");
+      expect(res.body).toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Dados inválidos",
+      });
+      expect(res.body.details).toHaveProperty("email");
     });
 
     it("retorna 400 para senha curta (ZodError)", async () => {
@@ -393,7 +405,7 @@ describe("Integration - Auth Routes", () => {
         fixtureCredentialsSession as any,
       );
       mockCredentialsService.register.mockRejectedValueOnce(
-        new Error("Email já cadastrado"),
+        AppError.conflict("Email já cadastrado"),
       );
 
       const res = await request(app)
@@ -401,7 +413,10 @@ describe("Integration - Auth Routes", () => {
         .send(registerPayload)
         .expect(409);
 
-      expect(res.body).toHaveProperty("error", "Email já cadastrado");
+      expect(res.body).toEqual({
+        code: "CONFLICT",
+        message: "Email já cadastrado",
+      });
     });
 
     it("retorna 500 para erro inesperado no register", async () => {
@@ -477,7 +492,7 @@ describe("Integration - Auth Routes", () => {
         fixtureCredentialsSession as any,
       );
       mockCredentialsService.login.mockRejectedValueOnce(
-        new Error("Credenciais inválidas"),
+        AppError.unauthorized("Credenciais inválidas"),
       );
 
       const res = await request(app)
@@ -485,7 +500,10 @@ describe("Integration - Auth Routes", () => {
         .send(loginPayload)
         .expect(401);
 
-      expect(res.body).toHaveProperty("error", "Credenciais inválidas");
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Credenciais inválidas",
+      });
     });
 
     it("retorna 500 para erro inesperado no login", async () => {
@@ -556,7 +574,10 @@ describe("Integration - Auth Routes", () => {
 
       const res = await request(app).get(`${BASE}/me`).expect(401);
 
-      expect(res.body).toHaveProperty("error", "Não autenticado");
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
     });
   });
 });
