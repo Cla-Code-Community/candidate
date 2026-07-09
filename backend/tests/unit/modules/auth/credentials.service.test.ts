@@ -118,22 +118,24 @@ describe("CredentialsService", () => {
       expect(result.session).toEqual({ userId: mockUser.id, role: "user" });
     });
 
-    it("lança erro quando credential já existe para o email", async () => {
+    it("lança CONFLICT quando credential já existe para o email", async () => {
       mocks.credentialsFindFirst.mockResolvedValue(mockCredential);
 
-      await expect(service.register(registerInput)).rejects.toThrow(
-        "Email já cadastrado",
-      );
+      await expect(service.register(registerInput)).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: "Email já cadastrado",
+      });
 
       expect(mocks.hash).not.toHaveBeenCalled();
     });
 
-    it("lança erro quando user já existe para o email (sem credential)", async () => {
+    it("lança CONFLICT quando user já existe para o email (sem credential)", async () => {
       mocks.usersFindFirst.mockResolvedValue(mockUser);
 
-      await expect(service.register(registerInput)).rejects.toThrow(
-        "Email já cadastrado",
-      );
+      await expect(service.register(registerInput)).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: "Email já cadastrado",
+      });
     });
 
     it("usa o prefixo do email como base do username quando name é omitido", async () => {
@@ -181,30 +183,33 @@ describe("CredentialsService", () => {
       expect(result.session).toEqual({ userId: mockUser.id, role: "user" });
     });
 
-    it("lança 'Credenciais inválidas' quando credential não existe", async () => {
-      await expect(service.login(loginInput)).rejects.toThrow(
-        "Credenciais inválidas",
-      );
+    it("lança UNAUTHORIZED quando credential não existe", async () => {
+      await expect(service.login(loginInput)).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        message: "Credenciais inválidas",
+      });
 
       expect(mocks.verify).not.toHaveBeenCalled();
     });
 
-    it("lança 'Credenciais inválidas' quando senha está errada", async () => {
+    it("lança UNAUTHORIZED quando senha está errada", async () => {
       mocks.credentialsFindFirst.mockResolvedValue(mockCredential);
       mocks.verify.mockResolvedValue(false);
 
-      await expect(service.login(loginInput)).rejects.toThrow(
-        "Credenciais inválidas",
-      );
+      await expect(service.login(loginInput)).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        message: "Credenciais inválidas",
+      });
     });
 
-    it("lança 'Usuário não encontrado' quando user sumiu do banco", async () => {
+    it("lança NOT_FOUND quando user sumiu do banco", async () => {
       mocks.credentialsFindFirst.mockResolvedValue(mockCredential);
       mocks.usersFindFirst.mockResolvedValue(null);
 
-      await expect(service.login(loginInput)).rejects.toThrow(
-        "Usuário não encontrado",
-      );
+      await expect(service.login(loginInput)).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Usuário não encontrado",
+      });
     });
 
     it("chama argon2.verify com o hash correto", async () => {

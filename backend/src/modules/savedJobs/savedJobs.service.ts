@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../../db/client";
 import { NewSavedJob, SavedJob, savedJobs } from "../../db/schema";
 import { DB } from "../../db/types/types";
+import { AppError } from "../../lib/errors";
 
 export class SavedJobsService {
   constructor(private readonly tx: DB = db) {}
@@ -28,7 +29,9 @@ export class SavedJobsService {
         and(eq(j.userId, userId), eq(j.jobLink, data.jobLink)),
     });
 
-    if (existing) throw new Error("Vaga já salva.");
+    if (existing) {
+      throw AppError.conflict("Vaga já salva.");
+    }
 
     const result = await this.tx
       .insert(savedJobs)
@@ -48,7 +51,9 @@ export class SavedJobsService {
       .where(and(eq(savedJobs.id, jobId), eq(savedJobs.userId, userId)))
       .returning();
 
-    if (!result[0]) throw new Error("Vaga não encontrada");
+    if (!result[0]) {
+      throw AppError.notFound("Vaga não encontrada");
+    }
     return result[0];
   }
 

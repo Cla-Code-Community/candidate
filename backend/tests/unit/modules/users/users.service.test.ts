@@ -85,7 +85,7 @@ describe("UsersService", () => {
       expect(result.displayName).toBe("Novo Nome");
     });
 
-    it("lança erro quando usuário não é encontrado no update", async () => {
+    it("lança NOT_FOUND quando usuário não é encontrado no update", async () => {
       tx.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -96,7 +96,11 @@ describe("UsersService", () => {
 
       await expect(
         service.updateProfile("inexistente", { displayName: "X" }),
-      ).rejects.toThrow("não encontrado");
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        statusCode: 404,
+        message: "Usuário não encontrado",
+      });
     });
 
     it("inclui updatedAt no payload do set", async () => {
@@ -110,20 +114,6 @@ describe("UsersService", () => {
       await service.updateProfile("user-1", { displayName: "X" });
 
       expect(setMock.mock.calls[0][0]).toHaveProperty("updatedAt");
-    });
-
-    it("mensagem de erro contém o userId", async () => {
-      tx.update.mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([]),
-          }),
-        }),
-      });
-
-      await expect(
-        service.updateProfile("user-xyz", { displayName: "X" }),
-      ).rejects.toThrow("user-xyz");
     });
   });
 
@@ -198,7 +188,7 @@ describe("UsersService", () => {
       expect(result).toMatchObject({ theme: "dark" });
     });
 
-    it("lança erro quando preferências não existem", async () => {
+    it("lança NOT_FOUND quando preferências não existem", async () => {
       tx.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -209,7 +199,10 @@ describe("UsersService", () => {
 
       await expect(
         service.updatePreferences("user-sem-pref", {} as any),
-      ).rejects.toThrow("não encontradas");
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Preferências não encontradas",
+      });
     });
 
     it("inclui updatedAt no set", async () => {
