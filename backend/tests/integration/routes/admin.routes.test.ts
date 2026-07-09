@@ -1,6 +1,27 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const ROLE_LEVEL = {
+  user: 0,
+  support: 1,
+  admin: 2,
+  super_admin: 3,
+} as const;
+
+const PERMISSION_MIN_ROLE = {
+  "dashboard.read": "support",
+  "scrapers.read": "support",
+  "observability.health": "support",
+  "users.read": "admin",
+  "users.block": "admin",
+  "users.reset_password": "admin",
+  "scrapers.trigger": "admin",
+  "observability.metrics": "admin",
+  "audit.read": "admin",
+  "users.change_role": "super_admin",
+  "users.delete": "super_admin",
+} as const;
+
 const mocks = vi.hoisted(() => ({
   dashboard: vi.fn((_req, res) => res.json({ ok: true, scope: "dashboard" })),
   usersList: vi.fn((_req, res) => res.json({ data: [], total: 0 })),
@@ -61,6 +82,17 @@ vi.mock("../../../src/routes/admin.context", () => ({
 
 vi.mock("iron-session", () => ({
   getIronSession: vi.fn(),
+}));
+
+vi.mock("../../../src/modules/admin/permissions/permissions.service", () => ({
+  permissionsService: {
+    can: vi.fn(async (role: keyof typeof ROLE_LEVEL, resource: string, action: string) => {
+      const key = `${resource}.${action}` as keyof typeof PERMISSION_MIN_ROLE;
+      const minRole = PERMISSION_MIN_ROLE[key];
+      if (!minRole) return false;
+      return ROLE_LEVEL[role] >= ROLE_LEVEL[minRole];
+    }),
+  },
 }));
 
 import { getIronSession } from "iron-session";
