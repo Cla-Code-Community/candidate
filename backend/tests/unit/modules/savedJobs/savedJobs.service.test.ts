@@ -83,6 +83,15 @@ describe("SavedJobsService", () => {
 
       expect(result).toBeUndefined();
     });
+
+    it("não retorna vaga de outro usuário (ownership)", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
+
+      const result = await service.getById("user-2", "job-1");
+
+      expect(result).toBeUndefined();
+      expect(tx.query.savedJobs.findFirst).toHaveBeenCalledOnce();
+    });
   });
 
   // ── create ─────────────────────────────────────────────────────────────────
@@ -106,6 +115,31 @@ describe("SavedJobsService", () => {
 
       expect(result).toMatchObject(newJobData);
       expect(tx.insert).toHaveBeenCalledOnce();
+    });
+
+    it("cria candidatura já com status applied e appliedAt", async () => {
+      const appliedAt = new Date("2024-06-01T12:00:00Z");
+      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
+      tx.insert.mockReturnValue({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([
+            {
+              ...mockJob,
+              status: "applied",
+              appliedAt,
+            },
+          ]),
+        }),
+      });
+
+      const result = await service.create("user-1", {
+        ...newJobData,
+        status: "applied",
+        appliedAt,
+      });
+
+      expect(result.status).toBe("applied");
+      expect(result.appliedAt).toEqual(appliedAt);
     });
 
     it("lança 'Vaga já salva.' quando jobLink já existe para o usuário", async () => {
@@ -162,6 +196,71 @@ describe("SavedJobsService", () => {
       ).rejects.toThrow("Vaga não encontrada");
     });
 
+    it("não atualiza vaga de outro usuário (ownership)", async () => {
+      tx.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      await expect(
+        service.update("user-2", "job-1", { status: "applied" }),
+      ).rejects.toThrow("Vaga não encontrada");
+    });
+
+    it.each([
+      ["applied", "saved"],
+      ["interviewing", "applied"],
+      ["rejected", "interviewing"],
+      ["accepted", "interviewing"],
+    ] as const)(
+      "persiste transição de status %s → %s",
+      async (nextStatus, previousStatus) => {
+        const setMock = vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([
+              { ...mockJob, status: nextStatus },
+            ]),
+          }),
+        });
+        tx.update.mockReturnValue({ set: setMock });
+
+        const result = await service.update("user-1", "job-1", {
+          status: nextStatus,
+        });
+
+        expect(result.status).toBe(nextStatus);
+        expect(setMock.mock.calls[0][0]).toMatchObject({ status: nextStatus });
+        expect(previousStatus).toBeDefined();
+      },
+    );
+
+    it("persiste appliedAt ao mudar status para applied", async () => {
+      const appliedAt = new Date("2024-06-15T10:00:00Z");
+      const setMock = vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([
+            { ...mockJob, status: "applied", appliedAt },
+          ]),
+        }),
+      });
+      tx.update.mockReturnValue({ set: setMock });
+
+      const result = await service.update("user-1", "job-1", {
+        status: "applied",
+        appliedAt,
+      });
+
+      expect(result.status).toBe("applied");
+      expect(result.appliedAt).toEqual(appliedAt);
+      expect(setMock.mock.calls[0][0]).toMatchObject({
+        status: "applied",
+        appliedAt,
+      });
+    });
+
     it("inclui updatedAt no set", async () => {
       const setMock = vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
@@ -187,6 +286,15 @@ describe("SavedJobsService", () => {
       });
 
       await expect(service.delete("user-1", "job-1")).resolves.toBeUndefined();
+      expect(tx.delete).toHaveBeenCalledOnce();
+    });
+
+    it("executa delete sem erro mesmo quando vaga não pertence ao usuário", async () => {
+      tx.delete.mockReturnValue({
+        where: vi.fn().mockResolvedValue(undefined),
+      });
+
+      await expect(service.delete("user-2", "job-1")).resolves.toBeUndefined();
       expect(tx.delete).toHaveBeenCalledOnce();
     });
   });
