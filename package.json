@@ -7,20 +7,23 @@
   "main": "electron/main.js",
   "workspaces": [
     "frontend",
-    "backend"
+    "backend",
+    "front_admin"
   ],
   "scripts": {
     "prepare": "husky",
     "setup:dev": "npm ci && npm run prepare",
-    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\"",
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\" \"npm run dev --workspace=front_admin\"",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
+    "dev:front_admin": "npm run dev --workspace=front_admin",
     "scraper": "npm run scraper --workspace=backend",
     "scraper:watch": "npm run scraper:watch --workspace=backend",
     "test": "npm run test --workspace=backend",
-    "test:coverage": "npm run test:coverage --workspace=frontend && npm run test:coverage --workspace=backend",
+    "test:coverage": "npm run test:coverage --workspace=frontend && npm run test:coverage --workspace=backend && npm run test:coverage --workspace=front_admin",
     "build:frontend": "npm run build --workspace=frontend",
     "build": "npm run build --workspace=frontend",
+    "build:front_admin": "npm run build --workspace=front_admin",
     "validate": "npm run test --workspace=backend && npm run lint --workspace=frontend && npm run build --workspace=frontend",
     "electron": "electron .",
     "electron:dev": "npm run build:frontend && electron .",

@@ -3,8 +3,12 @@ node_modules
 **/node_modules
 
 # Build outputs
+dist
+**/dist
 frontend/dist
 backend/output
+coverage
+**/coverage
 
 # Go
 scraper-go/vendor
@@ -17,5 +21,8 @@ electron
 
 # Misc
 .git
-coverage
+.env
+.env.*
+**/.env
+**/.env.*
 **/*.log

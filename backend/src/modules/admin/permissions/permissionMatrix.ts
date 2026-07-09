@@ -5,26 +5,30 @@ export type Resource =
   | "scrapers"
   | "dashboard"
   | "observability"
-  | "audit";
+  | "audit"
+  | "permissions";
 
 export type Action =
   | "read"
   | "block"
   | "unblock"
+  | "delete"
   | "reset_password"
   | "change_role"
   | "trigger"
   | "health"
-  | "metrics";
+  | "metrics"
+  | "manage";
 
 export type PermissionMatrix = Record<Resource, Partial<Record<Action, Role>>>;
 
 // Valor de cada entrada = role mínima para executar a ação
 export const permissionMatrix: PermissionMatrix = {
   users: {
-    read: "super_admin",
+    read: "admin",
     block: "admin",
     unblock: "admin",
+    delete: "super_admin",
     reset_password: "admin",
     change_role: "super_admin",
   },
@@ -41,5 +45,9 @@ export const permissionMatrix: PermissionMatrix = {
   },
   audit: {
     read: "admin",
+  },
+  permissions: {
+    read: "admin",
+    manage: "super_admin",
   },
 };

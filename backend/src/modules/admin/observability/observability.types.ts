@@ -36,6 +36,48 @@ export const MetricSnapshotSchema = z.object({
 });
 export type MetricSnapshot = z.infer<typeof MetricSnapshotSchema>;
 
+export const ObservabilityPointSchema = z.object({
+  timestamp: z.string().datetime(),
+  value: z.number().nullable(),
+});
+export type ObservabilityPoint = z.infer<typeof ObservabilityPointSchema>;
+
+export const ObservabilitySeriesSchema = z.object({
+  label: z.string(),
+  points: z.array(ObservabilityPointSchema),
+});
+export type ObservabilitySeries = z.infer<typeof ObservabilitySeriesSchema>;
+
+export const ObservabilityPanelSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  unit: z.enum(["none", "percent", "ms", "bytes", "seconds", "count"]),
+  visualization: z.enum(["stat", "line"]),
+  series: z.array(ObservabilitySeriesSchema),
+});
+export type ObservabilityPanel = z.infer<typeof ObservabilityPanelSchema>;
+
+export const ObservabilityDashboardSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string(),
+  panels: z.array(ObservabilityPanelSchema),
+});
+export type ObservabilityDashboard = z.infer<
+  typeof ObservabilityDashboardSchema
+>;
+
+export const ObservabilityDashboardsSchema = z.object({
+  range: z.string(),
+  step: z.string(),
+  generatedAt: z.string().datetime(),
+  dashboards: z.array(ObservabilityDashboardSchema),
+});
+export type ObservabilityDashboards = z.infer<
+  typeof ObservabilityDashboardsSchema
+>;
+
 // --- ObservabilityOverview ---
 export const ObservabilityOverviewSchema = z.object({
   health: HealthcheckResultSchema,

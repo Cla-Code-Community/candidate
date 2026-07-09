@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   // db.insert chain triggers
   insertValues: vi.fn(),
   insertReturning: vi.fn(),
+  transaction: vi.fn(),
   // argon2
   hash: vi.fn(),
   verify: vi.fn(),
@@ -24,14 +25,17 @@ vi.mock("../../../../src/db/client", () => {
     returning: mocks.insertReturning,
   };
 
-  return {
-    db: {
-      query: {
-        credentials: { findFirst: mocks.credentialsFindFirst },
-        users: { findFirst: mocks.usersFindFirst },
-      },
-      insert: vi.fn(() => chain),
+  const db = {
+    query: {
+      credentials: { findFirst: mocks.credentialsFindFirst },
+      users: { findFirst: mocks.usersFindFirst },
     },
+    insert: vi.fn(() => chain),
+    transaction: mocks.transaction,
+  };
+
+  return {
+    db,
   };
 });
 
@@ -97,6 +101,17 @@ describe("CredentialsService", () => {
       };
     });
     mocks.insertReturning.mockResolvedValue([mockUser]);
+    mocks.transaction.mockImplementation(async (callback) => callback({
+      insert: vi.fn(() => ({
+        values: mocks.insertValues.mockImplementation(() => ({
+          returning: mocks.insertReturning,
+        })),
+      })),
+      query: {
+        credentials: { findFirst: mocks.credentialsFindFirst },
+        users: { findFirst: mocks.usersFindFirst },
+      },
+    }));
 
     // Define retornos seguros e limpos para evitar falhas colaterais
     mocks.credentialsFindFirst.mockResolvedValue(null);

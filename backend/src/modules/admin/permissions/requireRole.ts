@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import type { Action, Resource } from "./permissionMatrix";
-import { can } from "./rbac";
+import { permissionsService } from "./permissions.service";
 import { ROLE_LEVEL, type Role } from "./roles";
 
 export function requireRole(minRole: Role) {
@@ -20,14 +20,14 @@ export function requireRole(minRole: Role) {
 }
 
 export function requirePermission(resource: Resource, action: Action) {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     const { userId, role } = req.session;
 
     if (!userId || !role) {
       return res.status(401).json({ error: "Unauthenticated" });
     }
 
-    if (!can(role, resource, action)) {
+    if (!(await permissionsService.can(role as Role, resource, action))) {
       return res.status(403).json({ error: "Insufficient permissions" });
     }
 

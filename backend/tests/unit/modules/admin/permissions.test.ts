@@ -18,10 +18,10 @@ function mockResponse() {
 }
 
 describe("admin RBAC", () => {
-  it("permite somente super_admin ler usuários", () => {
+  it("permite admin e super_admin ler usuários", () => {
     expect(can("user", "users", "read")).toBe(false);
     expect(can("support", "users", "read")).toBe(false);
-    expect(can("admin", "users", "read")).toBe(false);
+    expect(can("admin", "users", "read")).toBe(true);
     expect(can("super_admin", "users", "read")).toBe(true);
   });
 
@@ -41,7 +41,8 @@ describe("admin RBAC", () => {
     expect(can("admin", "audit", "read")).toBe(true);
     expect(can("admin", "users", "change_role")).toBe(false);
     expect(can("super_admin", "users", "change_role")).toBe(true);
-    expect(can("support", "users", "delete" as any)).toBe(false);
+    expect(can("admin", "users", "delete")).toBe(false);
+    expect(can("super_admin", "users", "delete")).toBe(true);
   });
 
   it("requireRole retorna 401 quando não há sessão autenticada", () => {
@@ -55,24 +56,24 @@ describe("admin RBAC", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("requirePermission retorna 403 quando a role não possui permissão", () => {
+  it("requirePermission retorna 403 quando a role não possui permissão", async () => {
     const req = {
       session: { userId: "user-1", role: "admin" },
     } as unknown as Request;
     const res = mockResponse();
     const next = vi.fn();
 
-    requirePermission("users", "change_role")(req, res, next);
+    await requirePermission("users", "change_role")(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("requirePermission retorna 401 quando a sessão não tem usuário ou role", () => {
+  it("requirePermission retorna 401 quando a sessão não tem usuário ou role", async () => {
     const res = mockResponse();
     const next = vi.fn();
 
-    requirePermission("dashboard", "read")(
+    await requirePermission("dashboard", "read")(
       { session: { userId: "user-1" } } as unknown as Request,
       res,
       next,
@@ -82,14 +83,14 @@ describe("admin RBAC", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("requirePermission chama next quando a role possui permissão", () => {
+  it("requirePermission chama next quando a role possui permissão", async () => {
     const req = {
       session: { userId: "user-1", role: "super_admin" },
     } as unknown as Request;
     const res = mockResponse();
     const next = vi.fn();
 
-    requirePermission("users", "read")(req, res, next);
+    await requirePermission("users", "read")(req, res, next);
 
     expect(next).toHaveBeenCalled();
     expect(res.status).not.toHaveBeenCalled();
