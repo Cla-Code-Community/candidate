@@ -40,6 +40,12 @@ COPY --from=frontend /app/frontend/dist /usr/share/nginx/html
 
 FROM deps AS front-admin
 
+ARG VITE_API_URL
+ARG VITE_APP_ENV=production
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_APP_ENV=$VITE_APP_ENV
+
 COPY front_admin ./front_admin
 
 WORKDIR /app/front_admin
