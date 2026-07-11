@@ -2,11 +2,11 @@ import type { Job, JobsMeta } from "@/domains/jobs/domain/job.types";
 
 export function makeJob(overrides: Partial<Job> = {}): Job {
   return {
-    titulo: "Frontend Developer",
-    empresa: "ACME",
-    local: "Remoto",
-    palavra: "React",
-    link: "https://example.com/job/1",
+    title: "Frontend Developer",
+    company: "ACME",
+    location: "Remoto",
+    keyword: "React",
+    url: "https://example.com/job/1",
     source: "LinkedIn",
     ...overrides,
   };
@@ -14,9 +14,12 @@ export function makeJob(overrides: Partial<Job> = {}): Job {
 
 export function makeJobsMeta(overrides: Partial<JobsMeta> = {}): JobsMeta {
   return {
-    file: "vagas.xlsx",
-    modifiedAt: 1710000000000,
+    hasNext: false,
+    hasPrev: false,
+    limit: 5,
+    page: 1,
     total: 1,
+    totalPages: 1,
     ...overrides,
   };
 }

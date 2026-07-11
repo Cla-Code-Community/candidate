@@ -1,4 +1,4 @@
-import type { JobFile, JobsResponse } from "@/domains/jobs/domain/job.types";
+import type { JobsResponse } from "@/domains/jobs/domain/job.types";
 
 function normalizeBaseUrl(value: string | undefined): string {
   return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";
@@ -57,38 +57,15 @@ function readMessage(payload: unknown): string | undefined {
   return undefined;
 }
 
-export async function fetchJobFiles(): Promise<JobFile[]> {
-  const response = await fetch(buildApiUrl("/jobs/files"), {
-    credentials: "include",
-  });
-  const payload = (await readPayload(response)) as { files?: unknown } & Record<
-    string,
-    unknown
-  >;
+export async function fetchJobsByAPI(page?: number, limit?: number): Promise<JobsResponse> {
+  const queryParams = new URLSearchParams();
+  if (page !== undefined) queryParams.set("page", String(page));
+  if (limit !== undefined) queryParams.set("limit", String(limit));
 
-  if (!response.ok) {
-    throw buildError(
-      readMessage(payload),
-      "Falha ao listar arquivos de vagas.",
-    );
-  }
+  const queryString = queryParams.toString();
+  const urlPath = queryString ? `/jobs/search?${queryString}` : `/jobs/search`;
 
-  if (!Array.isArray(payload.files)) {
-    return [];
-  }
-
-  return payload.files.filter(
-    (entry): entry is JobFile =>
-      !!entry &&
-      typeof entry === "object" &&
-      "file" in entry &&
-      typeof (entry as { file: unknown }).file === "string",
-  );
-}
-
-export async function fetchJobsByFile(fileName: string): Promise<JobsResponse> {
-  const suffix = fileName ? `?file=${encodeURIComponent(fileName)}` : "";
-  const response = await fetch(buildApiUrl(`/jobs${suffix}`), {
+  const response = await fetch(buildApiUrl(urlPath), {
     credentials: "include",
   });
   const payload = (await readPayload(response)) as Record<string, unknown>;
@@ -99,13 +76,12 @@ export async function fetchJobsByFile(fileName: string): Promise<JobsResponse> {
 
   return {
     jobs: Array.isArray(payload.jobs) ? payload.jobs : [],
-    file: typeof payload.file === "string" ? payload.file : "",
-    modifiedAt:
-      typeof payload.modifiedAt === "string" ||
-      typeof payload.modifiedAt === "number"
-        ? payload.modifiedAt
-        : null,
     total: Number(payload.total || 0),
+    hasNext: Boolean(payload.hasNext),
+    hasPrev: Boolean(payload.hasPrev),
+    page: Number(payload.page || 0),
+    limit: Number(payload.limit || 0),
+    totalPages: Number(payload.totalPages || 0),
   };
 }
 

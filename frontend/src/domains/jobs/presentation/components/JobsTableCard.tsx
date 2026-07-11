@@ -15,7 +15,8 @@ import {
   TableRow,
 } from "@/shared/ui/table";
 import { cn } from "@/shared/lib/utils";
-import type { Job, JobsMeta } from "@/domains/jobs/domain/job.types";
+import type { Job } from "@/domains/jobs/domain/job.types";
+import type { JobsPaginationMeta } from "@/domains/jobs/application/useJobsData";
 import { useState } from "react";
 import {
   FiCheckSquare,
@@ -25,12 +26,12 @@ import {
 } from "react-icons/fi";
 
 interface JobsTableCardProps {
-  meta: JobsMeta;
+  meta: JobsPaginationMeta;
   filteredJobs: Job[];
   paginatedJobs: Job[];
   loading: boolean;
   error: string;
-  formatDate: (timestamp: JobsMeta["modifiedAt"]) => string;
+  formatDate: () => string;
   currentPage: number;
   totalPages: number;
   pageSize: number;
@@ -80,8 +81,8 @@ function getPaginationItems(
 
 function getJobId(job: Job, index: number) {
   return (
-    job.link?.trim() ||
-    [job.titulo, job.empresa, job.local, String(index)]
+    job.url?.trim() ||
+    [job.title, job.company, job.location, String(index)]
       .filter(Boolean)
       .join("|")
   );
@@ -130,7 +131,6 @@ export function JobsTableCard({
   paginatedJobs,
   loading,
   error,
-  formatDate,
   currentPage,
   totalPages,
   pageSize,
@@ -139,7 +139,7 @@ export function JobsTableCard({
 }: JobsTableCardProps) {
   const [spamMarks, setSpamMarks] = useState<Record<string, boolean>>({});
   const [readMarks, setReadMarks] = useState<Record<string, boolean>>({});
-  const resultsLabel = getResultsLabel(filteredJobs.length);
+  const resultsLabel = getResultsLabel(meta.total);
   const paginationItems = getPaginationItems(currentPage, totalPages);
 
   return (
@@ -177,28 +177,28 @@ export function JobsTableCard({
             <TableBody>
               {paginatedJobs.map((job, index) => {
                 const jobId = getJobId(job, index);
-                const keywords = getKeywordTags(job.palavra);
+                const keywords = getKeywordTags(job.keyword);
                 const isSpamMarked = Boolean(spamMarks[jobId]);
                 const isReadMarked = Boolean(readMarks[jobId]);
 
                 return (
                   <TableRow key={jobId}>
                     <TableCell className="font-medium">
-                      {job.link ? (
+                      {job.url ? (
                         <a
-                          href={job.link}
+                          href={job.url}
                           target="_blank"
                           rel="noreferrer"
                           className="text-primary underline-offset-4 hover:underline dark:text-[#14AE5C]"
                         >
-                          {job.titulo || "Abrir vaga"}
+                          {job.title || "Abrir vaga"}
                         </a>
                       ) : (
-                        job.titulo || "-"
+                        job.title || "-"
                       )}
                     </TableCell>
-                    <TableCell>{job.empresa || "-"}</TableCell>
-                    <TableCell>{job.local || "-"}</TableCell>
+                    <TableCell>{job.company || "-"}</TableCell>
+                    <TableCell>{job.location || "-"}</TableCell>
                     <TableCell>
                       {keywords.length > 0 ? (
                         <div className="flex flex-wrap gap-1 text-sm text-foreground/85">
@@ -220,7 +220,7 @@ export function JobsTableCard({
                     </TableCell>
                     <TableCell className="text-center align-middle">
                       <StatusToggleButton
-                        label={`Marcar vaga como spam para ${job.titulo || "vaga"}`}
+                        label={`Marcar vaga como spam para ${job.title || "vaga"}`}
                         pressed={isSpamMarked}
                         activeClassName="text-[#0c6b35]"
                         onClick={() =>
@@ -233,7 +233,7 @@ export function JobsTableCard({
                     </TableCell>
                     <TableCell className="text-center align-middle">
                       <StatusToggleButton
-                        label={`Marcar vaga como lida para ${job.titulo || "vaga"}`}
+                        label={`Marcar vaga como lida para ${job.title || "vaga"}`}
                         pressed={isReadMarked}
                         activeClassName="text-[#0c6b35]"
                         onClick={() =>
@@ -277,7 +277,6 @@ export function JobsTableCard({
         <div className="mt-4 border-t border-border/60 pt-4">
           <p className="text-sm text-muted-foreground">
             <span className="font-medium text-foreground">{resultsLabel}</span>
-            <span> (Atualizado em {formatDate(meta.modifiedAt)})</span>
           </p>
 
           <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -360,7 +359,7 @@ export function JobsTableCard({
                 onClick={() =>
                   onPageChange(Math.min(totalPages, currentPage + 1))
                 }
-                disabled={currentPage === totalPages}
+                disabled={currentPage === totalPages || totalPages === 0}
                 className="flex h-9 min-w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <FiChevronRight className="h-4 w-4" />
