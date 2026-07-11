@@ -120,7 +120,10 @@ describe("Integration - SavedJobs Routes", () => {
 
       const res = await request(app).get(BASE).expect(401);
 
-      expect(res.body).toEqual({ message: "Não autenticado." });
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
     });
 
     it("retorna 500 quando getAll lança erro", async () => {
@@ -159,7 +162,10 @@ describe("Integration - SavedJobs Routes", () => {
 
       const res = await request(app).get(`${BASE}/job-outro-user`).expect(404);
 
-      expect(res.body).toHaveProperty("error", "Vaga não encontrada");
+      expect(res.body).toEqual({
+        code: "NOT_FOUND",
+        message: "Vaga não encontrada",
+      });
       expect(mockSavedJobsService.getById).toHaveBeenCalledWith(
         "user_abc",
         "job-outro-user",
@@ -174,9 +180,6 @@ describe("Integration - SavedJobs Routes", () => {
       await request(app).get(`${BASE}/job-1`).expect(401);
     });
   });
-
-  // ── POST / ────────────────────────────────────────────────────────────────
-
   describe("POST /", () => {
     it("cria vaga e retorna 201", async () => {
       const res = await request(app).post(BASE).send(createPayload).expect(201);

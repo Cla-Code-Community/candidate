@@ -33,7 +33,10 @@ describe("Integration - Auth Guards (requireAuth)", () => {
     async ({ method, path }) => {
       const res = await request(app)[method](path).expect(401);
 
-      expect(res.body).toEqual({ message: "Não autenticado." });
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
     },
   );
 
@@ -43,7 +46,10 @@ describe("Integration - Auth Guards (requireAuth)", () => {
       .send({ email: "invalido", password: "x" });
 
     expect(res.status).not.toBe(401);
-    expect(res.body).not.toEqual({ message: "Não autenticado." });
+    expect(res.body).not.toEqual({
+      code: "UNAUTHORIZED",
+      message: "Não autenticado.",
+    });
   });
 
   it("permite /health sem autenticação", async () => {

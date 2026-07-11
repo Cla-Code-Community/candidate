@@ -19,7 +19,10 @@ describe("requireAuth", () => {
     requireAuth(req, res, next);
 
     expect(status).toHaveBeenCalledWith(401);
-    expect(json).toHaveBeenCalledWith({ message: "Não autenticado." });
+    expect(json).toHaveBeenCalledWith({
+      code: "UNAUTHORIZED",
+      message: "Não autenticado.",
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -29,7 +32,10 @@ describe("requireAuth", () => {
     requireAuth(req, res, next);
 
     expect(status).toHaveBeenCalledWith(401);
-    expect(json).toHaveBeenCalledWith({ message: "Não autenticado." });
+    expect(json).toHaveBeenCalledWith({
+      code: "UNAUTHORIZED",
+      message: "Não autenticado.",
+    });
     expect(next).not.toHaveBeenCalled();
   });
 

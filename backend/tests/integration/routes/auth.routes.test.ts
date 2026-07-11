@@ -591,7 +591,10 @@ describe("Integration - Auth Routes", () => {
 
       const res = await request(app).get(`${BASE}/me`).expect(401);
 
-      expect(res.body).toHaveProperty("error", "Não autenticado");
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
       expect(session.destroy).toHaveBeenCalled();
     });
   });
@@ -636,7 +639,10 @@ describe("Integration - Auth Routes", () => {
 
       const meRes = await request(app).get(`${BASE}/me`).expect(401);
 
-      expect(meRes.body).toHaveProperty("error", "Não autenticado");
+      expect(meRes.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
     });
   });
 });
