@@ -4,12 +4,10 @@ import { AuthController } from "../modules/auth/auth.controller";
 import { AuthService } from "../modules/auth/auth.service";
 import { CredentialsController } from "../modules/auth/credentials.controller";
 import { CredentialsService } from "../modules/auth/credentials.service";
-import { OAuthProviderSchema } from "../modules/types/auth.types";
 import {
-  LoginSchema,
-  RegisterSchema,
-} from "../modules/types/credentials.types";
-import { z } from "zod";
+  authAccountRateLimiter,
+  authIpRateLimiter,
+} from "../middleware/rateLimit";
 
 const router = Router();
 
@@ -35,21 +33,13 @@ router.get("/:provider/callback", (req, res, next) => {
 });
 
 // Credentials
-router.post(
-  "/register",
-  validate({ body: RegisterSchema }),
-  (req, res, next) => {
-    credentialsController.register(req, res).catch(next);
-  },
+router.post("/register", authIpRateLimiter, authAccountRateLimiter, (req, res) =>
+  credentialsController.register(req, res),
 );
-router.post("/login", validate({ body: LoginSchema }), (req, res, next) => {
-  credentialsController.login(req, res).catch(next);
-});
-router.post("/logout", (req, res, next) => {
-  credentialsController.logout(req, res).catch(next);
-});
-router.get("/me", (req, res, next) => {
-  credentialsController.me(req, res).catch(next);
-});
+router.post("/login", authIpRateLimiter, authAccountRateLimiter, (req, res) =>
+  credentialsController.login(req, res),
+);
+router.post("/logout", (req, res) => credentialsController.logout(req, res));
+router.get("/me", (req, res) => credentialsController.me(req, res));
 
 export { router as authRoutes };

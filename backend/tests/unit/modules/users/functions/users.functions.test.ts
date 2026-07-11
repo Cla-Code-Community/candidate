@@ -43,10 +43,10 @@ vi.mock(
       >();
     return {
       ...actual,
-      createUser: vi.fn((params, tx) => {
+      createUser: vi.fn((params, tx, options) => {
         const impl = mocks.createUserMock.getMockImplementation();
-        if (impl) return mocks.createUserMock(params, tx);
-        return actual.createUser(params, tx);
+        if (impl) return mocks.createUserMock(params, tx, options);
+        return actual.createUser(params, tx, options);
       }),
     };
   },
@@ -172,8 +172,16 @@ describe("findOrCreateUser", () => {
     });
 
     expect(mocks.createUserMock).toHaveBeenCalledWith(
-      { profile: oauthProfile },
+      {
+        email: oauthProfile.email,
+        displayName: oauthProfile.name,
+        firstName: null,
+        lastName: null,
+        avatarUrl: null,
+        username: oauthProfile.username,
+      },
       expect.anything(),
+      { onEmailConflict: "returnExisting" },
     );
     expect(mocks.createAccountMock).toHaveBeenCalledWith(
       { userId: mockUser.id, provider: "github", profile: oauthProfile },
@@ -220,24 +228,29 @@ describe("createUser", () => {
 
   it("insere usuário e retorna o resultado", async () => {
     const tx = makeTx();
-    mocks.generateUsername.mockResolvedValue("usertest");
 
-    const result = await createUser({ profile: oauthProfile }, tx as any);
-
-    expect(result).toEqual(mockUser);
-    expect(mocks.generateUsername).toHaveBeenCalledWith("usertest", tx);
-  });
-
-  it("usa username do profile como base quando disponível", async () => {
-    const tx = makeTx();
-    mocks.generateUsername.mockResolvedValue("customuser");
-
-    await createUser(
-      { profile: { ...oauthProfile, username: "customuser" } },
+    const result = await createUser(
+      {
+        email: oauthProfile.email,
+        displayName: oauthProfile.name,
+        username: oauthProfile.username,
+      },
       tx as any,
     );
 
-    expect(mocks.generateUsername).toHaveBeenCalledWith("customuser", tx);
+    expect(result).toEqual(mockUser);
+    expect(mocks.generateUsername).not.toHaveBeenCalled();
+  });
+
+  it("usa username do profile diretamente quando disponível", async () => {
+    const tx = makeTx();
+
+    await createUser(
+      { email: oauthProfile.email, username: "customuser" },
+      tx as any,
+    );
+
+    expect(mocks.generateUsername).not.toHaveBeenCalled();
   });
 
   it("usa prefixo do email como fallback quando name e username ausentes", async () => {
@@ -246,12 +259,9 @@ describe("createUser", () => {
 
     await createUser(
       {
-        profile: {
-          id: "x",
-          email: "fallback@test.com",
-          username: undefined,
-          name: undefined,
-        },
+        email: "fallback@test.com",
+        username: undefined,
+        displayName: undefined,
       },
       tx as any,
     );
@@ -265,12 +275,9 @@ describe("createUser", () => {
 
     await createUser(
       {
-        profile: {
-          id: "x",
-          email: undefined,
-          username: undefined,
-          name: undefined,
-        },
+        email: null,
+        username: undefined,
+        displayName: undefined,
       },
       tx as any,
     );
@@ -293,7 +300,14 @@ describe("createUser", () => {
 
     mocks.findUserByEmail.mockResolvedValue(mockUser);
 
-    const result = await createUser({ profile: oauthProfile }, tx as any);
+    const result = await createUser(
+      {
+        email: oauthProfile.email,
+        displayName: oauthProfile.name,
+      },
+      tx as any,
+      { onEmailConflict: "returnExisting" },
+    );
     expect(result).toEqual(mockUser);
   });
 
@@ -311,7 +325,9 @@ describe("createUser", () => {
     tx.insert.mockReturnValue(chain as any);
 
     await expect(
-      createUser({ profile: { id: "x", email: undefined } }, tx as any),
+      createUser({ email: null }, tx as any, {
+        onEmailConflict: "returnExisting",
+      }),
     ).rejects.toThrow("unique violation");
   });
 });

@@ -1,24 +1,11 @@
 import { JobsFiltersCard } from "@/domains/jobs/presentation/components/JobsFiltersCard";
 import { JobsTableCard } from "@/domains/jobs/presentation/components/JobsTableCard";
-import { Button } from "@/shared/ui/button";
 import { useJobsData } from "@/domains/jobs/application/useJobsData";
-import { useJobsFiltering } from "@/domains/jobs/application/useJobsFiltering";
-import type { JobsMeta } from "@/domains/jobs/domain/job.types";
-import {
-  clampPageSize,
-  getCurrentPage,
-  getTotalPages,
-  paginateItems,
-} from "@/domains/jobs/domain/jobPagination";
 import { useCallback, useEffect, useMemo, type SetStateAction } from "react";
-import { FiRefreshCw } from "react-icons/fi";
 import { useSearchParams } from "react-router-dom";
 
-function formatDate(timestamp: JobsMeta["modifiedAt"]): string {
-  if (!timestamp) {
-    return "-";
-  }
-  return new Date(timestamp).toLocaleString("pt-BR");
+function formatDate(): string {
+  return new Date().toLocaleString("pt-BR");
 }
 
 function parsePositiveInteger(value: string | null, fallback: number) {
@@ -53,39 +40,20 @@ function JobsPage() {
     () => getKeywordFilter(searchParams),
     [searchParams],
   );
-  const selectedFileParam = searchParams.get("file") ?? "";
+
   const page = parsePositiveInteger(searchParams.get("page"), 1);
-  const pageSize = clampPageSize(
-    parsePositiveInteger(searchParams.get("pageSize"), 5),
-  );
+  const pageSize = parsePositiveInteger(searchParams.get("pageSize"), 5);
 
   const {
-    files,
-    selectedFile,
-    setSelectedFile,
     jobs,
     meta,
     loading,
     scraping,
     error,
-    triggerScraper,
-  } = useJobsData(selectedFileParam);
+  } = useJobsData(page, pageSize);
 
-  const { keywords, filteredJobs } = useJobsFiltering(
-    jobs,
-    search,
-    keywordFilter,
-  );
-
-  const totalPages = useMemo(
-    () => getTotalPages(filteredJobs.length, pageSize),
-    [filteredJobs.length, pageSize],
-  );
-  const currentPage = getCurrentPage(page, totalPages);
-  const paginatedJobs = useMemo(
-    () => paginateItems(filteredJobs, currentPage, pageSize),
-    [filteredJobs, currentPage, pageSize],
-  );
+  const totalPages = meta.totalPages;
+  const currentPage = meta.page || page;
 
   const updateSearchParams = useCallback(
     (
@@ -122,25 +90,10 @@ function JobsPage() {
   );
 
   useEffect(() => {
-    if (selectedFileParam && selectedFileParam !== selectedFile) {
-      setSelectedFile(selectedFileParam);
+    if (totalPages > 0 && page > totalPages) {
+      updateSearchParams({ page: String(totalPages) }, { replace: true });
     }
-  }, [selectedFileParam, selectedFile, setSelectedFile]);
-
-  useEffect(() => {
-    if (selectedFile && selectedFile !== selectedFileParam) {
-      updateSearchParams({ file: selectedFile }, { replace: true });
-    }
-  }, [selectedFile, selectedFileParam, updateSearchParams]);
-
-  useEffect(() => {
-    if (page !== currentPage) {
-      updateSearchParams(
-        { page: currentPage === 1 ? null : String(currentPage) },
-        { replace: true },
-      );
-    }
-  }, [currentPage, page, updateSearchParams]);
+  }, [currentPage, page, totalPages, updateSearchParams]);
 
   const handleSearchChange = useCallback(
     (value: SetStateAction<string>) => {
@@ -192,16 +145,6 @@ function JobsPage() {
     );
   }, [updateSearchParams]);
 
-  const handleSelectedFileChange = useCallback(
-    (value: SetStateAction<string>) => {
-      const nextFile =
-        typeof value === "function" ? value(selectedFile) : value;
-      setSelectedFile(nextFile);
-      updateSearchParams({ file: nextFile || null }, { resetPage: true });
-    },
-    [selectedFile, setSelectedFile, updateSearchParams],
-  );
-
   const handlePageChange = useCallback(
     (nextPage: number) => {
       updateSearchParams({ page: nextPage === 1 ? null : String(nextPage) });
@@ -211,18 +154,17 @@ function JobsPage() {
 
   const handlePageSizeChange = useCallback(
     (value: number) => {
-      const nextPageSize = clampPageSize(value);
       updateSearchParams(
-        { pageSize: nextPageSize === 5 ? null : String(nextPageSize) },
+        { pageSize: String(value) },
         { resetPage: true },
       );
     },
     [updateSearchParams],
   );
 
-  const handleScraper = useCallback(() => {
-    void triggerScraper();
-  }, [triggerScraper]);
+  const mockKeywords: string[] = useMemo(() => {
+    return Array.from(new Set(jobs.map(j => j.keyword).filter(Boolean))) as string[];
+  }, [jobs]);
 
   return (
     <section className="mx-auto flex min-h-full w-full flex-col gap-6 px-4 py-6 transition-colors duration-300 md:px-8">
@@ -233,31 +175,14 @@ function JobsPage() {
         setKeywordFilter={handleKeywordFilterChange}
         onRemoveFilter={handleRemoveFilter}
         onClearFilters={handleClearFilters}
-        keywords={keywords}
-        selectedFile={selectedFile}
-        setSelectedFile={handleSelectedFileChange}
-        files={files}
+        keywords={mockKeywords}
         meta={meta}
-        actions={
-          <>
-            <Button
-              onClick={handleScraper}
-              disabled={scraping}
-              className="h-12 md:h-14 w-full sm:w-auto rounded-xl md:rounded-2xl bg-[#0c6b35] px-6 text-base text-white shadow-sm hover:bg-[#0a5b2d] whitespace-nowrap flex items-center gap-2"
-            >
-              <FiRefreshCw
-                className={`h-4 w-4 ${scraping ? "animate-spin" : ""}`}
-              />
-              {scraping ? "Buscando vagas..." : "Buscar vagas"}
-            </Button>
-          </>
-        }
       />
 
       <JobsTableCard
         meta={meta}
-        filteredJobs={filteredJobs}
-        paginatedJobs={paginatedJobs}
+        filteredJobs={jobs}
+        paginatedJobs={jobs}
         loading={loading || scraping}
         error={error}
         formatDate={formatDate}

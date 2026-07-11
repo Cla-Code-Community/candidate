@@ -1,0 +1,37 @@
+/**
+ * Estas variáveis são o "estado inicial" — evita flash sem estilo
+ * antes do ThemeProvider montar e chamar applyTheme().
+ * Os valores reais em runtime são sobrescritos via JS (lib/theme/theme.ts).
+ */
+
+:root {
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-hover: #f1f5f9;
+  --color-input: #f1f5f9;
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+
+  --color-border: #e2e8f0;
+  --color-border-focus: #6366f1;
+
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+}
+
+.dark {
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-hover: #334155;
+  --color-input: #1e293b;
+
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #cbd5e1;
+  --color-text-muted: #94a3b8;
+
+  --color-border: #334155;
+  --color-border-focus: #818cf8;
+}

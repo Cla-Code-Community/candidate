@@ -1,6 +1,27 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const ROLE_LEVEL = {
+  user: 0,
+  support: 1,
+  admin: 2,
+  super_admin: 3,
+} as const;
+
+const PERMISSION_MIN_ROLE = {
+  "dashboard.read": "support",
+  "scrapers.read": "support",
+  "observability.health": "support",
+  "users.read": "admin",
+  "users.block": "admin",
+  "users.reset_password": "admin",
+  "scrapers.trigger": "admin",
+  "observability.metrics": "admin",
+  "audit.read": "admin",
+  "users.change_role": "super_admin",
+  "users.delete": "super_admin",
+} as const;
+
 const mocks = vi.hoisted(() => ({
   dashboard: vi.fn((_req, res) => res.json({ ok: true, scope: "dashboard" })),
   usersList: vi.fn((_req, res) => res.json({ data: [], total: 0 })),
@@ -15,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   changeRole: vi.fn((_req, res) =>
     res.json({ ok: true, action: "change_role" }),
   ),
+  deleteUser: vi.fn((_req, res) => res.json({ ok: true, action: "delete" })),
   scrapersList: vi.fn((_req, res) => res.json({ scrapers: [] })),
   scrapersStatus: vi.fn((_req, res) => res.json({ running: false })),
   scrapersJobs: vi.fn((_req, res) => res.json({ jobs: [], total: 0 })),
@@ -22,7 +44,10 @@ const mocks = vi.hoisted(() => ({
   scrapersTrigger: vi.fn((_req, res) => res.status(202).json({ ok: true })),
   health: vi.fn((_req, res) => res.json({ status: "ok" })),
   metrics: vi.fn((_req, res) => res.json({ requestRatePerMinute: 1 })),
+  dashboards: vi.fn((_req, res) => res.json({ dashboards: [] })),
   audit: vi.fn((_req, res) => res.json({ data: [], total: 0 })),
+  permissionsRules: vi.fn((_req, res) => res.json({ rules: [] })),
+  permissionsUpdateRules: vi.fn((_req, res) => res.json({ ok: true })),
 }));
 
 vi.mock("../../../src/routes/admin.context", () => ({
@@ -34,6 +59,7 @@ vi.mock("../../../src/routes/admin.context", () => ({
     unblockUser: mocks.unblockUser,
     resetPassword: mocks.resetPassword,
     changeRole: mocks.changeRole,
+    deleteUser: mocks.deleteUser,
   },
   scrapersCtrl: {
     list: mocks.scrapersList,
@@ -45,12 +71,28 @@ vi.mock("../../../src/routes/admin.context", () => ({
   observabilityCtrl: {
     getHealth: mocks.health,
     getMetrics: mocks.metrics,
+    getDashboards: mocks.dashboards,
   },
   auditCtrl: { getLogs: mocks.audit },
+  permissionsCtrl: {
+    listRules: mocks.permissionsRules,
+    updateRules: mocks.permissionsUpdateRules,
+  },
 }));
 
 vi.mock("iron-session", () => ({
   getIronSession: vi.fn(),
+}));
+
+vi.mock("../../../src/modules/admin/permissions/permissions.service", () => ({
+  permissionsService: {
+    can: vi.fn(async (role: keyof typeof ROLE_LEVEL, resource: string, action: string) => {
+      const key = `${resource}.${action}` as keyof typeof PERMISSION_MIN_ROLE;
+      const minRole = PERMISSION_MIN_ROLE[key];
+      if (!minRole) return false;
+      return ROLE_LEVEL[role] >= ROLE_LEVEL[minRole];
+    }),
+  },
 }));
 
 import { getIronSession } from "iron-session";
@@ -94,7 +136,7 @@ describe("Integration - Admin Routes", () => {
     expect(mocks.metrics).not.toHaveBeenCalled();
   });
 
-  it("admin executa operações administrativas, mas não lista usuários", async () => {
+  it("admin executa operações administrativas e lista usuários", async () => {
     vi.mocked(getIronSession).mockResolvedValue(session("admin") as any);
 
     await request(app).patch("/admin/users/user-2/block").expect(200);
@@ -102,17 +144,17 @@ describe("Integration - Admin Routes", () => {
     await request(app).post("/admin/scrapers/run").expect(202);
     await request(app).get("/admin/observability/metrics").expect(200);
     await request(app).get("/admin/audit").expect(200);
-    await request(app).get("/admin/users").expect(403);
+    await request(app).get("/admin/users").expect(200);
 
     expect(mocks.blockUser).toHaveBeenCalled();
     expect(mocks.resetPassword).toHaveBeenCalled();
     expect(mocks.scrapersTrigger).toHaveBeenCalled();
     expect(mocks.metrics).toHaveBeenCalled();
     expect(mocks.audit).toHaveBeenCalled();
-    expect(mocks.usersList).not.toHaveBeenCalled();
+    expect(mocks.usersList).toHaveBeenCalled();
   });
 
-  it("super_admin lista usuários e altera role", async () => {
+  it("super_admin lista usuários, altera role e exclui usuário", async () => {
     vi.mocked(getIronSession).mockResolvedValue(session("super_admin") as any);
 
     await request(app).get("/admin/users").expect(200);
@@ -120,10 +162,12 @@ describe("Integration - Admin Routes", () => {
     await request(app).patch("/admin/users/user-2/role").send({
       role: "admin",
     }).expect(200);
+    await request(app).delete("/admin/users/user-2").expect(200);
 
     expect(mocks.usersList).toHaveBeenCalled();
     expect(mocks.userById).toHaveBeenCalled();
     expect(mocks.changeRole).toHaveBeenCalled();
+    expect(mocks.deleteUser).toHaveBeenCalled();
   });
 
   it("usuário comum não acessa rotas administrativas", async () => {

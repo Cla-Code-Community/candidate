@@ -40,8 +40,22 @@
     {
       "idx": 5,
       "version": "7",
-      "when": 1782974700000,
-      "tag": "0005_sudden_robbie_robertson",
+      "when": 1783533600000,
+      "tag": "0005_keywords_tenant_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1783620000000,
+      "tag": "0006_audit_logs",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1783623600000,
+      "tag": "0007_permission_rules",
       "breakpoints": true
     }
   ]

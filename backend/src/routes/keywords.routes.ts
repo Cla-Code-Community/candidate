@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { keywords } from "../db/schema";
 import { getCache } from "../lib/cache";
@@ -16,11 +17,15 @@ export const keywordsRoutes = Router();
  *       200:
  *         description: Lista de keywords
  */
-keywordsRoutes.get("/", async (_req, res) => {
+keywordsRoutes.get("/", async (req, res) => {
+  const userId = req.session?.userId;
+  if (!userId) return res.status(401).json({ message: "Não autenticado." });
+
   try {
     const rows = await db
       .select({ keyword: keywords.keyword, source: keywords.source })
       .from(keywords)
+      .where(eq(keywords.userId, userId))
       .orderBy(keywords.createdAt);
 
     return res.json({ ok: true, keywords: rows });
@@ -54,6 +59,9 @@ keywordsRoutes.get("/", async (_req, res) => {
  *         description: Dados inválidos
  */
 keywordsRoutes.post("/", async (req, res) => {
+  const userId = req.session?.userId;
+  if (!userId) return res.status(401).json({ message: "Não autenticado." });
+
   const raw = req.body?.keyword;
   const keyword = typeof raw === "string" ? raw.trim() : "";
 
@@ -63,8 +71,15 @@ keywordsRoutes.post("/", async (req, res) => {
     });
   }
 
+  await db
+    .insert(keywords)
+    .values({ keyword, source: "user", userId })
+    .onConflictDoNothing({
+      target: [keywords.userId, keywords.keyword],
+    });
+
   const client = await getCache();
-  await publish(client, keyword, "user");
+  await publish(client, keyword, "user", userId);
 
   return res.status(202).json({
     ok: true,

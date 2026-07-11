@@ -62,6 +62,7 @@ describe("ObservabilityController", () => {
   const service = {
     getHealth: vi.fn(),
     getMetrics: vi.fn(),
+    getDashboards: vi.fn(),
     getOverview: vi.fn(),
   };
   const auditService = { fromRequest: vi.fn() };
@@ -71,6 +72,7 @@ describe("ObservabilityController", () => {
     vi.clearAllMocks();
     service.getHealth.mockResolvedValue({ status: "ok" });
     service.getMetrics.mockResolvedValue({ requestRatePerMinute: 1 });
+    service.getDashboards.mockResolvedValue({ dashboards: [] });
     service.getOverview.mockResolvedValue({ health: { status: "ok" }, metrics: {} });
   });
 
@@ -102,6 +104,28 @@ describe("ObservabilityController", () => {
       req,
       "observability.overview",
     );
+  });
+
+  it("accepts 15m dashboard range and rejects invalid ranges", async () => {
+    const dashboardsRes = response();
+    await controller.getDashboards(
+      { ...req, query: { range: "15m" } } as unknown as Request,
+      dashboardsRes,
+    );
+
+    expect(service.getDashboards).toHaveBeenCalledWith("15m");
+    expect(auditService.fromRequest).toHaveBeenCalledWith(
+      expect.anything(),
+      "observability.dashboards",
+    );
+
+    const invalidRes = response();
+    await controller.getDashboards(
+      { ...req, query: { range: "30m" } } as unknown as Request,
+      invalidRes,
+    );
+
+    expect(invalidRes.status).toHaveBeenCalledWith(400);
   });
 
   it("returns 500 when service throws", async () => {
@@ -242,5 +266,70 @@ describe("MetricsService", () => {
     expect(result.p95LatencyMs).toBeNull();
     expect(result.cacheHitRatePct).toBeNull();
     expect(result.activeSessionsCount).toBeNull();
+  });
+
+  it("returns dashboard panels with normalized range, labels and parsed points", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            status: "success",
+            data: {
+              result: [
+                {
+                  metric: { route: "/jobs" },
+                  values: [
+                    [1_700_000_000, "1.5"],
+                    [1_700_000_060, "not-a-number"],
+                  ],
+                },
+              ],
+            },
+          }),
+      }),
+    );
+
+    const result = await new MetricsService().getDashboards("30m");
+
+    expect(result.range).toBe("1h");
+    expect(result.step).toBe("30s");
+    expect(result.dashboards).toHaveLength(4);
+    expect(result.dashboards[0].panels[0].series[0]).toMatchObject({
+      label: "requests/sec",
+      points: [
+        { timestamp: "2023-11-14T22:13:20.000Z", value: 1.5 },
+        { timestamp: "2023-11-14T22:14:20.000Z", value: null },
+      ],
+    });
+    expect(result.dashboards[0].panels[1].series[0].label).toBe("/jobs");
+    expect(fetch).toHaveBeenCalledTimes(23);
+  });
+
+  it("returns empty dashboard series when prometheus range queries fail", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+
+    const result = await new MetricsService().getDashboards("5m");
+
+    expect(result.range).toBe("5m");
+    expect(result.step).toBe("10s");
+    expect(result.dashboards[0].panels[0].series).toEqual([]);
+  });
+
+  it("returns empty dashboard series when prometheus range status is not success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ status: "error", data: { result: [] } }),
+      }),
+    );
+
+    const result = await new MetricsService().getDashboards("24h");
+
+    expect(result.range).toBe("24h");
+    expect(result.step).toBe("600s");
+    expect(result.dashboards[0].panels[0].series).toEqual([]);
   });
 });
