@@ -579,5 +579,70 @@ describe("Integration - Auth Routes", () => {
         message: "Não autenticado.",
       });
     });
+
+    it("invalida sessão e retorna 401 quando usuário foi removido", async () => {
+      const session = {
+        userId: "user-deleted",
+        save: vi.fn(),
+        destroy: vi.fn().mockResolvedValue(undefined),
+      };
+      vi.mocked(getIronSession).mockResolvedValue(session as any);
+      mockCredentialsService.findById.mockResolvedValueOnce(null);
+
+      const res = await request(app).get(`${BASE}/me`).expect(401);
+
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
+      expect(session.destroy).toHaveBeenCalled();
+    });
+  });
+
+  // ── Fluxo de sessão (login → validação → logout) ─────────────────────────
+  // Não há endpoint de refresh de token; a sessão é validada via GET /auth/me.
+
+  describe("fluxo de sessão", () => {
+    it("login seguido de /me retorna o mesmo usuário autenticado", async () => {
+      vi.mocked(getIronSession).mockResolvedValue(
+        fixtureCredentialsSession as any,
+      );
+
+      await request(app).post(`${BASE}/login`).send(loginPayload).expect(200);
+
+      vi.mocked(getIronSession).mockResolvedValue({
+        userId: fixtureUser.id,
+        save: vi.fn(),
+        destroy: vi.fn(),
+      } as any);
+
+      const meRes = await request(app).get(`${BASE}/me`).expect(200);
+
+      expect(meRes.body.user).toHaveProperty("id", fixtureUser.id);
+      expect(fixtureCredentialsSession.userId).toBe(fixtureUser.id);
+    });
+
+    it("logout invalida sessão e /me retorna 401 em seguida", async () => {
+      const session = {
+        userId: fixtureUser.id,
+        role: fixtureUser.role,
+        save: vi.fn().mockResolvedValue(undefined),
+        destroy: vi.fn().mockResolvedValue(undefined),
+      };
+      vi.mocked(getIronSession).mockResolvedValue(session as any);
+
+      await request(app).post(`${BASE}/logout`).expect(200);
+      expect(session.destroy).toHaveBeenCalled();
+
+      session.userId = undefined;
+      vi.mocked(getIronSession).mockResolvedValue(session as any);
+
+      const meRes = await request(app).get(`${BASE}/me`).expect(401);
+
+      expect(meRes.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
+    });
   });
 });

@@ -118,7 +118,12 @@ describe("Integration - SavedJobs Routes", () => {
         userId: undefined,
       } as any);
 
-      await request(app).get(BASE).expect(401);
+      const res = await request(app).get(BASE).expect(401);
+
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
     });
 
     it("retorna 500 quando getAll lança erro", async () => {
@@ -152,6 +157,21 @@ describe("Integration - SavedJobs Routes", () => {
       await request(app).get(`${BASE}/inexistente`).expect(404);
     });
 
+    it("retorna 404 quando vaga pertence a outro usuário (ownership)", async () => {
+      mockSavedJobsService.getById.mockResolvedValueOnce(undefined);
+
+      const res = await request(app).get(`${BASE}/job-outro-user`).expect(404);
+
+      expect(res.body).toEqual({
+        code: "NOT_FOUND",
+        message: "Vaga não encontrada",
+      });
+      expect(mockSavedJobsService.getById).toHaveBeenCalledWith(
+        "user_abc",
+        "job-outro-user",
+      );
+    });
+
     it("retorna 401 quando sessão não tem userId", async () => {
       vi.mocked(getIronSession).mockResolvedValueOnce({
         userId: undefined,
@@ -160,9 +180,6 @@ describe("Integration - SavedJobs Routes", () => {
       await request(app).get(`${BASE}/job-1`).expect(401);
     });
   });
-
-  // ── POST / ────────────────────────────────────────────────────────────────
-
   describe("POST /", () => {
     it("cria vaga e retorna 201", async () => {
       const res = await request(app).post(BASE).send(createPayload).expect(201);
@@ -248,6 +265,78 @@ describe("Integration - SavedJobs Routes", () => {
         code: "UNAUTHORIZED",
         message: "Não autenticado.",
       });
+    });
+  });
+
+  // ── PATCH /:id — transições de status (eventos de candidatura) ─────────────
+
+  describe("PATCH /:id — transições de status", () => {
+    it.each([
+      "applied",
+      "interviewing",
+      "rejected",
+      "accepted",
+    ] as const)("atualiza status para %s", async (status) => {
+      mockSavedJobsService.update.mockResolvedValueOnce({
+        ...fixtureJob,
+        status,
+      });
+
+      const res = await request(app)
+        .patch(`${BASE}/job-1`)
+        .send({ status })
+        .expect(200);
+
+      expect(res.body.status).toBe(status);
+      expect(mockSavedJobsService.update).toHaveBeenCalledWith(
+        "user_abc",
+        "job-1",
+        expect.objectContaining({ status }),
+      );
+    });
+
+    it("persiste appliedAt ao registrar candidatura enviada", async () => {
+      const appliedAt = "2024-06-15T10:00:00.000Z";
+      mockSavedJobsService.update.mockResolvedValueOnce({
+        ...fixtureJob,
+        status: "applied",
+        appliedAt,
+      });
+
+      const res = await request(app)
+        .patch(`${BASE}/job-1`)
+        .send({ status: "applied", appliedAt })
+        .expect(200);
+
+      expect(res.body.status).toBe("applied");
+      expect(mockSavedJobsService.update).toHaveBeenCalledWith(
+        "user_abc",
+        "job-1",
+        expect.objectContaining({
+          status: "applied",
+          appliedAt: expect.any(Date),
+        }),
+      );
+    });
+
+    it("simula pipeline completo saved → applied → interviewing → accepted", async () => {
+      const pipeline = ["applied", "interviewing", "accepted"] as const;
+
+      for (const status of pipeline) {
+        mockSavedJobsService.update.mockResolvedValueOnce({
+          ...fixtureJob,
+          status,
+        });
+
+        const res = await request(app)
+          .patch(`${BASE}/job-1`)
+          .send({ status })
+          .expect(200);
+
+        expect(res.body.status).toBe(status);
+      }
+
+      expect(mockSavedJobsService.update).toHaveBeenCalledTimes(pipeline.length);
     });
   });
 
@@ -354,6 +443,15 @@ describe("Integration - SavedJobs Routes", () => {
       mockSavedJobsService.delete.mockRejectedValueOnce(new Error("db error"));
 
       await request(app).delete(`${BASE}/job-1`).expect(500);
+    });
+
+    it("retorna 204 mesmo quando vaga não pertence ao usuário (ownership silencioso)", async () => {
+      await request(app).delete(`${BASE}/job-outro-user`).expect(204);
+
+      expect(mockSavedJobsService.delete).toHaveBeenCalledWith(
+        "user_abc",
+        "job-outro-user",
+      );
     });
   });
 });
