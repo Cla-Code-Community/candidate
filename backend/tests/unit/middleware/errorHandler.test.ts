@@ -1,47 +1,97 @@
 import { describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import { AppError } from "../../../src/lib/errors";
 import { errorHandler } from "../../../src/middleware/errorHandler";
 
-describe("errorHandler", () => {
-  it("deve retornar 403 para erro de CORS", () => {
-    const json = vi.fn();
-    const status = vi.fn(() => ({ json }));
+function createRes() {
+  const json = vi.fn();
+  const status = vi.fn(() => ({ json }));
+  return { status, json, res: { status } as any };
+}
 
-    const res = {
-      status,
-    };
+describe("errorHandler", () => {
+  it("retorna FORBIDDEN para erro de CORS", () => {
+    const { status, json, res } = createRes();
 
     errorHandler(
       new Error("Origin not allowed by CORS"),
       {} as any,
-      res as any,
+      res,
       vi.fn(),
     );
 
     expect(status).toHaveBeenCalledWith(403);
     expect(json).toHaveBeenCalledWith({
+      code: "FORBIDDEN",
       message: "Origem não permitida.",
     });
   });
 
-  it("deve retornar 500 para erros genéricos", () => {
-    const json = vi.fn();
-    const status = vi.fn(() => ({ json }));
+  it("serializa AppError com details", () => {
+    const { status, json, res } = createRes();
+    const error = AppError.conflict("Email já cadastrado");
 
-    const res = {
-      status,
-    };
+    errorHandler(error, {} as any, res, vi.fn());
 
-    errorHandler(
-      new Error("Erro qualquer"),
-      {} as any,
-      res as any,
-      vi.fn(),
+    expect(status).toHaveBeenCalledWith(409);
+    expect(json).toHaveBeenCalledWith({
+      code: "CONFLICT",
+      message: "Email já cadastrado",
+    });
+  });
+
+  it("converte ZodError residual em VALIDATION_ERROR", () => {
+    const { status, json, res } = createRes();
+    const zodError = new z.ZodError([
+      {
+        code: "custom",
+        path: ["email"],
+        message: "Email inválido",
+      },
+    ]);
+
+    errorHandler(zodError, {} as any, res, vi.fn());
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "VALIDATION_ERROR",
+        message: "Dados inválidos",
+        details: expect.objectContaining({ email: expect.any(Array) }),
+      }),
     );
+  });
+
+  it("retorna INTERNAL_ERROR sem vazar cause em production", () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    const { status, json, res } = createRes();
+
+    errorHandler(new Error("segredo interno"), {} as any, res, vi.fn());
 
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({
+      code: "INTERNAL_ERROR",
       message: "Erro interno.",
-      error: "Erro qualquer",
     });
+
+    process.env.NODE_ENV = previous;
+  });
+
+  it("inclui cause em details fora de production", () => {
+    const previous = process.env.NODE_ENV;
+    process.env.NODE_ENV = "test";
+    const { status, json, res } = createRes();
+
+    errorHandler(new Error("Erro qualquer"), {} as any, res, vi.fn());
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({
+      code: "INTERNAL_ERROR",
+      message: "Erro interno.",
+      details: { cause: "Erro qualquer" },
+    });
+
+    process.env.NODE_ENV = previous;
   });
 });

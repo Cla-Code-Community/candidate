@@ -1,5 +1,6 @@
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppError } from "../../../src/lib/errors";
 
 // ── SavedJobsService mock ─────────────────────────────────────────────────────
 
@@ -197,10 +198,16 @@ describe("Integration - SavedJobs Routes", () => {
     });
 
     it("retorna 400 quando jobLink é inválido (Zod)", async () => {
-      await request(app)
+      const res = await request(app)
         .post(BASE)
         .send({ ...createPayload, jobLink: "nao-e-url" })
         .expect(400);
+
+      expect(res.body).toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Dados inválidos",
+      });
+      expect(res.body.details).toHaveProperty("jobLink");
     });
 
     it("retorna 400 quando status é valor fora do enum", async () => {
@@ -227,10 +234,18 @@ describe("Integration - SavedJobs Routes", () => {
 
     it("retorna 409 quando vaga já foi salva", async () => {
       mockSavedJobsService.create.mockRejectedValueOnce(
-        new Error("Vaga já salva."),
+        AppError.conflict("Vaga já salva."),
       );
 
-      await request(app).post(BASE).send(createPayload).expect(409);
+      const res = await request(app)
+        .post(BASE)
+        .send(createPayload)
+        .expect(409);
+
+      expect(res.body).toEqual({
+        code: "CONFLICT",
+        message: "Vaga já salva.",
+      });
     });
 
     it("retorna 401 quando sessão não tem userId", async () => {
@@ -238,7 +253,15 @@ describe("Integration - SavedJobs Routes", () => {
         userId: undefined,
       } as any);
 
-      await request(app).post(BASE).send(createPayload).expect(401);
+      const res = await request(app)
+        .post(BASE)
+        .send(createPayload)
+        .expect(401);
+
+      expect(res.body).toEqual({
+        code: "UNAUTHORIZED",
+        message: "Não autenticado.",
+      });
     });
   });
 
@@ -362,12 +385,20 @@ describe("Integration - SavedJobs Routes", () => {
       );
     });
 
-    it("retorna 500 quando update lança erro genérico", async () => {
+    it("retorna 404 quando update não encontra a vaga", async () => {
       mockSavedJobsService.update.mockRejectedValueOnce(
-        new Error("Vaga não encontrada"),
+        AppError.notFound("Vaga não encontrada"),
       );
 
-      await request(app).patch(`${BASE}/job-1`).send(updatePayload).expect(500);
+      const res = await request(app)
+        .patch(`${BASE}/job-1`)
+        .send(updatePayload)
+        .expect(404);
+
+      expect(res.body).toEqual({
+        code: "NOT_FOUND",
+        message: "Vaga não encontrada",
+      });
     });
 
     it("retorna 401 quando sessão não tem userId", async () => {

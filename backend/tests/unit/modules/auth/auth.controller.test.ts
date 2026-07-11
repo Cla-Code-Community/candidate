@@ -1,23 +1,6 @@
 import { Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
-import "../../../../src/middleware/withSession";
 import { AuthController } from "../../../../src/modules/auth/auth.controller";
-
-vi.mock("../../../../src/types/auth.types.js", () => ({
-  OAuthProviderSchema: {
-    parse: vi.fn((val) => {
-      if (val === "invalid") throw new z.ZodError([]);
-      return val;
-    }),
-  },
-  AuthCallbackParamsSchema: {
-    parse: vi.fn((val) => {
-      if (val.provider === "invalid") throw new z.ZodError([]);
-      return val;
-    }),
-  },
-}));
 
 describe("AuthController", () => {
   let authServiceMock: any;
@@ -34,12 +17,10 @@ describe("AuthController", () => {
 
     authServiceMock = {
       getAuthUrl: vi.fn().mockResolvedValue("https://provider.com/auth"),
-      handleCallback: vi
-        .fn()
-        .mockResolvedValue({
-          user: { id: "1" },
-          session: { userId: "1", role: "user" },
-        }),
+      handleCallback: vi.fn().mockResolvedValue({
+        user: { id: "1" },
+        session: { userId: "1", role: "user" },
+      }),
     };
 
     authController = new AuthController(authServiceMock);
@@ -83,17 +64,6 @@ describe("AuthController", () => {
       expect(resMock.json).toHaveBeenCalledWith({
         url: "https://provider.com/auth",
       });
-    });
-
-    it("deve retornar 400 se o provider for inválido (ZodError)", async () => {
-      reqMock.params = { provider: "invalid" };
-
-      await authController.getUrl(reqMock as Request, resMock as Response);
-
-      expect(resMock.status).toHaveBeenCalledWith(400);
-      expect(resMock.json).toHaveBeenCalledWith(
-        expect.objectContaining({ error: "Provider inválido" }),
-      );
     });
   });
 
