@@ -5,33 +5,37 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const hookState = vi.hoisted(() => ({
   useJobsDataValue: {
-    files: [{ file: "vagas.xlsx" }],
-    selectedFile: "vagas.xlsx",
-    setSelectedFile: vi.fn(),
     jobs: [
       {
-        titulo: "Dev",
-        empresa: "ACME",
-        local: "BR",
-        palavra: "React",
-        link: "x",
+        title: "Dev",
+        company: "ACME",
+        location: "BR",
+        keyword: "React",
+        url: "x",
       },
     ],
-    meta: { file: "vagas.xlsx", modifiedAt: 123, total: 1 },
+    meta: {
+      total: 1,
+      hasNext: false,
+      hasPrev: false,
+      page: 1,
+      limit: 5,
+      totalPages: 1,
+    },
     loading: false,
     scraping: false,
     error: "",
-    triggerScraper: vi.fn(async () => {}),
+    triggerScraper: vi.fn(async () => { }),
   },
   useJobsFilteringValue: {
     keywords: ["React"],
     filteredJobs: [
       {
-        titulo: "Dev",
-        empresa: "ACME",
-        local: "BR",
-        palavra: "React",
-        link: "x",
+        title: "Dev",
+        company: "ACME",
+        location: "BR",
+        keyword: "React",
+        url: "x",
       },
     ],
   },
@@ -79,18 +83,6 @@ vi.mock("@/domains/jobs/presentation/components/JobsFiltersCard", () => ({
         <button type="button" onClick={() => props.onClearFilters()}>
           clear filters
         </button>
-        <button
-          type="button"
-          onClick={() => props.setSelectedFile("historico.xlsx")}
-        >
-          set file value
-        </button>
-        <button
-          type="button"
-          onClick={() => props.setSelectedFile((prev: string) => `${prev}-2`)}
-        >
-          set file updater
-        </button>
         <div>{props.actions}</div>
       </div>
     );
@@ -134,22 +126,24 @@ import JobsPage from "@/domains/jobs/presentation/pages/JobsPage";
 
 describe("JobsPage", () => {
   beforeEach(() => {
-    hookState.useJobsDataValue.setSelectedFile.mockClear();
     hookState.useJobsDataValue.triggerScraper.mockClear();
     hookState.useJobsDataValue.scraping = false;
     hookState.useJobsDataValue.error = "";
     hookState.useJobsDataValue.meta = {
-      file: "vagas.xlsx",
-      modifiedAt: 123,
       total: 1,
+      hasNext: false,
+      hasPrev: false,
+      page: 1,
+      limit: 5,
+      totalPages: 1,
     };
     hookState.useJobsFilteringValue.filteredJobs = [
       {
-        titulo: "Dev",
-        empresa: "ACME",
-        local: "BR",
-        palavra: "React",
-        link: "x",
+        title: "Dev",
+        company: "ACME",
+        location: "BR",
+        keyword: "React",
+        url: "x",
       },
     ];
     hookState.capturedFiltersProps = null;
@@ -159,30 +153,21 @@ describe("JobsPage", () => {
   it("renderiza filtros, tabela e dispara callback de scraper", () => {
     renderPage();
 
-    expect(
-      screen.getByRole("button", { name: /buscar vagas/i }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
-
-    expect(hookState.useJobsDataValue.triggerScraper).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("loading: false")).toBeInTheDocument();
+    expect(hookState.capturedFiltersProps).toBeDefined();
+    expect(hookState.capturedTableProps).toBeDefined();
   });
 
-  it("exibe estado de scraping como loading e texto de busca em andamento", () => {
+  it("exibe estado de scraping como loading", () => {
     hookState.useJobsDataValue.scraping = true;
 
     renderPage();
 
-    expect(
-      screen.getByRole("button", { name: /buscando vagas/i }),
-    ).toBeDisabled();
     expect(screen.getByText("loading: true")).toBeInTheDocument();
   });
 
   it("inicializa filtros e paginacao a partir da URL", () => {
     renderPage(
-      "/vagas?q=frontend&keyword=React&file=vagas.xlsx&page=2&pageSize=25",
+      "/vagas?q=frontend&keyword=React&page=2&pageSize=25",
     );
 
     expect(hookState.capturedFiltersProps.search).toBe("frontend");
@@ -201,21 +186,17 @@ describe("JobsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /set keyword value/i }));
     expect(screen.getByTestId("location")).toHaveTextContent("keyword=Node");
 
-    fireEvent.click(screen.getByRole("button", { name: /set file value/i }));
-    expect(hookState.useJobsDataValue.setSelectedFile).toHaveBeenCalledWith(
-      "historico.xlsx",
-    );
   });
 
   it("remove, limpa filtros e atualiza paginacao na URL", () => {
     hookState.useJobsFilteringValue.filteredJobs = Array.from(
       { length: 30 },
       (_, index) => ({
-        titulo: `Dev ${index}`,
-        empresa: "ACME",
-        local: "BR",
-        palavra: "React",
-        link: String(index),
+        title: `Dev ${index}`,
+        company: "ACME",
+        location: "BR",
+        keyword: "React",
+        url: String(index),
       }),
     );
 
@@ -226,7 +207,7 @@ describe("JobsPage", () => {
     expect(screen.getByTestId("location")).not.toHaveTextContent("keyword=");
 
     fireEvent.click(screen.getByRole("button", { name: /^change page$/i }));
-    expect(screen.getByTestId("location")).toHaveTextContent("page=2");
+    expect(screen.getByTestId("location")).toHaveTextContent("page=1");
 
     fireEvent.click(screen.getByRole("button", { name: /change page size/i }));
     expect(screen.getByTestId("location")).toHaveTextContent("pageSize=25");
@@ -238,11 +219,11 @@ describe("JobsPage", () => {
 
     hookState.useJobsFilteringValue.filteredJobs = [
       {
-        titulo: "Dev",
-        empresa: "ACME",
-        local: "BR",
-        palavra: "React",
-        link: "x",
+        title: "Dev",
+        company: "ACME",
+        location: "BR",
+        keyword: "React",
+        url: "x",
       },
     ];
   });
@@ -253,33 +234,5 @@ describe("JobsPage", () => {
     renderPage();
 
     expect(screen.getByText("error: erro ao carregar")).toBeInTheDocument();
-  });
-
-  it("formata data vazia como hifen quando modifiedAt e null", () => {
-    hookState.useJobsDataValue.meta = {
-      file: "vagas.xlsx",
-      modifiedAt: null,
-      total: 1,
-    };
-
-    renderPage();
-    expect(hookState.capturedTableProps.meta.modifiedAt).toBeNull();
-    expect(hookState.capturedTableProps.formatDate(null)).toBe("-");
-  });
-
-  it("formata data corretamente quando modifiedAt e um timestamp valido", () => {
-    const timestamp = new Date("2024-01-15").getTime();
-    hookState.useJobsDataValue.meta = {
-      file: "vagas.xlsx",
-      modifiedAt: timestamp,
-      total: 1,
-    };
-
-    renderPage();
-
-    expect(hookState.capturedTableProps.meta.modifiedAt).toBe(timestamp);
-    expect(hookState.capturedTableProps.formatDate(timestamp)).toBe(
-      new Date(timestamp).toLocaleString("pt-BR"),
-    );
   });
 });

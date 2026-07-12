@@ -1,0 +1,40 @@
+import type { AdminUser } from "../types/user.types";
+
+export const MOCK_USERS: AdminUser[] = [
+  {
+    id: "1",
+    name: "Beene Santos",
+    email: "beene.santos@candidate.com.br",
+    initials: "BS",
+    role: "Super Admin",
+    rawRole: "super_admin",
+    isBlocked: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastLoginAt: "2026-07-01T12:00:00.000Z",
+    username: "beene.santos",
+  },
+  {
+    id: "2",
+    name: "Ana Lúcia Vieira",
+    email: "ana.lucia@candidate.com.br",
+    initials: "AL",
+    role: "Admin",
+    rawRole: "admin",
+    isBlocked: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastLoginAt: "2026-07-01T12:00:00.000Z",
+    username: "ana.lucia",
+  },
+  {
+    id: "3",
+    name: "Matheus Costa",
+    email: "matheus.costa@candidate.com.br",
+    initials: "MC",
+    role: "Suporte",
+    rawRole: "support",
+    isBlocked: false,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastLoginAt: null,
+    username: "matheus.costa",
+  },
+];

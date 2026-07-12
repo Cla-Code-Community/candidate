@@ -17,8 +17,11 @@ export const AuditActionSchema = z.enum([
   "scrapers.reprocess",
   "observability.health",
   "observability.metrics",
+  "observability.dashboards",
   "observability.overview",
   "audit.read",
+  "permissions.read",
+  "permissions.update",
   "auth.login",
   "auth.logout",
 ]);

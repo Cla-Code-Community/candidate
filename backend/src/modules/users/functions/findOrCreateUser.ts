@@ -1,13 +1,26 @@
 import { db } from "../../../db/client";
 import { OAuthProfile } from "../../types/auth.types";
 import { createAccount } from "./createAccount";
-import { createUser } from "./createUser";
+import { createUser, type CreateUserParams } from "./createUser";
 import { findUserByEmail, findUserByProvider } from "./findUsers";
 
 type FindOrCreateUserParams = {
   provider: string;
   profile: OAuthProfile;
 };
+
+function mapOAuthProfileToCreateUserParams(
+  profile: OAuthProfile,
+): CreateUserParams {
+  return {
+    email: profile.email ?? null,
+    displayName: profile.name ?? null,
+    firstName: profile.given_name ?? null,
+    lastName: profile.family_name ?? null,
+    avatarUrl: profile.picture ?? null,
+    username: profile.username ?? null,
+  };
+}
 
 export async function findOrCreateUser({
   provider,
@@ -38,7 +51,11 @@ export async function findOrCreateUser({
       }
     }
 
-    const newUser = await createUser({ profile }, tx);
+    const newUser = await createUser(
+      mapOAuthProfileToCreateUserParams(profile),
+      tx,
+      { onEmailConflict: "returnExisting" },
+    );
 
     await createAccount(
       {

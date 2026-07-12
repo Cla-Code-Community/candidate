@@ -14,6 +14,7 @@ import {
   RegisterInput,
   RegisterSchema,
 } from "../types/credentials.types";
+import { createUser } from "../users/functions/createUser";
 
 const argonOptions = {
   type: argon2.argon2id,
@@ -51,7 +52,6 @@ export class CredentialsService {
     }
 
     const passwordHash = await argon2.hash(password, argonOptions);
-    const username = await generateUsername(name ?? email.split("@")[0], db);
 
     const [user] = await db
       .insert(users)
@@ -73,7 +73,8 @@ export class CredentialsService {
       .values({ userId: user.id, email, passwordHash });
     await db.insert(userPreferences).values({ userId: user.id });
 
-    return { user, session: { userId: user.id, role: user.role } };
+      return { user, session: { userId: user.id, role: user.role } };
+    });
   }
 
   async login(input: LoginInput): Promise<{ user: User; session: Session }> {

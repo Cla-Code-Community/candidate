@@ -26,16 +26,16 @@ services:
   backend:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: docker/node.Dockerfile
+      target: backend
     container_name: vagas-backend
     env_file:
       - ./.env
     environment:
       - PORT=3001
-      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      - VALKEY_URL=redis://valkey:6379/0
-      - GO_SCRAPER_URL=http://scraper-go:8081
+      - PROMETHEUS_URL=http://prometheus:9090
       - SCRAPER_URL=http://scraper-go:8081
+      - GO_SCRAPER_URL=http://scraper-go:8081
       - KEYWORDS_STORAGE_MODE=${KEYWORDS_STORAGE_MODE:-env}
       - CACHE_TTL_MS=${CACHE_TTL_MS:-600000}
       - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-vagas-full}
@@ -53,14 +53,36 @@ services:
   frontend:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
-      args:
-        VITE_API_BASE_URL: http://localhost:3001
+      dockerfile: docker/node.Dockerfile
+      target: frontend-runtime
     container_name: vagas-frontend
+    env_file:
+    - ./frontend/.env
     environment:
       - VITE_API_PROXY_TARGET=http://backend:3001
     ports:
       - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - vagas-net
+    restart: unless-stopped
+
+  front_admin:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      target: front-admin-runtime
+      args:
+        VITE_API_URL: https://api.candidate.app.br
+        VITE_APP_ENV: production
+    container_name: vagas-front-admin
+    env_file:
+    - ./front_admin/.env
+    environment:
+      - VITE_API_PROXY_TARGET=http://backend:3001
+    ports:
+      - "5174:80"
     depends_on:
       - backend
     networks:

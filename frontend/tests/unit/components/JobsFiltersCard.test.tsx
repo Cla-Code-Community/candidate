@@ -15,10 +15,14 @@ function renderFiltersCard(overrides = {}) {
     onRemoveFilter: vi.fn(),
     onClearFilters: vi.fn(),
     keywords: ["React"],
-    selectedFile: "vagas.xlsx",
-    setSelectedFile: vi.fn(),
-    files: [{ file: "vagas.xlsx" }],
-    meta: { file: "vagas.xlsx", modifiedAt: Date.now(), total: 1 },
+    meta: {
+      total: 1,
+      hasNext: false,
+      hasPrev: false,
+      page: 1,
+      limit: 5,
+      totalPages: 1,
+    },
     ...overrides,
   };
 
@@ -28,15 +32,8 @@ function renderFiltersCard(overrides = {}) {
 }
 
 describe("JobsFiltersCard", () => {
-  it("adiciona termo de busca como filtro e permite refresh", () => {
-    const onRefresh = vi.fn();
-    const props = renderFiltersCard({
-      actions: (
-        <button type="button" onClick={onRefresh}>
-          Atualizar
-        </button>
-      ),
-    });
+  it("adiciona termo de busca como filtro", () => {
+    const props = renderFiltersCard();
 
     fireEvent.change(screen.getByPlaceholderText(/buscar/i), {
       target: { value: "node" },
@@ -44,47 +41,44 @@ describe("JobsFiltersCard", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /adicionar filtro de busca/i }),
     );
-    fireEvent.click(screen.getByRole("button", { name: /atualizar/i }));
 
     expect(props.setSearch).toHaveBeenCalledTimes(1);
     expect(props.setSearch.mock.calls[0][0]("React")).toBe("React, node");
     expect(screen.getByPlaceholderText(/buscar/i)).toHaveValue("");
-    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("renderiza badge de arquivo, total e area de filtros", () => {
+  it("renderiza total e area de filtros", () => {
     renderFiltersCard();
 
-    expect(screen.getAllByText(/vagas\.xlsx/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/1 vagas/i)).toBeInTheDocument();
     expect(screen.getByText(/filtros selecionados/i)).toBeInTheDocument();
     expect(screen.getByText(/use o botão filtrar/i)).toBeInTheDocument();
   });
 
-  it("dispara mudancas nos filtros de keyword e arquivo", () => {
-    const props = renderFiltersCard({
-      files: [{ file: "vagas.xlsx" }, { file: "historico.xlsx" }],
-      meta: { file: "vagas.xlsx", modifiedAt: Date.now(), total: 2 },
-    });
+  it("dispara mudancas nos filtros de keyword", () => {
+    const props = renderFiltersCard();
 
     const selects = screen.getAllByRole("combobox");
 
     fireEvent.change(selects[0], {
       target: { value: "React" },
     });
-    fireEvent.change(selects[1], {
-      target: { value: "historico.xlsx" },
-    });
 
     expect(props.setKeywordFilter).toHaveBeenCalled();
-    expect(props.setSelectedFile).toHaveBeenCalled();
   });
 
   it("abre o gerenciador e aciona limpar/remover filtros selecionados", () => {
     const props = renderFiltersCard({
       search: "UX/UI Designer",
       keywordFilter: ["React"],
-      meta: { file: "vagas.xlsx", modifiedAt: Date.now(), total: 2 },
+      meta: {
+        total: 2,
+        hasNext: false,
+        hasPrev: false,
+        page: 1,
+        limit: 5,
+        totalPages: 1,
+      },
     });
 
     fireEvent.click(screen.getByRole("button", { name: /^filtrar$/i }));
