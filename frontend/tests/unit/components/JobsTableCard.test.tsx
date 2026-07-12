@@ -43,6 +43,51 @@ const baseProps = {
 };
 
 describe("JobsTableCard", () => {
+
+
+  it("renderiza '-' quando nao existem palavras-chave", () => {
+    render(
+      <JobsTableCard
+        {...baseProps}
+        filteredJobs={[
+          {
+            ...baseProps.filteredJobs[0],
+            keyword: "",
+          },
+        ]}
+        paginatedJobs={[
+          {
+            ...baseProps.paginatedJobs[0],
+            keyword: "",
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  it("renderiza '-' quando a vaga nao possui fonte", () => {
+    render(
+      <JobsTableCard
+        {...baseProps}
+        filteredJobs={[
+          {
+            ...baseProps.filteredJobs[0],
+            source: "",
+          },
+        ]}
+        paginatedJobs={[
+          {
+            ...baseProps.paginatedJobs[0],
+            source: "",
+          },
+        ]}
+      />
+    );
+
+    expect(screen.getAllByText("-").length).toBeGreaterThan(0);
+  });
   it("renderiza tabela com resumo, palavras-chave e colunas de spam e lido", () => {
     render(<JobsTableCard {...baseProps} />);
 
@@ -102,7 +147,7 @@ describe("JobsTableCard", () => {
         {...baseProps}
         filteredJobs={[]}
         paginatedJobs={[]}
-        jobs={[]}
+        jobs= {[]}
         currentPage={1}
         totalPages={1}
         loading={false}

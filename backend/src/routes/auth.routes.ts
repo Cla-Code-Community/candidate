@@ -1,4 +1,9 @@
 import { Router } from "express";
+import { z } from "zod";
+import {
+    authAccountRateLimiter,
+    authIpRateLimiter,
+} from "../middleware/rateLimit";
 import { validate } from "../middleware/validate";
 import { AuthController } from "../modules/auth/auth.controller";
 import { AuthService } from "../modules/auth/auth.service";
@@ -6,10 +11,9 @@ import { CredentialsController } from "../modules/auth/credentials.controller";
 import { CredentialsService } from "../modules/auth/credentials.service";
 import { OAuthProviderSchema } from "../modules/types/auth.types";
 import {
-  LoginSchema,
-  RegisterSchema,
+    LoginSchema,
+    RegisterSchema,
 } from "../modules/types/credentials.types";
-import { z } from "zod";
 
 const router = Router();
 
@@ -42,9 +46,15 @@ router.post(
     credentialsController.register(req, res).catch(next);
   },
 );
-router.post("/login", validate({ body: LoginSchema }), (req, res, next) => {
-  credentialsController.login(req, res).catch(next);
-});
+router.post(
+  "/login",
+  authIpRateLimiter,
+  authAccountRateLimiter,
+  validate({ body: LoginSchema }),
+  (req, res, next) => {
+    credentialsController.login(req, res).catch(next);
+  },
+);
 router.post("/logout", (req, res, next) => {
   credentialsController.logout(req, res).catch(next);
 });
@@ -53,3 +63,4 @@ router.get("/me", (req, res, next) => {
 });
 
 export { router as authRoutes };
+

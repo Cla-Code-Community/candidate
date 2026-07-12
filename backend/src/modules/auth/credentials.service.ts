@@ -14,7 +14,6 @@ import {
   RegisterInput,
   RegisterSchema,
 } from "../types/credentials.types";
-import { createUser } from "../users/functions/createUser";
 
 const argonOptions = {
   type: argon2.argon2id,
@@ -34,7 +33,7 @@ export class CredentialsService {
   async register(
     input: RegisterInput,
   ): Promise<{ user: User; session: Session }> {
-    const { email, password, name, phone, cpf, technologies, level, role } =
+    const { email, password, name, phone, cpf, technologies, level } =
       RegisterSchema.parse(input);
 
     const existingCredential = await db.query.credentials.findFirst({
@@ -53,28 +52,33 @@ export class CredentialsService {
 
     const passwordHash = await argon2.hash(password, argonOptions);
 
-    const [user] = await db
-      .insert(users)
-      .values({
-        email,
-        displayName: name,
-        username,
-        emailVerified: false,
-        phone,
-        cpf,
-        technologies,
-        level,
-        role,
-      })
-      .returning();
+    const user = await db.transaction(async (tx) => {
+      const baseName = name?.trim() || email.split("@")[0];
+      const username = await generateUsername(baseName, tx);
 
-    await db
-      .insert(credentials)
-      .values({ userId: user.id, email, passwordHash });
-    await db.insert(userPreferences).values({ userId: user.id });
+      const [createdUser] = await tx
+        .insert(users)
+        .values({
+          email,
+          displayName: name,
+          username,
+          emailVerified: false,
+          phone,
+          cpf,
+          technologies,
+          level,
+        })
+        .returning();
 
-      return { user, session: { userId: user.id, role: user.role } };
+      await tx
+        .insert(credentials)
+        .values({ userId: createdUser.id, email, passwordHash });
+      await tx.insert(userPreferences).values({ userId: createdUser.id });
+
+      return createdUser;
     });
+
+    return { user, session: { userId: user.id, role: user.role } };
   }
 
   async login(input: LoginInput): Promise<{ user: User; session: Session }> {
