@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type {
   LoginCredentials,
   RegisterData,
 } from "@/domains/auth/domain/auth.types";
+import { parseApiError } from "@/shared/lib/apiError";
 
 function getBaseUrl(): string {
   const base = import.meta.env.VITE_API_BASE_URL;
@@ -21,7 +21,7 @@ function buildUrl(path: string): string {
   return base ? `${base}${normalizedPath}` : normalizedPath;
 }
 
-async function parseResponse(response: Response) {
+async function parseResponse(response: Response): Promise<unknown> {
   const contentType = response.headers.get("content-type") ?? "";
 
   try {
@@ -36,14 +36,14 @@ async function parseResponse(response: Response) {
   }
 }
 
-function extractMessage(payload: any): string | undefined {
-  return payload?.message && typeof payload.message === "string"
-    ? payload.message
-    : undefined;
-}
-
-function createError(payload: any, fallback: string) {
-  return new Error(extractMessage(payload) || fallback);
+function throwIfNotOk(
+  response: Response,
+  payload: unknown,
+  fallback: string,
+): void {
+  if (!response.ok) {
+    throw parseApiError(payload, response.status, fallback);
+  }
 }
 
 export async function login(credentials: LoginCredentials) {
@@ -55,11 +55,7 @@ export async function login(credentials: LoginCredentials) {
   });
 
   const payload = await parseResponse(response);
-
-  if (!response.ok) {
-    throw createError(payload, "Falha ao fazer login.");
-  }
-
+  throwIfNotOk(response, payload, "Falha ao fazer login.");
   return payload;
 }
 
@@ -81,11 +77,7 @@ export async function register(userData: RegisterData) {
   });
 
   const payload = await parseResponse(response);
-
-  if (!response.ok) {
-    throw createError(payload, "Falha ao cadastrar.");
-  }
-
+  throwIfNotOk(response, payload, "Falha ao cadastrar.");
   return payload;
 }
 
@@ -96,11 +88,7 @@ export async function logout() {
   });
 
   const payload = await parseResponse(response);
-
-  if (!response.ok) {
-    throw createError(payload, "Falha ao fazer logout.");
-  }
-
+  throwIfNotOk(response, payload, "Falha ao fazer logout.");
   return payload;
 }
 
@@ -110,11 +98,7 @@ export async function getCurrentUser() {
   });
 
   const payload = await parseResponse(response);
-
-  if (!response.ok) {
-    throw createError(payload, "Falha ao carregar usuário.");
-  }
-
+  throwIfNotOk(response, payload, "Falha ao carregar usuário.");
   return payload;
 }
 
@@ -124,12 +108,8 @@ export async function getGoogleAuthUrl(): Promise<string> {
   });
 
   const payload = await parseResponse(response);
-
-  if (!response.ok) {
-    throw createError(payload, "Falha ao obter URL de autenticacao Google.");
-  }
-
-  return payload.url;
+  throwIfNotOk(response, payload, "Falha ao obter URL de autenticacao Google.");
+  return (payload as { url: string }).url;
 }
 
 export async function getGithubAuthUrl(): Promise<string> {
@@ -138,12 +118,8 @@ export async function getGithubAuthUrl(): Promise<string> {
   });
 
   const payload = await parseResponse(response);
-
-  if (!response.ok) {
-    throw createError(payload, "Falha ao obter URL de autenticacao Github.");
-  }
-
-  return payload.url;
+  throwIfNotOk(response, payload, "Falha ao obter URL de autenticacao Github.");
+  return (payload as { url: string }).url;
 }
 
 export async function getLinkedinAuthUrl(): Promise<string> {
@@ -152,10 +128,10 @@ export async function getLinkedinAuthUrl(): Promise<string> {
   });
 
   const payload = await parseResponse(response);
-
-  if (!response.ok) {
-    throw createError(payload, "Falha ao obter URL de autenticacao LinkedIn.");
-  }
-
-  return payload.url;
+  throwIfNotOk(
+    response,
+    payload,
+    "Falha ao obter URL de autenticacao LinkedIn.",
+  );
+  return (payload as { url: string }).url;
 }

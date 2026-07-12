@@ -142,10 +142,16 @@ describe("Integration - Users Routes", () => {
     });
 
     it("retorna 400 para campo inválido (username com caracteres proibidos)", async () => {
-      await request(app)
+      const res = await request(app)
         .patch(`${BASE}/profile`)
         .send({ username: "UPPER CASE!" })
         .expect(400);
+
+      expect(res.body).toMatchObject({
+        code: "VALIDATION_ERROR",
+        message: "Dados inválidos",
+      });
+      expect(res.body.details).toHaveProperty("username");
     });
 
     it("retorna 500 quando updateProfile lança erro", async () => {

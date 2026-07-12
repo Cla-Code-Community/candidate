@@ -5,6 +5,8 @@ import { userPreferences } from "../../db/schema";
 import { credentials } from "../../db/schema/credentials";
 import type { User } from "../../db/schema/users";
 import { users } from "../../db/schema/users";
+import { AppError } from "../../lib/errors";
+import { generateUsername } from "../../utils/generateUsername";
 import type { Session } from "../types/auth.types";
 import {
   LoginInput,
@@ -12,7 +14,6 @@ import {
   RegisterInput,
   RegisterSchema,
 } from "../types/credentials.types";
-import { createUser } from "../users/functions/createUser";
 
 const argonOptions = {
   type: argon2.argon2id,
@@ -38,37 +39,46 @@ export class CredentialsService {
     const existingCredential = await db.query.credentials.findFirst({
       where: eq(credentials.email, email),
     });
-    if (existingCredential) throw new Error("Email já cadastrado");
+    if (existingCredential) {
+      throw AppError.conflict("Email já cadastrado");
+    }
 
     const existingUser = await db.query.users.findFirst({
       where: eq(users.email, email),
     });
-    if (existingUser) throw new Error("Email já cadastrado");
+    if (existingUser) {
+      throw AppError.conflict("Email já cadastrado");
+    }
 
     const passwordHash = await argon2.hash(password, argonOptions);
 
-    return db.transaction(async (tx) => {
-      const user = await createUser(
-        {
+    const user = await db.transaction(async (tx) => {
+      const baseName = name?.trim() || email.split("@")[0];
+      const username = await generateUsername(baseName, tx);
+
+      const [createdUser] = await tx
+        .insert(users)
+        .values({
           email,
-          displayName: name ?? null,
-          phone: phone ?? null,
-          cpf: cpf ?? null,
+          displayName: name,
+          username,
+          emailVerified: false,
+          phone,
+          cpf,
           technologies,
-          level: level ?? null,
-        },
-        tx,
-      );
+          level,
+        })
+        .returning();
 
-      await tx.insert(credentials).values({
-        userId: user.id,
-        email,
-        passwordHash,
-      });
-      await tx.insert(userPreferences).values({ userId: user.id });
+      await tx
+        .insert(credentials)
+        .values({ userId: createdUser.id, email, passwordHash });
+      await tx.insert(userPreferences).values({ userId: createdUser.id });
 
-      return { user, session: { userId: user.id, role: user.role } };
+      return createdUser;
     });
+
+    return { user, session: { userId: user.id, role: user.role } };
   }
 
   async login(input: LoginInput): Promise<{ user: User; session: Session }> {
@@ -77,15 +87,21 @@ export class CredentialsService {
     const credential = await db.query.credentials.findFirst({
       where: eq(credentials.email, email),
     });
-    if (!credential) throw new Error("Credenciais inválidas");
+    if (!credential) {
+      throw AppError.unauthorized("Credenciais inválidas");
+    }
 
     const valid = await argon2.verify(credential.passwordHash, password);
-    if (!valid) throw new Error("Credenciais inválidas");
+    if (!valid) {
+      throw AppError.unauthorized("Credenciais inválidas");
+    }
 
     const user = await db.query.users.findFirst({
       where: eq(users.id, credential.userId),
     });
-    if (!user) throw new Error("Usuário não encontrado");
+    if (!user) {
+      throw AppError.notFound("Usuário não encontrado");
+    }
 
     return { user, session: { userId: user.id, role: user.role } };
   }

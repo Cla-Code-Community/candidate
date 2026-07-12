@@ -152,7 +152,10 @@ describe("jobsApiApp", () => {
       .set("Origin", "https://malicioso.example")
       .expect(403);
 
-    expect(res.body.message).toBe("Origem não permitida.");
+    expect(res.body).toEqual({
+      code: "FORBIDDEN",
+      message: "Origem não permitida.",
+    });
   });
 
   it("bloqueia previews do Vercel fora da allowlist explícita", async () => {
@@ -183,7 +186,10 @@ describe("jobsApiApp", () => {
       .set("Origin", "http://localhost:5173")
       .expect(403);
 
-    expect(blocked.body.message).toBe("Origem não permitida.");
+    expect(blocked.body).toEqual({
+      code: "FORBIDDEN",
+      message: "Origem não permitida.",
+    });
     delete process.env.CORS_ALLOWED_ORIGINS;
   });
 

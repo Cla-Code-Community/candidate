@@ -1,6 +1,6 @@
 import { getIronSession } from "iron-session";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { AppError } from "../../../../src/lib/errors";
 import { UsersController } from "../../../../src/modules/users/users.controller";
 import { UsersService } from "../../../../src/modules/users/users.service";
 
@@ -42,29 +42,29 @@ describe("UsersController", () => {
   };
 
   describe("getProfile", () => {
-    it("retorna 401 sem autenticação", async () => {
+    it("lança UNAUTHORIZED sem autenticação", async () => {
       mockSession({});
 
-      await controller.getProfile(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(401);
+      await expect(controller.getProfile(req, res)).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        statusCode: 401,
+      });
     });
 
-    it("retorna 404 quando usuário não existe", async () => {
+    it("lança NOT_FOUND quando usuário não existe", async () => {
       mockSession({ userId: "1" });
-
       vi.mocked(usersService.getUserById!).mockResolvedValue(null);
 
-      await controller.getProfile(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
+      await expect(controller.getProfile(req, res)).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        statusCode: 404,
+        message: "Usuário não encontrado",
+      });
     });
 
     it("retorna usuário", async () => {
       const user = { id: "1", username: "bene" };
-
       mockSession({ userId: "1" });
-
       vi.mocked(usersService.getUserById!).mockResolvedValue(user);
 
       await controller.getProfile(req, res);
@@ -72,46 +72,18 @@ describe("UsersController", () => {
       expect(res.json).toHaveBeenCalledWith(user);
     });
 
-    it("retorna erro 500", async () => {
+    it("propaga erro do service", async () => {
       mockSession({ userId: "1" });
-
       vi.mocked(usersService.getUserById!).mockRejectedValue(
         new Error("db error"),
       );
 
-      await controller.getProfile(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-    });
-
-    it("retorna erro desconhecido", async () => {
-      mockSession({ userId: "1" });
-
-      vi.mocked(usersService.getUserById!).mockRejectedValue("erro");
-
-      await controller.getProfile(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        error: "Erro desconhecido",
-      });
+      await expect(controller.getProfile(req, res)).rejects.toThrow("db error");
     });
   });
 
   describe("updateProfile", () => {
-    it("retorna 400 para username inválido", async () => {
-      mockSession({ userId: "1" });
-
-      req.body = {
-        username: "@@@",
-      };
-
-      await controller.updateProfile(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it("atualiza perfil", async () => {
+    it("atualiza perfil com body já validado", async () => {
       mockSession({ userId: "1" });
 
       req.body = {
@@ -129,49 +101,44 @@ describe("UsersController", () => {
 
       await controller.updateProfile(req, res);
 
-      expect(usersService.updateProfile).toHaveBeenCalledWith(
-        "1",
-        req.body,
-      );
-
+      expect(usersService.updateProfile).toHaveBeenCalledWith("1", req.body);
       expect(res.json).toHaveBeenCalledWith(updated);
     });
 
-    it("retorna erro do service", async () => {
+    it("propaga erro do service", async () => {
       mockSession({ userId: "1" });
-
-      req.body = {
-        username: "bene_dev",
-      };
-
+      req.body = { username: "bene_dev" };
       vi.mocked(usersService.updateProfile!).mockRejectedValue(
         new Error("update failed"),
       );
 
-      await controller.updateProfile(req, res);
+      await expect(controller.updateProfile(req, res)).rejects.toThrow(
+        "update failed",
+      );
+    });
 
-      expect(res.status).toHaveBeenCalledWith(500);
+    it("lança UNAUTHORIZED sem sessão", async () => {
+      mockSession({});
+      await expect(controller.updateProfile(req, res)).rejects.toBeInstanceOf(
+        AppError,
+      );
     });
   });
 
   describe("getPreferences", () => {
-    it("retorna 404 quando preferências não existem", async () => {
+    it("lança NOT_FOUND quando preferências não existem", async () => {
       mockSession({ userId: "1" });
-
       vi.mocked(usersService.getPreferences!).mockResolvedValue(null);
 
-      await controller.getPreferences(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(404);
+      await expect(controller.getPreferences(req, res)).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Preferências não encontradas",
+      });
     });
 
     it("retorna preferências", async () => {
-      const prefs = {
-        keywords: ["java"],
-      };
-
+      const prefs = { keywords: ["java"] };
       mockSession({ userId: "1" });
-
       vi.mocked(usersService.getPreferences!).mockResolvedValue(prefs);
 
       await controller.getPreferences(req, res);
@@ -181,35 +148,21 @@ describe("UsersController", () => {
   });
 
   describe("createPreferences", () => {
-    it("retorna 401 sem sessão", async () => {
+    it("lança UNAUTHORIZED sem sessão", async () => {
       mockSession({});
 
-      await controller.createPreferences(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-    });
-
-    it("retorna 400 para payload inválido", async () => {
-      mockSession({ userId: "1" });
-
-      req.body = {
-        searchLanguage: "pt-br",
-      };
-
-      await controller.createPreferences(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
+      await expect(
+        controller.createPreferences(req, res),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED", statusCode: 401 });
     });
 
     it("cria preferências", async () => {
       mockSession({ userId: "1" });
-
       req.body = {
         keywords: ["java", "spring"],
         searchLanguage: "pt",
         remoteOnly: true,
       };
-
       vi.mocked(usersService.createPreferences!).mockResolvedValue(req.body);
 
       await controller.createPreferences(req, res);
@@ -219,54 +172,32 @@ describe("UsersController", () => {
   });
 
   describe("updatePreferences", () => {
-    it("retorna 400 para payload inválido", async () => {
-      mockSession({ userId: "1" });
-
-      req.body = {
-        keywords: Array(30).fill("java"),
-      };
-
-      await controller.updatePreferences(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
     it("atualiza preferências", async () => {
       mockSession({ userId: "1" });
-
       req.body = {
         keywords: ["java"],
         searchLanguage: "pt",
         remoteOnly: true,
         emailNotifications: true,
       };
-
       vi.mocked(usersService.updatePreferences!).mockResolvedValue(req.body);
 
       await controller.updatePreferences(req, res);
 
-      expect(usersService.updatePreferences).toHaveBeenCalledWith(
-        "1",
-        req.body,
-      );
-
+      expect(usersService.updatePreferences).toHaveBeenCalledWith("1", req.body);
       expect(res.json).toHaveBeenCalledWith(req.body);
     });
 
-    it("retorna erro do service", async () => {
+    it("propaga erro do service", async () => {
       mockSession({ userId: "1" });
-
-      req.body = {
-        keywords: ["java"],
-      };
-
+      req.body = { keywords: ["java"] };
       vi.mocked(usersService.updatePreferences!).mockRejectedValue(
         new Error("update failed"),
       );
 
-      await controller.updatePreferences(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
+      await expect(controller.updatePreferences(req, res)).rejects.toThrow(
+        "update failed",
+      );
     });
   });
 });
