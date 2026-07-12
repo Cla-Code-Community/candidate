@@ -2,17 +2,6 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { ArrowRight, Play } from "lucide-react";
 import { useRef } from "react";
 import { Link } from "react-router-dom";
-import amazonLogo from "@/shared/assets/amazon.png";
-import googleLogo from "@/shared/assets/google.png";
-import metaLogo from "@/shared/assets/meta.svg";
-import uberLogo from "@/shared/assets/uber.png";
-
-const COMPANIES = [
-  { name: "Google", logo: googleLogo },
-  { name: "Amazon", logo: amazonLogo },
-  { name: "Meta", logo: metaLogo },
-  { name: "Uber", logo: uberLogo },
-];
 
 const STATIC_STARS = Array.from({ length: 80 }).map((_, i) => {
   const random = (min: number, max: number) => Math.random() * (max - min) + min;
@@ -64,7 +53,6 @@ export function HeroSection() {
 
   const backgroundY = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
   const textY = useTransform(scrollYProgress, [0, 1], ["0%", "80%"]);
-  const hillsY = useTransform(scrollYProgress, [0, 1], ["0%", "20%"]);
 
   return (
     <section ref={ref} className="relative min-h-[90vh] flex flex-col items-center justify-start pt-16 md:pt-24 pb-0 overflow-hidden bg-transparent font-sans">
@@ -128,36 +116,8 @@ export function HeroSection() {
         </motion.div>
       </motion.div>
 
-      <motion.div style={{ y: hillsY }} className="relative w-full mt-auto z-10 opacity-70 dark:opacity-20">
-        <svg viewBox="0 0 1440 200" className="w-full block mb-[-2px]" preserveAspectRatio="none">
-          <motion.path animate={{ x: [0, -15, 0], scaleX: [1, 1.02, 1] }} transition={{ duration: 8, repeat: Infinity }} className="origin-bottom" d="M0,200 L0,120 Q180,40 360,100 Q540,160 720,80 Q900,0 1080,60 Q1260,120 1440,80 L1440,200 Z" fill="#eff6ff" /> {/* Slates para azul clarinho */}
-          <motion.path animate={{ x: [0, 15, 0], scaleX: [1, 1.02, 1] }} transition={{ duration: 12, repeat: Infinity }} className="origin-bottom" d="M0,200 L0,140 Q240,60 480,120 Q720,180 960,100 Q1200,20 1440,100 L1440,200 Z" fill="#e0e7ff" /> {/* Indigo suave */}
-          <motion.path animate={{ x: [0, -20, 0], scaleX: [1, 1.03, 1] }} transition={{ duration: 15, repeat: Infinity }} className="origin-bottom" d="M0,200 L0,155 Q300,90 600,140 Q900,190 1200,130 Q1350,100 1440,120 L1440,200 Z" fill="#dbeafe" /> {/* Azul sutil */}
-          <motion.path animate={{ x: [0, 20, 0], scaleX: [1, 1.03, 1] }} transition={{ duration: 20, repeat: Infinity }} className="origin-bottom" d="M0,200 L0,170 Q360,120 720,160 Q1080,200 1440,150 L1440,200 Z" fill="#f3e8ff" /> {/* Roxo clarinho de base */}
-        </svg>
-      </motion.div>
+     
 
-      <div className="w-full bg-slate-50 dark:bg-neutral-900 py-8 md:py-10 relative z-20 overflow-hidden flex flex-col items-center border-y border-gray-200 dark:border-neutral-800">
-        <p className="text-center text-gray-500 dark:text-neutral-400 text-sm font-medium uppercase tracking-wider mb-6 w-full px-6">
-          Usado por profissionais que passaram em empresas como :
-        </p>
-        <div className="w-full flex overflow-hidden select-none">
-          <motion.div
-            animate={{ x: [0, "-33.33%"] }}
-            transition={{ repeat: Infinity, ease: "linear", duration: 20 }}
-            className="flex w-max gap-16 pr-16 items-center whitespace-nowrap"
-          >
-            {[...COMPANIES, ...COMPANIES, ...COMPANIES].map((company, index) => (
-              <img
-                key={`${company.name}-${index}`}
-                src={company.logo}
-                alt={company.name}
-                className="h-8 md:h-10 w-32 md:w-40 object-contain dark:brightness-0 dark:invert opacity-70 dark:opacity-60 hover:opacity-100 transition-opacity"
-              />
-            ))}
-          </motion.div>
-        </div>
-      </div>
     </section>
   );
 }
