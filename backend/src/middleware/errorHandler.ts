@@ -29,6 +29,9 @@ export function errorHandler(
     return;
   }
 
-  const details = isProduction() ? undefined : { cause: message || "unknown" };
+  const details = isProduction()
+    ? undefined
+    : { cause: error.message || "unknown" };
+  const appError = AppError.internal("Erro interno.", details);
   res.status(appError.statusCode).json(appError.toJSON());
 }
