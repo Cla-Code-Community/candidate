@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db/client";
 import { User, UserPreferences, userPreferences, users } from "../../db/schema";
 import { DB } from "../../db/types/types";
+import { AppError } from "../../lib/errors";
 import { UpdateProfileData } from "../types/user.types";
 import { UpdatePreferencesData } from "./schemas/user.schemas";
 
@@ -22,7 +23,7 @@ export class UsersService {
       .returning();
 
     if (!result[0]) {
-      throw new Error(`Usuário ${userId} não encontrado`);
+      throw AppError.notFound("Usuário não encontrado");
     }
 
     // await this.valkey.del(`user:${userId}`); ← invalidação de cache futura
@@ -57,7 +58,7 @@ export class UsersService {
       .returning();
 
     if (!result[0]) {
-      throw new Error(`Preferências para ${userId} não encontradas`);
+      throw AppError.notFound("Preferências não encontradas");
     }
 
     return result[0];

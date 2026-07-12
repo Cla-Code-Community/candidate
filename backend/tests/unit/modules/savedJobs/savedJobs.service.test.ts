@@ -108,12 +108,13 @@ describe("SavedJobsService", () => {
       expect(tx.insert).toHaveBeenCalledOnce();
     });
 
-    it("lança 'Vaga já salva.' quando jobLink já existe para o usuário", async () => {
+    it("lança CONFLICT quando jobLink já existe para o usuário", async () => {
       tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
 
-      await expect(service.create("user-1", newJobData)).rejects.toThrow(
-        "Vaga já salva.",
-      );
+      await expect(service.create("user-1", newJobData)).rejects.toMatchObject({
+        code: "CONFLICT",
+        message: "Vaga já salva.",
+      });
 
       expect(tx.insert).not.toHaveBeenCalled();
     });
@@ -148,7 +149,7 @@ describe("SavedJobsService", () => {
       expect(result.jobTitle).toBe("Dev Sênior");
     });
 
-    it("lança 'Vaga não encontrada' quando o update não retorna linha", async () => {
+    it("lança NOT_FOUND quando o update não retorna linha", async () => {
       tx.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -159,7 +160,10 @@ describe("SavedJobsService", () => {
 
       await expect(
         service.update("user-1", "inexistente", { jobTitle: "X" }),
-      ).rejects.toThrow("Vaga não encontrada");
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Vaga não encontrada",
+      });
     });
 
     it("inclui updatedAt no set", async () => {

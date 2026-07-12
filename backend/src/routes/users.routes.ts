@@ -1,21 +1,43 @@
 import { Router } from "express";
+import { validate } from "../middleware/validate";
 import { UsersController } from "../modules/users/users.controller";
 import { UsersService } from "../modules/users/users.service";
+import {
+  createPreferencesSchema,
+  updatePreferencesSchema,
+  updateProfileSchema,
+} from "../modules/users/schemas/user.schemas";
 
 const router = Router();
 const usersService = new UsersService();
 const usersController = new UsersController(usersService);
 
-router.get("/profile", (req, res) => usersController.getProfile(req, res));
-router.patch("/profile", (req, res) => usersController.updateProfile(req, res));
-router.get("/preferences", (req, res) =>
-  usersController.getPreferences(req, res),
+router.get("/profile", (req, res, next) => {
+  usersController.getProfile(req, res).catch(next);
+});
+router.patch(
+  "/profile",
+  validate({ body: updateProfileSchema }),
+  (req, res, next) => {
+    usersController.updateProfile(req, res).catch(next);
+  },
 );
-router.post("/preferences", (req, res) =>
-  usersController.createPreferences(req, res),
+router.get("/preferences", (req, res, next) => {
+  usersController.getPreferences(req, res).catch(next);
+});
+router.post(
+  "/preferences",
+  validate({ body: createPreferencesSchema }),
+  (req, res, next) => {
+    usersController.createPreferences(req, res).catch(next);
+  },
 );
-router.patch("/preferences", (req, res) =>
-  usersController.updatePreferences(req, res),
+router.patch(
+  "/preferences",
+  validate({ body: updatePreferencesSchema }),
+  (req, res, next) => {
+    usersController.updatePreferences(req, res).catch(next);
+  },
 );
 
 export { router as userRoutes };

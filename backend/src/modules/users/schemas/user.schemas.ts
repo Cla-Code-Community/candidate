@@ -41,7 +41,10 @@ export const updatePreferencesSchema = z
   })
   .partial();
 
+export const createPreferencesSchema = updatePreferencesSchema;
+
 // ── Tipos inferidos ───────────────────────────────────────────────────────────
 
 export type UpdateProfileData = z.infer<typeof updateProfileSchema>;
 export type UpdatePreferencesData = z.infer<typeof updatePreferencesSchema>;
+export type CreatePreferencesData = z.infer<typeof createPreferencesSchema>;

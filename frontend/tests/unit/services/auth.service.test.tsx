@@ -66,13 +66,39 @@ describe("authService", () => {
         mockResponse({
           ok: false,
           status: 401,
-          jsonData: { message: "Invalid credentials" },
+          jsonData: {
+            code: "UNAUTHORIZED",
+            message: "Invalid credentials",
+          },
         })
       );
 
       await expect(
         auth.login({ email: "x@x.com", password: "wrong" })
       ).rejects.toThrow("Invalid credentials");
+    });
+
+    it("should throw ApiError with code from standardized envelope", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          ok: false,
+          status: 409,
+          jsonData: {
+            code: "CONFLICT",
+            message: "Email já cadastrado",
+          },
+        })
+      );
+
+      try {
+        await auth.login({ email: "x@x.com", password: "wrong" });
+        expect.unreachable("should have thrown");
+      } catch (error: any) {
+        expect(error.name).toBe("ApiError");
+        expect(error.code).toBe("CONFLICT");
+        expect(error.status).toBe(409);
+        expect(error.message).toBe("Email já cadastrado");
+      }
     });
 
     it("should throw error on login failure without message", async () => {

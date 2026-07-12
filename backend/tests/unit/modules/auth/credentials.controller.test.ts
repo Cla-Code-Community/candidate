@@ -1,32 +1,7 @@
 import { Request, Response } from "express";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { z } from "zod";
+import { AppError } from "../../../../src/lib/errors";
 import { CredentialsController } from "../../../../src/modules/auth/credentials.controller";
-
-// Mock do módulo de tipos usando o mesmo padrão de caminho do import do seu controller
-vi.mock("../../../../src/modules/types/credentials.types", () => ({
-  RegisterSchema: {
-    parse: vi.fn((val) => {
-      // Se o teste enviou o email marcado para falhar no Zod, estoure o erro simulado
-      if (val && val.email === "invalido@teste.com") {
-        throw new z.ZodError([
-          { path: ["email"], message: "Email inválido", code: "custom" },
-        ]);
-      }
-      return val;
-    }),
-  },
-  LoginSchema: {
-    parse: vi.fn((val) => {
-      if (val && val.email === "invalido@teste.com") {
-        throw new z.ZodError([
-          { path: ["email"], message: "Email inválido", code: "custom" },
-        ]);
-      }
-      return val;
-    }),
-  },
-}));
 
 describe("CredentialsController", () => {
   let serviceMock: any;
@@ -46,7 +21,6 @@ describe("CredentialsController", () => {
         user: { id: "user_123", email: "dev@teste.com" },
         session: { userId: "user_123", role: "user" },
       }),
-      // ← fix: findById agora existe no mock
       findById: vi.fn().mockResolvedValue({
         id: "user_789",
         email: "auth@teste.com",
@@ -61,14 +35,8 @@ describe("CredentialsController", () => {
       session: {
         userId: undefined,
         role: undefined,
-        save: vi.fn((cb) => {
-          if (cb) cb(null);
-          return Promise.resolve();
-        }),
-        destroy: vi.fn((cb) => {
-          if (cb) cb(null);
-          return Promise.resolve();
-        }),
+        save: vi.fn().mockResolvedValue(undefined),
+        destroy: vi.fn().mockResolvedValue(undefined),
       },
     };
 
@@ -94,29 +62,19 @@ describe("CredentialsController", () => {
       expect(resMock.status).toHaveBeenCalledWith(201);
     });
 
-    it("deve retornar 400 se a validação do Zod falhar", async () => {
-      reqMock.body = { email: "invalido@teste.com", password: "password123" };
-
-      await controller.register(
-        reqMock as unknown as Request,
-        resMock as Response,
-      );
-
-      expect(resMock.status).toHaveBeenCalledWith(400);
-    });
-
-    it("deve retornar 409 se o email já estiver cadastrado", async () => {
-      // FIX: Payload com formato válido para passar pelo Zod sem estourar Required
+    it("deve lançar CONFLICT se o email já estiver cadastrado", async () => {
       reqMock.body = { email: "existente@teste.com", password: "password123" };
-      serviceMock.register.mockRejectedValue(new Error("Email já cadastrado"));
-
-      await controller.register(
-        reqMock as unknown as Request,
-        resMock as Response,
+      serviceMock.register.mockRejectedValue(
+        AppError.conflict("Email já cadastrado"),
       );
 
-      expect(resMock.status).toHaveBeenCalledWith(409);
-      expect(resMock.json).toHaveBeenCalledWith({ error: "Email já cadastrado" });
+      await expect(
+        controller.register(reqMock as unknown as Request, resMock as Response),
+      ).rejects.toMatchObject({
+        code: "CONFLICT",
+        statusCode: 409,
+        message: "Email já cadastrado",
+      });
     });
   });
 
@@ -138,18 +96,19 @@ describe("CredentialsController", () => {
       expect(reqMock.session.save).toHaveBeenCalled();
     });
 
-    it("deve retornar 401 se as credenciais forem inválidas", async () => {
-      // FIX: Payload completo para o fluxo chegar intacto até o service
+    it("deve lançar UNAUTHORIZED se as credenciais forem inválidas", async () => {
       reqMock.body = { email: "errado@teste.com", password: "password123" };
-      serviceMock.login.mockRejectedValue(new Error("Credenciais inválidas"));
-
-      await controller.login(
-        reqMock as unknown as Request,
-        resMock as Response,
+      serviceMock.login.mockRejectedValue(
+        AppError.unauthorized("Credenciais inválidas"),
       );
 
-      expect(resMock.status).toHaveBeenCalledWith(401);
-      expect(resMock.json).toHaveBeenCalledWith({ error: "Credenciais inválidas" });
+      await expect(
+        controller.login(reqMock as unknown as Request, resMock as Response),
+      ).rejects.toMatchObject({
+        code: "UNAUTHORIZED",
+        statusCode: 401,
+        message: "Credenciais inválidas",
+      });
     });
   });
 
@@ -176,22 +135,23 @@ describe("CredentialsController", () => {
       });
     });
 
-    it("deve retornar 401 se findById não encontrar o usuário", async () => {
+    it("deve lançar UNAUTHORIZED se findById não encontrar o usuário", async () => {
       reqMock.session.userId = "user_inexistente";
       serviceMock.findById.mockResolvedValue(null);
 
-      await controller.me(reqMock as unknown as Request, resMock as Response);
+      await expect(
+        controller.me(reqMock as unknown as Request, resMock as Response),
+      ).rejects.toBeInstanceOf(AppError);
 
-      expect(resMock.status).toHaveBeenCalledWith(401);
       expect(reqMock.session.destroy).toHaveBeenCalled();
     });
 
-    it("deve retornar 401 se não houver userId armazenado na sessão", async () => {
+    it("deve lançar UNAUTHORIZED se não houver userId na sessão", async () => {
       reqMock.session.userId = undefined;
 
-      await controller.me(reqMock as unknown as Request, resMock as Response);
-
-      expect(resMock.status).toHaveBeenCalledWith(401);
+      await expect(
+        controller.me(reqMock as unknown as Request, resMock as Response),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED", statusCode: 401 });
     });
   });
 });
