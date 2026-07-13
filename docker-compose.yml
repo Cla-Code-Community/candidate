@@ -55,11 +55,11 @@ services:
       context: .
       dockerfile: docker/node.Dockerfile
       target: frontend-runtime
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_APP_ENV: ${VITE_APP_ENV:-production}
     container_name: vagas-frontend
-    env_file:
-    - ./frontend/.env
-    environment:
-      - VITE_API_PROXY_TARGET=http://backend:3001
     ports:
       - "5173:80"
     depends_on:
@@ -74,13 +74,10 @@ services:
       dockerfile: docker/node.Dockerfile
       target: front-admin-runtime
       args:
-        VITE_API_URL: https://api.candidate.app.br
-        VITE_APP_ENV: production
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_APP_ENV: ${VITE_APP_ENV:-production}
     container_name: vagas-front-admin
-    env_file:
-    - ./front_admin/.env
-    environment:
-      - VITE_API_PROXY_TARGET=http://backend:3001
     ports:
       - "5174:80"
     depends_on:

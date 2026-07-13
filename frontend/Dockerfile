@@ -7,7 +7,9 @@ RUN npm ci --workspace=frontend --include-workspace-root
 COPY frontend/ ./frontend/
 WORKDIR /app/frontend
 ARG VITE_API_BASE_URL=http://localhost:3001
+ARG VITE_API_URL=$VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # ---- Etapa 2: serve ----
