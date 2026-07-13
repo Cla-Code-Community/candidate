@@ -41,6 +41,11 @@ RUN npm run build
 FROM nginx:1.27-alpine AS frontend-runtime
 
 COPY --from=frontend /app/frontend/dist /usr/share/nginx/html
+COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
 
 ####################################################
 
@@ -63,3 +68,9 @@ RUN npm run build
 FROM nginx:1.27-alpine AS front-admin-runtime
 
 COPY --from=front-admin /app/front_admin/dist /usr/share/nginx/html
+COPY front_admin/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+
