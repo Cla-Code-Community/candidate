@@ -12,6 +12,12 @@ COPY front_admin ./front_admin
 
 WORKDIR /app/front_admin
 
+ARG VITE_API_URL
+ARG VITE_APP_ENV=production
+
+ENV VITE_API_URL=$VITE_API_URL
+ENV VITE_APP_ENV=$VITE_APP_ENV
+
 RUN npm run build
 
 # ---- Runtime ----
