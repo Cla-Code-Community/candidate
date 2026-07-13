@@ -98,12 +98,17 @@ describe("api resources", () => {
 
   it("calls admin user mutation endpoints", () => {
     adminUsersApi.list();
+    adminUsersApi.list({ limit: 100, offset: 200 });
     adminUsersApi.block("u1");
     adminUsersApi.unblock("u1");
     adminUsersApi.changeRole("u1", "support");
     adminUsersApi.delete("u1");
 
-    expect(mockedApi.get).toHaveBeenCalledWith("/admin/users");
+    expect(mockedApi.get).toHaveBeenNthCalledWith(1, "/admin/users");
+    expect(mockedApi.get).toHaveBeenNthCalledWith(
+      2,
+      "/admin/users?limit=100&offset=200",
+    );
     expect(mockedApi.patch).toHaveBeenNthCalledWith(
       1,
       "/admin/users/u1/block",

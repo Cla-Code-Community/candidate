@@ -23,6 +23,7 @@ type RoleFilter = "all" | BackendUserRole;
 type StatusFilter = "all" | "active" | "blocked";
 
 const USERS_PER_PAGE = 10;
+const USERS_FETCH_LIMIT = 100;
 const ROLE_VALUES: BackendUserRole[] = ["super_admin", "admin", "support", "user"];
 
 const ROLE_SUMMARY: Record<
@@ -64,6 +65,28 @@ function mapUser(user: BackendAdminUser): AdminUser {
     lastLoginAt: user.lastLoginAt,
     username: user.username,
   };
+}
+
+async function fetchAllUsers() {
+  const firstPage = await adminUsersApi.list({
+    limit: USERS_FETCH_LIMIT,
+    offset: 0,
+  });
+  const allUsers = [...firstPage.data];
+
+  for (
+    let offset = firstPage.offset + firstPage.limit;
+    offset < firstPage.total;
+    offset += firstPage.limit
+  ) {
+    const page = await adminUsersApi.list({
+      limit: USERS_FETCH_LIMIT,
+      offset,
+    });
+    allUsers.push(...page.data);
+  }
+
+  return allUsers;
 }
 
 function StatCard({
@@ -123,11 +146,10 @@ export function UsersPage() {
   useEffect(() => {
     let active = true;
 
-    adminUsersApi
-      .list()
+    fetchAllUsers()
       .then((result) => {
         if (!active) return;
-        setUsers(result.data.map(mapUser));
+        setUsers(result.map(mapUser));
         setError(null);
       })
       .catch(() => {
