@@ -55,6 +55,16 @@ const manyUsers = Array.from({ length: 12 }, (_, index) => ({
   isBlocked: index % 3 === 0,
 }));
 
+const paginatedUsers = Array.from({ length: 105 }, (_, index) => ({
+  ...backendUsers[index % 2],
+  id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`,
+  displayName: `Paged User ${index + 1}`,
+  username: `paged${index + 1}`,
+  email: `paged${index + 1}@example.com`,
+  role: index % 2 === 0 ? ("admin" as const) : ("user" as const),
+  isBlocked: false,
+}));
+
 describe("UsersPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -162,6 +172,35 @@ describe("UsersPage", () => {
     });
     expect(screen.getAllByText("Bloqueado").length).toBeGreaterThan(0);
     expect(screen.getByText(/Exibindo 1-/)).toBeInTheDocument();
+  });
+
+  it("loads every backend page before paginating locally", async () => {
+    vi.mocked(adminUsersApi.list).mockImplementation(({ offset = 0 } = {}) =>
+      Promise.resolve({
+        data: paginatedUsers.slice(offset, offset + 100),
+        total: paginatedUsers.length,
+        limit: 100,
+        offset,
+      }),
+    );
+
+    renderWithProviders(<UsersPage />);
+
+    await screen.findByText("Paged User 1");
+
+    await waitFor(() =>
+      expect(adminUsersApi.list).toHaveBeenCalledWith({
+        limit: 100,
+        offset: 100,
+      }),
+    );
+
+    for (let page = 1; page < 11; page += 1) {
+      fireEvent.click(screen.getByRole("button", { name: "Próxima página" }));
+    }
+
+    expect(screen.getByText("Paged User 101")).toBeInTheDocument();
+    expect(screen.getByText("Exibindo 101-105 de 105 usuários")).toBeInTheDocument();
   });
 
   it("unblocks a selected blocked user without changing role", async () => {
