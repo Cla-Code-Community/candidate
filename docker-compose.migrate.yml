@@ -1,0 +1,34 @@
+services:
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      target: backend
+    container_name: vagas-migrate
+    env_file:
+      - ./.env
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    command: sh -c "npm run db:migrate && npm run security:backfill-user-pii -- --write"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - vagas-net
+    restart: "no"
+
+  backend:
+    env_file:
+      - ./.env
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      VALKEY_URL: redis://valkey:6379/0
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+networks:
+  vagas-net:
+    external: true

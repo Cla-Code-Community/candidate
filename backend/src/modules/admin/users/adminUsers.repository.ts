@@ -1,8 +1,11 @@
 import * as argon2 from "argon2";
-import { and, count, eq, ilike, or } from "drizzle-orm";
+import { and, count, eq, ilike, or, type SQL } from "drizzle-orm";
 import { db } from "../../../db/client";
 import { credentials } from "../../../db/schema/credentials";
 import { users } from "../../../db/schema/users";
+import { normalizeEmail } from "../../../lib/security/normalization";
+import { generateSearchableHash } from "../../../lib/security/searchableHash";
+import { toPublicUser } from "../../users/users.mapper";
 import type {
   AdminUserFilters,
   ChangeRoleInput,
@@ -22,19 +25,28 @@ export class AdminUsersRepository {
     const limit = filters.limit ?? 50;
     const offset = filters.offset ?? 0;
 
+    const searchConditions: SQL[] = [];
+
+    if (filters.search) {
+      searchConditions.push(
+        ilike(users.username, `%${filters.search}%`),
+        ilike(users.displayName, `%${filters.search}%`),
+      );
+
+      if (filters.search.includes("@")) {
+        searchConditions.push(
+          eq(users.emailHash, generateSearchableHash(normalizeEmail(filters.search))),
+        );
+      }
+    }
+
     const conditions = [
       filters.role ? eq(users.role, filters.role) : undefined,
       filters.isBlocked !== undefined
         ? eq(users.isBlocked, filters.isBlocked)
         : undefined,
-      filters.search
-        ? or(
-            ilike(users.email, `%${filters.search}%`),
-            ilike(users.username, `%${filters.search}%`),
-            ilike(users.displayName, `%${filters.search}%`),
-          )
-        : undefined,
-    ].filter(Boolean) as ReturnType<typeof eq>[];
+      searchConditions.length > 0 ? or(...searchConditions) : undefined,
+    ].filter(Boolean) as SQL[];
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -43,11 +55,12 @@ export class AdminUsersRepository {
       db.select({ value: count() }).from(users).where(where),
     ]);
 
-    return { data, total, limit, offset };
+    return { data: data.map(toPublicUser), total, limit, offset };
   }
 
   async findById(id: string) {
-    return db.query.users.findFirst({ where: eq(users.id, id) }) ?? null;
+    const user = await db.query.users.findFirst({ where: eq(users.id, id) });
+    return user ? toPublicUser(user) : null;
   }
 
   async setBlocked(id: string, isBlocked: boolean) {
@@ -56,7 +69,7 @@ export class AdminUsersRepository {
       .set({ isBlocked, updatedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
-    return updated ?? null;
+    return updated ? toPublicUser(updated) : null;
   }
 
   async changeRole({ userId, newRole }: ChangeRoleInput) {
@@ -65,7 +78,7 @@ export class AdminUsersRepository {
       .set({ role: newRole, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
-    return updated ?? null;
+    return updated ? toPublicUser(updated) : null;
   }
 
   async resetPassword({ userId, newPassword }: ResetPasswordInput) {
@@ -88,6 +101,6 @@ export class AdminUsersRepository {
       .delete(users)
       .where(eq(users.id, id))
       .returning();
-    return deleted ?? null;
+    return deleted ? toPublicUser(deleted) : null;
   }
 }

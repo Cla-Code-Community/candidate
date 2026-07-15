@@ -1,0 +1,117 @@
+import type { NewUser, User } from "../../db/schema/users";
+import { decryptText } from "../../lib/security/encryption";
+import {
+  protectCpf,
+  protectEmail,
+  protectNullableText,
+} from "../../lib/security/piiPayload";
+import type { CreateUserParams } from "./functions/createUser";
+import type { UpdateProfileData } from "../types/user.types";
+
+function protectTechnologies(value: string[] | null | undefined) {
+  return value ? protectNullableText(JSON.stringify(value)) : null;
+}
+
+function parseTechnologies(value: string | null | undefined) {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(decryptText(value));
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function toUserCreateValues(profile: CreateUserParams): Partial<NewUser> {
+  return {
+    email: null,
+    ...protectEmail(profile.email),
+    firstName: null,
+    firstNameEncrypted: protectNullableText(profile.firstName),
+    lastName: null,
+    lastNameEncrypted: protectNullableText(profile.lastName),
+    displayName: null,
+    displayNameEncrypted: protectNullableText(profile.displayName),
+    avatarUrl: null,
+    avatarUrlEncrypted: protectNullableText(profile.avatarUrl),
+    phone: null,
+    phoneEncrypted: protectNullableText(profile.phone),
+    cpf: null,
+    ...protectCpf(profile.cpf),
+    technologies: null,
+    technologiesEncrypted: protectTechnologies(profile.technologies ?? []),
+    level: null,
+    levelEncrypted: protectNullableText(profile.level),
+  };
+}
+
+export function toUserUpdateValues(data: UpdateProfileData): Partial<User> {
+  const values: Partial<User> = { ...data };
+
+  if ("firstName" in data) {
+    values.firstName = null;
+    values.firstNameEncrypted = protectNullableText(data.firstName);
+  }
+
+  if ("lastName" in data) {
+    values.lastName = null;
+    values.lastNameEncrypted = protectNullableText(data.lastName);
+  }
+
+  if ("displayName" in data) {
+    values.displayName = null;
+    values.displayNameEncrypted = protectNullableText(data.displayName);
+  }
+
+  if ("phone" in data) {
+    values.phone = null;
+    values.phoneEncrypted = protectNullableText(data.phone);
+  }
+
+  if ("cpf" in data) {
+    values.cpf = null;
+    Object.assign(values, protectCpf(data.cpf));
+  }
+
+  if ("avatarUrl" in data) {
+    values.avatarUrl = null;
+    values.avatarUrlEncrypted = protectNullableText(data.avatarUrl);
+  }
+
+  if ("technologies" in data) {
+    values.technologies = null;
+    values.technologiesEncrypted = protectTechnologies(data.technologies);
+  }
+
+  if ("level" in data) {
+    values.level = null;
+    values.levelEncrypted = protectNullableText(data.level);
+  }
+
+  return values;
+}
+
+export function toPublicUser(user: User): User {
+  return {
+    ...user,
+    email: user.emailEncrypted ? decryptText(user.emailEncrypted) : user.email,
+    firstName: user.firstNameEncrypted
+      ? decryptText(user.firstNameEncrypted)
+      : user.firstName,
+    lastName: user.lastNameEncrypted
+      ? decryptText(user.lastNameEncrypted)
+      : user.lastName,
+    displayName: user.displayNameEncrypted
+      ? decryptText(user.displayNameEncrypted)
+      : user.displayName,
+    avatarUrl: user.avatarUrlEncrypted
+      ? decryptText(user.avatarUrlEncrypted)
+      : user.avatarUrl,
+    phone: user.phoneEncrypted ? decryptText(user.phoneEncrypted) : user.phone,
+    cpf: user.cpfEncrypted ? decryptText(user.cpfEncrypted) : user.cpf,
+    technologies:
+      parseTechnologies(user.technologiesEncrypted) ?? user.technologies,
+    level: user.levelEncrypted ? decryptText(user.levelEncrypted) : user.level,
+  };
+}
