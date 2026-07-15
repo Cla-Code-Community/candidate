@@ -56,6 +56,7 @@ Objetivo de produto: fornecer uma base robusta para busca, filtragem e gestão d
 ├─ electron/                # Shell desktop
 ├─ docker-compose.yml       # App stack (frontend + backend + scraper-go)
 ├─ docker-compose.infra.yml # Infra stack (Postgres + Valkey)
+├─ docker-compose.migrate.yml # Migration job do backend
 └─ .github/workflows/ci.yml # CI
 ```
 
@@ -106,25 +107,13 @@ docker network create vagas-net
 
 Se a rede já existir, o Docker vai avisar e você pode seguir para o próximo passo.
 
-4. Suba Postgres e Valkey:
+4. Suba Postgres, Valkey, scraper, backend e frontend:
 
 ```bash
-docker compose -f docker-compose.infra.yml up -d
+docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml up --build -d
 ```
 
-5. Suba scraper, backend e frontend:
-
-```bash
-docker compose up --build -d
-```
-
-6. Aplique as migrations do backend:
-
-```bash
-docker compose exec backend npm run db:migrate
-```
-
-7. Acesse os serviços:
+5. Acesse os serviços:
 
 - Frontend: http://localhost:5173
 - Backend health: http://localhost:3001/health
@@ -272,31 +261,35 @@ Este projeto separa infraestrutura e aplicação em dois arquivos Compose:
 
 - `docker-compose.infra.yml`: Postgres + Valkey.
 - `docker-compose.yml`: scraper Go + backend + frontend.
+- `docker-compose.migrate.yml`: job de migrations do backend.
 
-Subir infraestrutura:
+Subir infraestrutura, migrations e aplicação:
+
+```bash
+docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml up --build -d
+```
+
+O serviço `migrate` executa `npm run db:migrate` e `npm run security:backfill-user-pii -- --write` depois que o Postgres fica saudável. O backend só inicia depois que esse job termina com sucesso.
+
+Se quiser subir apenas a infraestrutura:
 
 ```bash
 docker compose -f docker-compose.infra.yml up -d
 ```
 
-Subir aplicação:
+Se quiser subir a aplicação sem o job de migrations:
 
 ```bash
 docker compose up --build -d
 ```
 
-Aplicar migrations:
-
-```bash
-docker compose exec backend npm run db:migrate
-```
-
 Ver logs:
 
 ```bash
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f scraper-go
+docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f migrate
+docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f backend
+docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f frontend
+docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f scraper-go
 ```
 
 Encerrar:
@@ -314,7 +307,7 @@ Dentro dos containers, serviços devem usar os nomes da rede Docker:
 - Valkey: `valkey:6379`
 - Scraper: `scraper-go:8081`
 
-Por isso o `docker-compose.yml` sobrescreve `DATABASE_URL`, `VALKEY_URL`, `GO_SCRAPER_URL` e `SCRAPER_URL` para os valores internos corretos.
+Por isso o `docker-compose.yml` e o `docker-compose.migrate.yml` sobrescrevem variáveis como `DATABASE_URL`, `VALKEY_URL`, `GO_SCRAPER_URL` e `SCRAPER_URL` para os valores internos corretos.
 
 Serviços padrão:
 

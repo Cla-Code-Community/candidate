@@ -1,5 +1,6 @@
 import { db } from "../../../db/client";
 import { DB } from "../../../db/types/types";
+import { UsersRepository } from "../users.repository";
 
 export async function findUserByProvider(
   {
@@ -24,7 +25,5 @@ export async function findUserByProvider(
 }
 
 export async function findUserByEmail(email: string, tx: DB = db) {
-  return tx.query.users.findFirst({
-    where: (u, { eq }) => eq(u.email, email),
-  });
+  return new UsersRepository(tx).findByEmail(email);
 }

@@ -1,7 +1,7 @@
 import { db } from "../../../db/client";
-import { users } from "../../../db/schema/users";
 import { DB } from "../../../db/types/types";
 import { generateUsername } from "../../../utils/generateUsername";
+import { UsersRepository } from "../users.repository";
 import { findUserByEmail } from "./findUsers";
 
 export type CreateUserParams = {
@@ -35,23 +35,7 @@ export async function createUser(
   const username = profile.username ?? (await generateUsername(baseName, tx));
 
   try {
-    const result = await tx
-      .insert(users)
-      .values({
-        email: profile.email,
-        firstName: profile.firstName ?? null,
-        lastName: profile.lastName ?? null,
-        displayName: profile.displayName ?? null,
-        username,
-        avatarUrl: profile.avatarUrl ?? null,
-        phone: profile.phone ?? null,
-        cpf: profile.cpf ?? null,
-        technologies: profile.technologies ?? undefined,
-        level: profile.level ?? null,
-      })
-      .returning();
-
-    return result[0];
+    return await new UsersRepository(tx).create(profile, username);
   } catch (err: any) {
     if (err.code === "23505" && options.onEmailConflict === "returnExisting") {
       if (!profile.email) throw err;

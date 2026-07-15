@@ -1,4 +1,5 @@
 import { CalendarDays, Edit3, Mail, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 import type { AdminUser } from "../types/user.types";
 
 interface UserListItemProps {
@@ -39,15 +40,36 @@ function formatDate(value: string | null): string {
   }).format(date);
 }
 
+function UserAvatar({ user }: { user: AdminUser }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = Boolean(user.avatarUrl) && !imageFailed;
+
+  if (showImage) {
+    return (
+      <img
+        src={user.avatarUrl ?? ""}
+        alt={`Foto de ${user.name}`}
+        referrerPolicy="no-referrer"
+        onError={() => setImageFailed(true)}
+        className="h-9 w-9 shrink-0 rounded-full border border-slate-200 object-cover dark:border-slate-700"
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${AVATAR_STYLES[user.role]}`}
+    >
+      {user.initials}
+    </div>
+  );
+}
+
 export function UserListItem({ user, onEdit }: UserListItemProps) {
   return (
     <div className="grid gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5 transition-colors hover:border-slate-200 dark:border-slate-800 dark:bg-slate-900/70 dark:hover:border-slate-700 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,0.95fr)_auto] lg:items-center">
       <div className="flex min-w-0 items-center gap-2.5">
-        <div
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${AVATAR_STYLES[user.role]}`}
-        >
-          {user.initials}
-        </div>
+        <UserAvatar user={user} />
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <p className="truncate text-sm font-bold text-slate-900 dark:text-slate-100">

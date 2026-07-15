@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { Image } from "@unpic/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
@@ -25,6 +23,16 @@ const STATIC_STARS = Array.from({ length: 40 }).map((_, i) => {
     duration: random(2, 6),
   };
 });
+
+const LEVEL_OPTIONS = [
+  { value: "junior", label: "Júnior" },
+  { value: "pleno", label: "Pleno" },
+  { value: "senior", label: "Sênior" },
+];
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
 
 function StarsBackground() {
   return (
@@ -62,12 +70,14 @@ export default function RegisterSide() {
   const [telefone, setTelefone] = useState<string | undefined>("");
   const [password, setPassword] = useState("");
   const [cpf, setCpf] = useState("");
+  const [level, setLevel] = useState("");
 
   const [nomeError, setNomeError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [telefoneError, setTelefoneError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [cpfError, setCpfError] = useState("");
+  const [levelError, setLevelError] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState("");
@@ -88,8 +98,8 @@ export default function RegisterSide() {
     try {
       const url = await getGithubAuthUrl();
       window.location.href = url;
-    } catch (err: any) {
-      setApiError(err.message || "Erro ao iniciar login com Github.");
+    } catch (err: unknown) {
+      setApiError(getErrorMessage(err, "Erro ao iniciar login com Github."));
       setIsLoading(false);
     }
   };
@@ -100,8 +110,8 @@ export default function RegisterSide() {
     try {
       const url = await getLinkedinAuthUrl();
       window.location.href = url;
-    } catch (err: any) {
-      setApiError(err.message || "Erro ao iniciar login com LinkedIn.");
+    } catch (err: unknown) {
+      setApiError(getErrorMessage(err, "Erro ao iniciar login com LinkedIn."));
       setIsLoading(false);
     }
   };
@@ -124,6 +134,7 @@ export default function RegisterSide() {
     setTelefoneError("");
     setPasswordError("");
     setCpfError("");
+    setLevelError("");
     setApiError("");
 
     let isValid = true;
@@ -166,6 +177,11 @@ export default function RegisterSide() {
       isValid = false;
     }
 
+    if (!level) {
+      setLevelError("Selecione seu nível de experiência.");
+      isValid = false;
+    }
+
     if (isValid) {
       setIsLoading(true);
       try {
@@ -173,11 +189,14 @@ export default function RegisterSide() {
           email: email,
           password: password,
           name: nome,
+          phone: telefone,
+          cpf: cpf || undefined,
+          level,
         });
         window.location.href = "/login?registered=true";
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error("Erro no cadastro:", error);
-        setApiError(error.message || "Erro ao cadastrar. Tente novamente.");
+        setApiError(getErrorMessage(error, "Erro ao cadastrar. Tente novamente."));
       } finally {
         setIsLoading(false);
       }
@@ -354,6 +373,33 @@ export default function RegisterSide() {
           {cpfError && (
             <p className="mt-1.5 text-xs text-red-500 font-medium">
               {cpfError}
+            </p>
+          )}
+        </div>
+        <div>
+          <label
+            htmlFor="level"
+            className="block text-sm font-semibold text-gray-700 dark:text-neutral-300 mb-1.5"
+          >
+            Nível de experiência
+          </label>
+          <select
+            id="level"
+            value={level}
+            onChange={(e) => setLevel(e.target.value)}
+            disabled={isLoading}
+            className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 transition-all shadow-sm ${levelError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            <option value="">Selecione...</option>
+            {LEVEL_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          {levelError && (
+            <p className="mt-1.5 text-xs text-red-500 font-medium">
+              {levelError}
             </p>
           )}
         </div>

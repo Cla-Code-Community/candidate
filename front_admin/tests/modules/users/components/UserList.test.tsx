@@ -8,6 +8,7 @@ export const userFixture: AdminUser = {
   name: "Ada Lovelace",
   email: "ada@example.com",
   initials: "AL",
+  avatarUrl: null,
   role: "Admin",
   rawRole: "admin",
   isBlocked: false,
@@ -38,6 +39,20 @@ describe("UserList", () => {
 
     expect(onEditUser).toHaveBeenCalledWith(
       expect.objectContaining({ id: "u1" }),
+    );
+  });
+
+  it("renders user avatar image when available", () => {
+    render(
+      <UserList
+        users={[{ ...userFixture, avatarUrl: "https://example.com/ada.png" }]}
+        onEditUser={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByAltText("Foto de Ada Lovelace")).toHaveAttribute(
+      "src",
+      "https://example.com/ada.png",
     );
   });
 });
