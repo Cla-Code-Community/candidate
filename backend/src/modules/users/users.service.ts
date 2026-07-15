@@ -5,29 +5,27 @@ import { DB } from "../../db/types/types";
 import { AppError } from "../../lib/errors";
 import { UpdateProfileData } from "../types/user.types";
 import { UpdatePreferencesData } from "./schemas/user.schemas";
+import { UsersRepository } from "./users.repository";
 
 export class UsersService {
   constructor(private readonly tx: DB = db) {}
 
   async getUserById(id: string): Promise<User | undefined> {
-    return this.tx.query.users.findFirst({
-      where: (u, { eq }) => eq(u.id, id),
-    });
+    return (await new UsersRepository(this.tx).findById(id)) ?? undefined;
   }
 
   async updateProfile(userId: string, data: UpdateProfileData): Promise<User> {
-    const result = await this.tx
-      .update(users)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(users.id, userId))
-      .returning();
+    const updated = await new UsersRepository(this.tx).updateProfile(
+      userId,
+      data,
+    );
 
-    if (!result[0]) {
+    if (!updated) {
       throw AppError.notFound("Usuário não encontrado");
     }
 
     // await this.valkey.del(`user:${userId}`); ← invalidação de cache futura
-    return result[0];
+    return updated;
   }
 
   async getPreferences(userId: string): Promise<UserPreferences | undefined> {

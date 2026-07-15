@@ -6,6 +6,7 @@ export interface AdminUser {
   name: string;
   email: string;
   initials: string;
+  avatarUrl: string | null;
   role: UserRole;
   rawRole: BackendUserRole;
   isBlocked: boolean;

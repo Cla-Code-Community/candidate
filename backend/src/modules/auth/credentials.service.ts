@@ -1,11 +1,12 @@
 import * as argon2 from "argon2";
-import { eq } from "drizzle-orm";
 import { db } from "../../db/client";
 import { userPreferences } from "../../db/schema";
 import { credentials } from "../../db/schema/credentials";
 import type { User } from "../../db/schema/users";
-import { users } from "../../db/schema/users";
 import { AppError } from "../../lib/errors";
+import { encryptText } from "../../lib/security/encryption";
+import { normalizeEmail } from "../../lib/security/normalization";
+import { generateSearchableHash } from "../../lib/security/searchableHash";
 import { generateUsername } from "../../utils/generateUsername";
 import type { Session } from "../types/auth.types";
 import {
@@ -14,6 +15,7 @@ import {
   RegisterInput,
   RegisterSchema,
 } from "../types/credentials.types";
+import { UsersRepository } from "../users/users.repository";
 
 const argonOptions = {
   type: argon2.argon2id,
@@ -24,9 +26,7 @@ const argonOptions = {
 
 export class CredentialsService {
   async findById(id: string): Promise<User | null> {
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, id),
-    });
+    const user = await new UsersRepository().findById(id);
     return user ?? null;
   }
 
@@ -35,17 +35,17 @@ export class CredentialsService {
   ): Promise<{ user: User; session: Session }> {
     const { email, password, name, phone, cpf, technologies, level } =
       RegisterSchema.parse(input);
+    const normalizedEmail = normalizeEmail(email);
+    const emailHash = generateSearchableHash(normalizedEmail);
 
     const existingCredential = await db.query.credentials.findFirst({
-      where: eq(credentials.email, email),
+      where: (credential, { eq }) => eq(credential.emailHash, emailHash),
     });
     if (existingCredential) {
       throw AppError.conflict("Email já cadastrado");
     }
 
-    const existingUser = await db.query.users.findFirst({
-      where: eq(users.email, email),
-    });
+    const existingUser = await new UsersRepository().findByEmail(email);
     if (existingUser) {
       throw AppError.conflict("Email já cadastrado");
     }
@@ -56,23 +56,26 @@ export class CredentialsService {
       const baseName = name?.trim() || email.split("@")[0];
       const username = await generateUsername(baseName, tx);
 
-      const [createdUser] = await tx
-        .insert(users)
-        .values({
+      const createdUser = await new UsersRepository(tx).create(
+        {
           email,
           displayName: name,
-          username,
-          emailVerified: false,
           phone,
           cpf,
           technologies,
           level,
-        })
-        .returning();
+        },
+        username,
+      );
 
       await tx
         .insert(credentials)
-        .values({ userId: createdUser.id, email, passwordHash });
+        .values({
+          userId: createdUser.id,
+          email: encryptText(normalizedEmail),
+          emailHash,
+          passwordHash,
+        });
       await tx.insert(userPreferences).values({ userId: createdUser.id });
 
       return createdUser;
@@ -83,9 +86,11 @@ export class CredentialsService {
 
   async login(input: LoginInput): Promise<{ user: User; session: Session }> {
     const { email, password } = LoginSchema.parse(input);
+    const normalizedEmail = normalizeEmail(email);
+    const emailHash = generateSearchableHash(normalizedEmail);
 
     const credential = await db.query.credentials.findFirst({
-      where: eq(credentials.email, email),
+      where: (credential, { eq }) => eq(credential.emailHash, emailHash),
     });
     if (!credential) {
       throw AppError.unauthorized("Credenciais inválidas");
@@ -96,9 +101,7 @@ export class CredentialsService {
       throw AppError.unauthorized("Credenciais inválidas");
     }
 
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, credential.userId),
-    });
+    const user = await new UsersRepository().findById(credential.userId);
     if (!user) {
       throw AppError.notFound("Usuário não encontrado");
     }

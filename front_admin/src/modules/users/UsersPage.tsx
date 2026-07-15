@@ -58,6 +58,7 @@ function mapUser(user: BackendAdminUser): AdminUser {
     name: user.displayName ?? user.username ?? user.email ?? "Usuario sem nome",
     email: user.email ?? "sem email",
     initials: initialsFrom(user),
+    avatarUrl: user.avatarUrl,
     role: roleLabel(user.role),
     rawRole: user.role,
     isBlocked: user.isBlocked,

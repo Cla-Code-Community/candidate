@@ -251,10 +251,14 @@ describe("credentials provider", () => {
 
     expect(mocks.hash).toHaveBeenCalledWith("Senha@123");
     expect(mocks.insertValues).toHaveBeenCalledWith({
-      email: "user@example.com",
+      email: expect.stringMatching(/^v1:/),
+      emailHash: expect.any(String),
       passwordHash: "hash-value",
       userId: "",
     });
+    expect(mocks.insertValues.mock.calls[0][0].email).not.toBe(
+      "user@example.com",
+    );
   });
 
   it("impede registro duplicado", async () => {
