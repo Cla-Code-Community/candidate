@@ -9,6 +9,105 @@ import { logWarn } from "../logger";
 
 export const jobsRoutes = Router();
 
+type SearchJob = {
+  title?: string | null;
+  location?: string | null;
+  modality?: string | null;
+  description?: string | null;
+};
+
+function firstQueryValue(value: unknown): string {
+  if (Array.isArray(value)) return firstQueryValue(value[0]);
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeComparable(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function inferJobLevel(title: string): string {
+  const normalized = normalizeComparable(title);
+  if (normalized.includes("senior") || normalized.includes("sr")) {
+    return "senior";
+  }
+  if (normalized.includes("junior") || normalized.includes("jr")) {
+    return "junior";
+  }
+  return "pleno";
+}
+
+function inferJobType(job: SearchJob): string {
+  const normalized = normalizeComparable(
+    [
+      job.title,
+      job.location,
+      job.modality,
+      job.description,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  if (normalized.includes("hibrid") || normalized.includes("hybrid")) {
+    return "hibrido";
+  }
+  if (
+    normalized.includes("remot") ||
+    normalized.includes("home office") ||
+    normalized.includes("teletrabalho") ||
+    normalized.includes("anywhere") ||
+    normalized.includes("worldwide")
+  ) {
+    return "remoto";
+  }
+  if (
+    normalized.includes("presencial") ||
+    normalized.includes("onsite") ||
+    normalized.includes("on site") ||
+    normalized.includes("on-site") ||
+    normalized.includes("in office") ||
+    normalized.includes("escritorio")
+  ) {
+    return "presencial";
+  }
+
+  return "presencial";
+}
+
+function filterJobs(jobs: unknown[], query: Request["query"]): unknown[] {
+  const level = normalizeComparable(firstQueryValue(query.level));
+  const location = normalizeComparable(firstQueryValue(query.location));
+  const type = normalizeComparable(firstQueryValue(query.type));
+
+  if (!level && !location && !type) return jobs;
+
+  return jobs.filter((job) => {
+    const candidate = job as SearchJob;
+    const title = candidate.title ?? "";
+    const jobLocation = candidate.location ?? "";
+    const normalizedLocation = normalizeComparable(jobLocation);
+
+    const matchesLevel = !level || inferJobLevel(title) === level;
+    const matchesLocation =
+      !location || normalizedLocation.includes(location);
+    const matchesType = !type || inferJobType(candidate) === type;
+
+    return matchesLevel && matchesLocation && matchesType;
+  });
+}
+
+function hasPostFetchFilters(query: Request["query"]): boolean {
+  return Boolean(
+    firstQueryValue(query.level) ||
+      firstQueryValue(query.location) ||
+      firstQueryValue(query.type),
+  );
+}
+
 /**
  * @swagger
  * /api/jobs/search:
@@ -42,8 +141,25 @@ jobsRoutes.get("/search", async (req: Request, res: Response) => {
       ids = await cacheAbsoluteSMembers("scraper:jobs:index");
     }
 
-    const { data: pageIds, pagination: meta } = paginate(ids, pagination);
-    const jobs = await cacheGetJobsByIds(pageIds);
+    if (!hasPostFetchFilters(req.query)) {
+      const { data: pageIds, pagination: meta } = paginate(ids, pagination);
+      const jobs = await cacheGetJobsByIds(pageIds);
+
+      return res.json({
+        total: meta.total,
+        page: meta.page,
+        limit: meta.limit,
+        totalPages: meta.totalPages,
+        hasNext: meta.hasNext,
+        hasPrev: meta.hasPrev,
+        jobs,
+        source,
+      });
+    }
+
+    const allJobs = await cacheGetJobsByIds(ids);
+    const filteredJobs = filterJobs(allJobs, req.query);
+    const { data: jobs, pagination: meta } = paginate(filteredJobs, pagination);
 
     return res.json({
       total: meta.total,
