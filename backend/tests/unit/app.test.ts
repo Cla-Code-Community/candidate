@@ -235,6 +235,69 @@ describe("jobsApiApp", () => {
     expect(res.body.source).toBe("valkey_global_index");
   });
 
+  it("GET /jobs/search aplica filtros de level, location e type", async () => {
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-1",
+        title: "Desenvolvedor Node.js Júnior",
+        company: "ACME",
+        location: "Brasil - Remoto",
+      },
+      {
+        id: "id-2",
+        title: "Desenvolvedor Node.js Sênior",
+        company: "Globo",
+        location: "Estados Unidos - Remoto",
+      },
+      {
+        id: "id-3",
+        title: "Desenvolvedor Node.js Pleno",
+        company: "Globex",
+        location: "Brasil - Hybrid Remote",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({
+        keywords: "Node.js",
+        level: "Júnior",
+        location: "Brasil",
+        type: "Remoto",
+      })
+      .expect(200);
+
+    expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-1" })]);
+    expect(res.body.total).toBe(1);
+  });
+
+  it("GET /jobs/search diferencia modelo híbrido de remoto", async () => {
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-1",
+        title: "Desenvolvedor Node.js",
+        company: "ACME",
+        location: "Brasil - Remote",
+      },
+      {
+        id: "id-2",
+        title: "Desenvolvedor Node.js",
+        company: "Globex",
+        location: "Brasil - Hybrid Remote",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({ keywords: "Node.js", type: "Híbrido" })
+      .expect(200);
+
+    expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-2" })]);
+    expect(res.body.total).toBe(1);
+  });
+
   it("GET /jobs/search retorna paginação correta", async () => {
     mocks.parsePagination.mockReturnValue({ page: 2, limit: 10 });
     mocks.paginate.mockReturnValue({
@@ -286,6 +349,71 @@ describe("jobsApiApp", () => {
     const res = await request(app).get("/jobs/search").expect(500);
 
     expect(res.body.message).toBe("Erro ao recuperar vagas em memória.");
+  });
+
+  it("GET /jobs/search trata filtros em array e aplica o primeiro valor", async () => {
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-array",
+        title: "Desenvolvedor Node.js Júnior",
+        company: "ACME",
+        location: "Brasil - Remoto",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({
+        keywords: "Node.js",
+        level: ["Júnior", "Sênior"],
+        location: ["Brasil", "Portugal"],
+        type: ["Remoto", "Híbrido"],
+      })
+      .expect(200);
+
+    expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-array" })]);
+    expect(res.body.total).toBe(1);
+  });
+
+  it("GET /jobs/search identifica vaga sênior presencial", async () => {
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-senior",
+        title: "Tech Lead Sênior",
+        company: "ACME",
+        location: "São Paulo - Onsite",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({ keywords: "Tech Lead", type: "Presencial" })
+      .expect(200);
+
+    expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-senior" })]);
+    expect(res.body.total).toBe(1);
+  });
+
+  it("GET /jobs/search usa o fallback de tipo presencial quando não há pistas de remoto", async () => {
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-fallback",
+        title: "Backend Developer",
+        company: "ACME",
+        location: "Brasil",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({ keywords: "Backend", type: "Presencial" })
+      .expect(200);
+
+    expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-fallback" })]);
+    expect(res.body.total).toBe(1);
   });
 
   // ── keywords ──────────────────────────────────────────────────────────
