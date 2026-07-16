@@ -1,11 +1,11 @@
+import NotFound from "@/app/NotFound";
 import { useAuth } from "@/domains/auth/application/AuthContext";
-import { AuthenticatedLayout } from "@/app/AuthenticatedLayout";
 import AuthCallbackPage from "@/domains/auth/presentation/pages/AuthCallbackPage";
 import LoginPage from "@/domains/auth/presentation/pages/LoginPage";
 import RegisterPage from "@/domains/auth/presentation/pages/RegisterPage";
-import JobsPage from "@/domains/jobs/presentation/pages/JobsPage";
 import LandingPage from "@/domains/marketing/presentation/pages/LandingPage";
-import NotFound from "@/app/NotFound";
+import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
+import NewDashboardLayout from "@/domains/new_dashboard/layout";
 import Loading from "@/shared/ui/Loading";
 import { Navigate, Route, Routes } from "react-router-dom";
 
@@ -24,21 +24,23 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 export function AppRoutes() {
+  const dashboardElement = (
+    <ProtectedRoute>
+      <NewDashboardLayout>
+        <NewDashboardPage />
+      </NewDashboardLayout>
+    </ProtectedRoute>
+  );
+
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
-      <Route
-        element={
-          <ProtectedRoute>
-            <AuthenticatedLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/home" element={<JobsPage />} />
-        <Route path="/dashboard" element={<NotFound />} />
-        <Route path="/vagas" element={<JobsPage />} />
-        <Route path="/mentoria" element={<NotFound />} />
-      </Route>
+      <Route path="/home" element={dashboardElement} />
+      <Route path="/dashboard" element={dashboardElement} />
+      <Route path="/vagas" element={dashboardElement} />
+      <Route path="/mentoria" element={dashboardElement} />
+      <Route path="/perfil" element={dashboardElement} />
+      <Route path="/ajuda" element={dashboardElement} />
       <Route
         path="/login"
         element={

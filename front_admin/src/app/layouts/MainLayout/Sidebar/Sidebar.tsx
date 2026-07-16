@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
+import { CandidateLogo } from "../../../../lib/ui/CandidateLogo";
 import { useAuth } from "../../../../modules/auth/hooks/useAuth";
-import { CandidateLogo } from "../components/CandidateLogo";
 import { SidebarFooter } from "./components/SidebarFooter";
 import { SidebarItem } from "./components/SidebarItem";
 import { NAV_ITEMS } from "./sidebar.config";
