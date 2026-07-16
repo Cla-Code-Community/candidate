@@ -11,6 +11,7 @@ function isThemePreference(value: string | null): value is ThemePreference {
 }
 
 function getSystemTheme(): Theme {
+  if (typeof window.matchMedia !== "function") return "light";
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
@@ -39,6 +40,8 @@ export function useTheme() {
   }, [resolvedTheme, themePreference]);
 
   useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleSystemThemeChange = () => {
       if (themePreference === "system") {

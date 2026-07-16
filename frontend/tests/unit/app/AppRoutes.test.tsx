@@ -18,21 +18,18 @@ vi.mock("@/shared/ui/Loading", () => ({
   default: () => <div role="status">Carregando...</div>,
 }));
 
-vi.mock("@/app/AuthenticatedLayout", async () => {
-  const { Outlet } =
-    await vi.importActual<typeof import("react-router-dom")>(
-      "react-router-dom",
-    );
+vi.mock("@/domains/new_dashboard/layout", () => ({
+  default: ({ children }: { children: React.ReactNode }) => (
+    <div>
+      <span>Dashboard shell</span>
+      {children}
+    </div>
+  ),
+}));
 
-  return {
-    AuthenticatedLayout: () => (
-      <div>
-        <span>Authenticated shell</span>
-        <Outlet />
-      </div>
-    ),
-  };
-});
+vi.mock("@/domains/new_dashboard/NewDashboardPage", () => ({
+  default: () => <main>New dashboard route</main>,
+}));
 
 vi.mock("@/domains/marketing/presentation/pages/LandingPage", () => ({
   default: () => <main>Landing route</main>,
@@ -48,10 +45,6 @@ vi.mock("@/domains/auth/presentation/pages/RegisterPage", () => ({
 
 vi.mock("@/domains/auth/presentation/pages/AuthCallbackPage", () => ({
   default: () => <main>Callback route</main>,
-}));
-
-vi.mock("@/domains/jobs/presentation/pages/JobsPage", () => ({
-  default: () => <main>Jobs route</main>,
 }));
 
 vi.mock("@/app/NotFound", () => ({
@@ -95,7 +88,7 @@ describe("AppRoutes", () => {
     renderRoute("/home");
 
     expect(screen.getByText("Login route")).toBeInTheDocument();
-    expect(screen.queryByText("Jobs route")).not.toBeInTheDocument();
+    expect(screen.queryByText("New dashboard route")).not.toBeInTheDocument();
   });
 
   it("renderiza layout autenticado e conteúdo protegido quando há usuário", () => {
@@ -106,8 +99,8 @@ describe("AppRoutes", () => {
 
     renderRoute("/vagas");
 
-    expect(screen.getByText("Authenticated shell")).toBeInTheDocument();
-    expect(screen.getByText("Jobs route")).toBeInTheDocument();
+    expect(screen.getByText("Dashboard shell")).toBeInTheDocument();
+    expect(screen.getByText("New dashboard route")).toBeInTheDocument();
   });
 
   it("mostra loading em rota pública enquanto a sessão está carregando", () => {
@@ -129,8 +122,8 @@ describe("AppRoutes", () => {
 
     renderRoute("/login");
 
-    expect(screen.getByText("Authenticated shell")).toBeInTheDocument();
-    expect(screen.getByText("Jobs route")).toBeInTheDocument();
+    expect(screen.getByText("Dashboard shell")).toBeInTheDocument();
+    expect(screen.getByText("New dashboard route")).toBeInTheDocument();
   });
 
   it("mantém callback OAuth fora dos guards de autenticação", () => {

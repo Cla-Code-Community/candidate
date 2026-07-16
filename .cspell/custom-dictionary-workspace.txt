@@ -1,5 +1,6 @@
 Abaixo
 abertas
+abordagem
 aborta
 abra
 abre
@@ -32,6 +33,7 @@ adaptado
 adaptador
 Adaptadores
 adequa
+adicionada
 adicionais
 Adicionamos
 Administrativas
@@ -40,6 +42,9 @@ administrativos
 adzuna
 Adzuna
 afetada
+áfrica
+África
+agendar
 agoda
 agregadas
 agregado
@@ -58,6 +63,8 @@ Ajustes
 AKVGSK
 aleatório
 além
+Alemanha
+alemania
 alerta
 alertas
 Alertas
@@ -81,10 +88,12 @@ alvo
 ambas
 ambiente
 ambientes
+América
 amigáveis
 amigável
 amostra
 amplas
+Análise
 analítico
 andamento
 andybalholm
@@ -96,6 +105,7 @@ anteriores
 antigas
 antigo
 antigos
+Anunciar
 apaga
 apareça
 aparece
@@ -115,6 +125,8 @@ apontando
 aponte
 Apresentação
 apresentável
+apresentou
+APROVADA
 aproveitar
 aproximação
 aquela
@@ -124,6 +136,7 @@ armazenadas
 Arquitetura
 artefatos
 asar
+Ásia
 Assinaturas
 assíncrona
 assíncrono
@@ -146,11 +159,14 @@ ator
 atrás
 atuais
 atualização
+atualizações
 atualizada
 atualizadas
 atualmente
 aumentamos
 Aumentei
+austrália
+Austrália
 autentica
 autenticada
 autenticados
@@ -160,6 +176,7 @@ automático
 automatizadas
 autorização
 autorizadas
+auxiliares
 auxlib
 avaliação
 avaliado
@@ -168,6 +185,8 @@ Avançadas
 avançado
 avisa
 baixa
+baixos
+Baixos
 barrar
 barras
 baseado
@@ -194,6 +213,8 @@ bostonconsultinggroup
 branco
 brex
 BRPOP
+Bruna
+brunasilva
 bruta
 bruto
 brutos
@@ -214,11 +235,16 @@ caixa
 calculável
 Camada
 camadas
+canadá
+Canadá
 Cancela
 cancelado
 cancelamento
 Cand
+CANDIDATADAS
+Candidatar
 candidatura
+Candidaturas
 canva
 capacidade
 captura
@@ -263,6 +289,7 @@ Ciclos
 Círculo
 cirúrgica
 clampeia
+clicar
 clientes
 cmdmeta
 cobre
@@ -279,9 +306,12 @@ coletar
 coletores
 colidem
 coloca
+colômbia
+Colômbia
 colunas
 comandos
 combinações
+combinar
 começa
 comentados
 commitar
@@ -293,6 +323,7 @@ compilador
 complementar
 completa
 completamente
+Completar
 complexa
 complexas
 Componentes
@@ -329,6 +360,7 @@ conhece
 conhecer
 conhecidas
 conjunto
+Conseguir
 considere
 consistência
 consolidadas
@@ -358,6 +390,8 @@ Controle
 Controles
 conversão
 Converte
+convites
+coreia
 coroutinelib
 corpo
 corporativo
@@ -390,6 +424,7 @@ cruzada
 cuidado
 cujas
 cujo
+currículo
 curta
 customuser
 daqui
@@ -461,11 +496,13 @@ devolver
 devolvido
 diacríticos
 diária
+Dica
 diferencial
 diferenciar
 diferentes
 difflib
 dificuldade
+digitar
 digitou
 dimensões
 dinamicamente
@@ -495,6 +532,7 @@ documentado
 Documentar
 dois
 doordash
+dotlottie
 drena
 duas
 duplica
@@ -505,8 +543,12 @@ duplicata
 duplicatas
 duração
 ecossistema
+edita
+editadas
+editados
 efetivamente
 eficiência
+egito
 elas
 Elementos
 eles
@@ -522,8 +564,10 @@ encontrada
 encontradas
 encontrados
 encontram
+Encontramos
 encontrar
 encontre
+encontrou
 enfileira
 enfileirada
 enfileiradas
@@ -541,6 +585,9 @@ entrada
 entrar
 Entregar
 Entregas
+Entrevista
+ENTREVISTANDO
+entrevistas
 envia
 enviado
 envie
@@ -559,11 +606,15 @@ escolhe
 Esconder
 escopo
 escreve
+escritorio
 Escuro
 esgotada
 esgotadas
 espaço
 espaços
+españa
+espanha
+Espanha
 especiais
 específica
 especificação
@@ -581,6 +632,8 @@ esperado
 esperar
 esqueci
 essa
+estados
+Estados
 estágio
 estar
 Estas
@@ -606,6 +659,7 @@ estritamente
 Estrutura
 estruturados
 Estudantes
+Etapas
 evento
 eventos
 evitar
@@ -650,6 +704,7 @@ expirou
 explicitamente
 explícito
 explodir
+Explorar
 exporta
 exportacao
 exportadas
@@ -665,6 +720,7 @@ externos
 extrai
 fala
 falam
+Falar
 falhar
 falhas
 falhe
@@ -690,6 +746,7 @@ flutuação
 fluxo
 Fluxos
 flyio
+focado
 fonte
 foram
 formata
@@ -701,6 +758,8 @@ fornecidas
 fornecido
 fornecidos
 fpconv
+frança
+França
 frequentemente
 fulano
 Fulano
@@ -728,6 +787,7 @@ Gestão
 glassdoor
 Glassdoor
 globais
+Globex
 Globo
 goautoneg
 golangci
@@ -742,14 +802,17 @@ greehouse
 groot
 guia
 Gupy
+Habilidades
 habilitado
 habilitar
 hashedpassword
+híbrid
 híbrido
 Hierarquia
 hintrc
 Histórico
 hoje
+holanda
 hotjar
 hscan
 HSTS
@@ -757,6 +820,7 @@ huggingface
 hyperloglog
 içado
 ícone
+ideais
 idênticas
 idênticos
 identidade
@@ -804,6 +868,7 @@ indexadas
 Indexados
 indexam
 indexar
+Índia
 indica
 índice
 índices
@@ -822,10 +887,12 @@ infojobs
 informada
 informado
 informativa
+Informe
 Infraestrutura
 ingestão
 Inicia
 iniciado
+Iniciados
 Inicializa
 inicializado
 inicializador
@@ -883,6 +950,7 @@ invertido
 invertidos
 invés
 iolib
+irlanda
 isola
 isoladamente
 isoladas
@@ -897,6 +965,7 @@ jobsglobalscraper
 jobstore
 jooble
 Jooble
+julho
 KHTML
 klarna
 Krsj
@@ -926,6 +995,7 @@ linhas
 linit
 listagem
 loadlib
+localidade
 localiza
 Localização
 localizado
@@ -955,7 +1025,9 @@ Mapear
 mapeia
 marca
 marcado
+marcar
 margem
+marrocos
 mastigada
 mathlib
 matriz
@@ -964,6 +1036,7 @@ maxtimeout
 Mczn
 mecanismo
 média
+médio
 meia
 melhorar
 melhores
@@ -976,6 +1049,8 @@ memória
 menos
 mensagem
 mensagens
+mensuráveis
+mentores
 mescladas
 mesma
 mesmas
@@ -986,9 +1061,12 @@ método
 métodos
 MÉTRICA
 métricas
+méxico
+México
 microsserviços
 Migrações
 milissegundos
+Minhas
 mínima
 mínimas
 mínimo
@@ -1007,12 +1085,16 @@ modernos
 momento
 momentos
 mondelezinternational
+monitora
+Monitoradas
+monitorado
 Monitorar
 montá
 montar
 Mostrando
 Mostrar
 motivo
+movimente
 muda
 mudam
 mude
@@ -1028,8 +1110,10 @@ Nenhum
 nerdwallet
 nessa
 nesse
+nesta
 NGJH
 ninguém
+Nível
 nocmp
 nodetype
 noemail
@@ -1042,7 +1126,9 @@ normalizada
 normalizado
 normalizados
 normalizar
+Notas
 Notificações
+notificou
 novamente
 novos
 novousuario
@@ -1075,6 +1161,7 @@ operacional
 operacionalmente
 operações
 Operador
+oportunidade
 oportunidades
 optar
 ordem
@@ -1089,6 +1176,7 @@ orquestração
 osbuilders
 oslib
 osscluster
+otimização
 otimizado
 outra
 pacote
@@ -1103,11 +1191,13 @@ palavras
 Paletas
 paloaltonetworks
 papéis
+papo
 paralelas
 paralelo
 parar
 parceiras
 Parcial
+Parece
 parseado
 parseia
 parserc
@@ -1131,6 +1221,7 @@ pelos
 peloton
 pendentes
 percentunit
+perdeu
 perfeitamente
 perfis
 performático
@@ -1177,6 +1268,7 @@ porém
 porque
 portanto
 portas
+portfólio
 posicionamento
 posições
 positivos
@@ -1188,6 +1280,7 @@ possuir
 pouco
 prática
 práticas
+prático
 práticos
 precisa
 precisam
@@ -1210,6 +1303,7 @@ presente
 presentes
 preserva
 preservada
+preservando
 Pricebook
 Primário
 primeira
@@ -1236,6 +1330,7 @@ progresso
 proibidos
 projetado
 Projetado
+projetos
 promauto
 prometheuscommunity
 promhttp
@@ -1262,6 +1357,7 @@ Publique
 Puerkito
 pura
 puro
+Quadro
 qualidade
 quantas
 Quantidade
@@ -1283,9 +1379,11 @@ recebe
 recebendo
 receber
 recente
+recentemente
 recoloca
 Recomenda
 Recomendações
+recomendadas
 recomendado
 recomendados
 reconecta
@@ -1312,6 +1410,8 @@ reindexação
 reiniciada
 reiniciar
 Reiniciar
+reino
+Reino
 rejeição
 rejeita
 rejeitar
@@ -1329,6 +1429,7 @@ removendo
 removida
 removidas
 removido
+renderização
 repetidas
 repetitivos
 repositório
@@ -1375,6 +1476,8 @@ reutilizada
 reutilizaveis
 reutilizáveis
 reutilizável
+revisão
+Revisar
 riotgames
 risco
 robinhood
@@ -1412,6 +1515,8 @@ seguras
 seguro
 seguros
 sejam
+SELECIONADA
+seletivos
 seletor
 Selo
 semáforos
@@ -1451,6 +1556,9 @@ simultaneamente
 simultâneos
 sinal
 sincronização
+Sincronizado
+Sincronizar
+Singapura
 singleflight
 SISMEMBER
 SMEMBERS
@@ -1503,8 +1611,12 @@ talentos
 talvez
 tarefas
 técnica
+Técnicas
+técnico
+Tecnologias
 Tela
 telas
+teletrabalho
 tema
 temos
 temporária
@@ -1534,6 +1646,7 @@ tiver
 tocar
 tolerância
 topo
+tornou
 tráfego
 Tráfego
 transação
@@ -1544,6 +1657,7 @@ tratamento
 travar
 traz
 trazer
+três
 Triagem
 triar
 trilhas
@@ -1566,6 +1680,10 @@ unicas
 únicas
 único
 únicos
+unido
+Unido
+unidos
+Unidos
 unitários
 unitytechnologies
 unpic
@@ -1618,6 +1736,8 @@ vetorial
 vezes
 viagem
 vierem
+vinda
+vindas
 vindo
 vira
 vírgula
@@ -1638,5 +1758,7 @@ xpack
 xxhash
 yamlh
 yamlprivateh
+zelândia
+Zelândia
 zerados
 ZLDS

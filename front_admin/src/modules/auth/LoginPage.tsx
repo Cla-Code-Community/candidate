@@ -1,7 +1,7 @@
 import { Lock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { CandidateLogo } from "../../app/layouts/MainLayout/components/CandidateLogo";
 import { ErrorMessage } from "../../components/common/ErrorMessage";
+import { CandidateLogo } from "../../lib/ui/CandidateLogo";
 import { BrandPanel } from "./components/BrandPanel";
 import { LoginForm } from "./components/LoginForm";
 import { LoginHeader } from "./components/LoginHeader";
