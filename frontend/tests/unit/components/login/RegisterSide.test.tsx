@@ -8,6 +8,24 @@ const mockGetGithubAuthUrl = vi.fn();
 const mockGetLinkedinAuthUrl = vi.fn();
 const mockNavigate = vi.fn();
 
+function fillRequiredRegisterFields() {
+  fireEvent.change(screen.getByLabelText(/nome/i), {
+    target: { value: "Bene" },
+  });
+  fireEvent.change(screen.getByLabelText(/email/i), {
+    target: { value: "bene@teste.com" },
+  });
+  fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), {
+    target: { value: "+5534999999999" },
+  });
+  fireEvent.change(screen.getByLabelText(/senha/i), {
+    target: { value: "123456" },
+  });
+  fireEvent.change(screen.getByLabelText(/nível de experiência/i), {
+    target: { value: "pleno" },
+  });
+}
+
 vi.mock("@/domains/auth/infrastructure/authApi", () => ({
   register: (...args: any[]) => mockRegister(...args),
   getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
@@ -83,6 +101,7 @@ describe("RegisterSide", () => {
     expect(await screen.findByText(/campo de e-mail é obrigatório/i)).toBeInTheDocument();
     expect(await screen.findByText(/campo de telefone é obrigatório/i)).toBeInTheDocument();
     expect(await screen.findByText(/campo de senha é obrigatório/i)).toBeInTheDocument();
+    expect(await screen.findByText(/selecione seu nível/i)).toBeInTheDocument();
   });
 
   it("valida CPF inválido quando preenchido", async () => {
@@ -91,6 +110,7 @@ describe("RegisterSide", () => {
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "teste@email.com" } });
     fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
     fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
+    fireEvent.change(screen.getByLabelText(/nível de experiência/i), { target: { value: "pleno" } });
     fireEvent.change(screen.getByLabelText(/cpf/i), { target: { value: "123" } });
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     expect(await screen.findByText(/cpf inválido/i)).toBeInTheDocument();
@@ -99,34 +119,35 @@ describe("RegisterSide", () => {
   it("envia formulário válido sem CPF", async () => {
     mockRegister.mockResolvedValueOnce({ message: "Usuário criado" });
     render(<RegisterSide />);
-    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
-    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
-    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
+    fillRequiredRegisterFields();
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     await waitFor(() => {
       expect(mockRegister).toHaveBeenCalledWith({
         email: "bene@teste.com",
         password: "123456",
         name: "Bene",
+        phone: "+5534999999999",
+        cpf: undefined,
+        level: "pleno",
       });
     });
     expect(window.location.href).toBe("/login?registered=true");
   });
 
-  it("envia formulário válido como usuário (sem tecnologias/nível)", async () => {
+  it("envia formulário válido com CPF como usuário (sem tecnologias/nível)", async () => {
     mockRegister.mockResolvedValueOnce({ message: "Usuário criado" });
     render(<RegisterSide />);
-    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
-    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
-    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
+    fillRequiredRegisterFields();
+    fireEvent.change(screen.getByLabelText(/cpf/i), { target: { value: "12345678901" } });
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     await waitFor(() => {
       expect(mockRegister).toHaveBeenCalledWith({
         email: "bene@teste.com",
         password: "123456",
         name: "Bene",
+        phone: "+5534999999999",
+        cpf: "123.456.789-01",
+        level: "pleno",
       });
     });
   });
@@ -134,10 +155,7 @@ describe("RegisterSide", () => {
   it("exibe erro da API", async () => {
     mockRegister.mockRejectedValueOnce(new Error("Email já cadastrado"));
     render(<RegisterSide />);
-    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
-    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
-    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
+    fillRequiredRegisterFields();
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     expect(await screen.findByText(/Email já cadastrado/i)).toBeInTheDocument();
   });
@@ -145,10 +163,7 @@ describe("RegisterSide", () => {
   it("mostra loading durante requisição", async () => {
     mockRegister.mockImplementation(() => new Promise(() => {}));
     render(<RegisterSide />);
-    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Bene" } });
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "bene@teste.com" } });
-    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
-    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
+    fillRequiredRegisterFields();
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     expect(await screen.findByRole("button", { name: /cadastrando\.\.\./i })).toBeDisabled();
   });
@@ -169,16 +184,19 @@ describe("RegisterSide", () => {
     const emailInput = screen.getByLabelText(/email/i);
     const telefoneInput = screen.getByPlaceholderText(/\(34\)/i);
     const passwordInput = screen.getByLabelText(/senha/i);
+    const levelInput = screen.getByLabelText(/nível de experiência/i);
     fireEvent.change(nomeInput, { target: { value: "Bene" } });
     fireEvent.change(emailInput, { target: { value: "bene@teste.com" } });
     fireEvent.change(telefoneInput, { target: { value: "+5534999999999" } });
     fireEvent.change(passwordInput, { target: { value: "123456" } });
+    fireEvent.change(levelInput, { target: { value: "pleno" } });
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     await waitFor(() => {
       expect(nomeInput).toBeDisabled();
       expect(emailInput).toBeDisabled();
       expect(telefoneInput).toBeDisabled();
       expect(passwordInput).toBeDisabled();
+      expect(levelInput).toBeDisabled();
     });
   });
 

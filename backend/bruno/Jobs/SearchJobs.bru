@@ -5,12 +5,13 @@ meta {
 }
 
 get {
-  url: {{base_url}}/jobs/search?keywords=node.js
+  url: {{base_url}}/jobs/search?location=&keywords=node.js
   body: none
   auth: inherit
 }
 
 params:query {
+  location: 
   keywords: node.js
 }
 

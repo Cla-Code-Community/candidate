@@ -1,24 +1,3 @@
-// interface CandidateLogoProps {
-//   size?: "sm" | "md";
-// }
-
-// const SIZE_STYLES = {
-//   sm: "text-xl",
-//   md: "text-2xl",
-// };
-
-// export function CandidateLogo({ size = "md" }: CandidateLogoProps) {
-//   return (
-//     <span
-//       aria-label="Cand!Date!"
-//       className={`inline-flex items-baseline whitespace-nowrap font-extrabold tracking-normal ${SIZE_STYLES[size]}`}
-//     >
-//       <span className="text-[#2f6fff] dark:text-[##2D5CAB]">&lt;</span>
-//       <span className="text-slate-950 dark:text-slate-100">Cand!Date</span>
-//       <span className="text-[#2f6fff] dark:text-[#2D5CAB]">!&gt;</span>
-//     </span>
-//   );
-// }
 interface CandidateLogoProps {
   size?: "sm" | "md";
 }
@@ -30,8 +9,8 @@ const SIZE = {
     dot: "text-xs",
   },
   md: {
-    text: "text-2xl",
-    symbol: "text-lg",
+    text: "text-[28px]",
+    symbol: "text-[22px]",
     dot: "text-sm",
   },
 };
