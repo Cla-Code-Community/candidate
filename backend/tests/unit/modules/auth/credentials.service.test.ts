@@ -194,7 +194,8 @@ describe("CredentialsService", () => {
 
       const result = await service.login(loginInput);
 
-      expect(result.user).toEqual(mockUser);
+      expect(result.user).toMatchObject(mockUser);
+      expect(result.user).toHaveProperty("technologyExperiences");
       expect(result.session).toEqual({ userId: mockUser.id, role: "user" });
     });
 

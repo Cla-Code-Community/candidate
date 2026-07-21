@@ -5,14 +5,15 @@ meta {
 }
 
 get {
-  url: {{base_url}}/jobs/search?location=&keywords=node.js
+  url: {{base_url}}/jobs/search?location=Brasil&level=Junior
   body: none
   auth: inherit
 }
 
 params:query {
-  location: 
-  keywords: node.js
+  location: Brasil
+  level: Junior
+  ~keywords: 
 }
 
 headers {

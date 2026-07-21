@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
@@ -47,16 +48,25 @@ func handleScraperStatus(scheduler *cronjob.Scheduler) http.HandlerFunc {
 // Para o frontend, o Node.js lê direto do Valkey — esse endpoint é para uso administrativo.
 func handleGetJobs(js *jobstore.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		jobs, err := js.GetAll(r.Context())
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+		jobs, err := js.GetSample(r.Context(), limit)
 		if err != nil {
 			http.Error(w, "erro ao buscar vagas", http.StatusInternalServerError)
 			return
 		}
 
+		total := len(jobs)
+		if limit > 0 {
+			if count, countErr := js.Count(r.Context()); countErr == nil {
+				total = int(count)
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"jobs":  jobs,
-			"total": len(jobs),
+			"total": total,
 		})
 	}
 }

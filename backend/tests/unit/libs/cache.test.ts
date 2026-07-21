@@ -6,6 +6,9 @@ import {
   cacheDel,
   cacheGet,
   cacheGetJobsByIds,
+  cacheJobIndexKeys,
+  cacheClearJobs,
+  cacheSearchJobIds,
   cacheSearchKeywords,
   cacheSet,
   closeCache,
@@ -34,6 +37,8 @@ vi.mock("redis", () => {
     sMembers: vi.fn(),
     sCard: vi.fn(),
     sUnion: vi.fn(),
+    sendCommand: vi.fn(),
+    expire: vi.fn(),
     mGet: vi.fn(),
   };
   return {
@@ -156,15 +161,18 @@ describe("Valkey Cache Lib", () => {
       expect(result).toEqual([]);
     });
 
-    it("deve normalizar e buscar direto com SMembers se houver apenas uma keyword válida", async () => {
-      mockClientInstance.sMembers.mockResolvedValue(["job_1"]);
+    it("deve normalizar e buscar aliases de uma keyword válida", async () => {
+      mockClientInstance.sUnion.mockResolvedValue(["job_1"]);
 
       const result = await cacheSearchKeywords(["  UX/UI Designer  "]);
 
       // "UX/UI Designer" -> "ux ui designer"
-      expect(mockClientInstance.sMembers).toHaveBeenCalledWith(
+      expect(mockClientInstance.sUnion).toHaveBeenCalledWith([
         "scraper:jobs:keyword:ux ui designer",
-      );
+        "scraper:jobs:keyword:ux",
+        "scraper:jobs:keyword:ui",
+        "scraper:jobs:keyword:designer",
+      ]);
       expect(result).toEqual(["job_1"]);
     });
 
@@ -176,7 +184,106 @@ describe("Valkey Cache Lib", () => {
       expect(mockClientInstance.sUnion).toHaveBeenCalledWith([
         "scraper:jobs:keyword:go",
         "scraper:jobs:keyword:c#",
+        "scraper:jobs:keyword:c",
       ]);
+      expect(result).toEqual(["job_1", "job_2"]);
+    });
+  });
+
+  describe("cacheSearchJobIds", () => {
+    it("deve montar chaves normalizadas para filtros estruturados", () => {
+      expect(
+        cacheJobIndexKeys({
+          level: "Júnior",
+          location: "Brasil",
+          type: "Híbrido",
+          contract: "PJ",
+        }),
+      ).toEqual([
+        "scraper:jobs:level:junior",
+        "scraper:jobs:location:brasil",
+        "scraper:jobs:model:hibrido",
+        "scraper:jobs:contract:pj",
+      ]);
+    });
+
+    it("deve normalizar estágio/trainee para o índice interno de estágio", () => {
+      expect(cacheJobIndexKeys({ level: "Estágio/Trainee" })).toEqual([
+        "scraper:jobs:level:estagio",
+      ]);
+      expect(cacheJobIndexKeys({ level: "Trainee" })).toEqual([
+        "scraper:jobs:level:estagio",
+      ]);
+    });
+
+    it("deve usar índice global quando não houver keywords nem filtros", async () => {
+      mockClientInstance.sMembers.mockResolvedValue(["job_1"]);
+
+      const result = await cacheSearchJobIds({});
+
+      expect(mockClientInstance.sMembers).toHaveBeenCalledWith(
+        "scraper:jobs:index",
+      );
+      expect(result).toEqual(["job_1"]);
+    });
+
+    it("deve intersectar keyword única com filtros estruturados", async () => {
+      mockClientInstance.sendCommand.mockResolvedValue(["job_1"]);
+
+      const result = await cacheSearchJobIds({
+        keywords: ["Node.js"],
+        level: "Sênior",
+        country: "Brasil",
+        model: "Remoto",
+      });
+
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(1, [
+        "SUNIONSTORE",
+        expect.stringMatching(/^scraper:jobs:search:/),
+        "scraper:jobs:keyword:node.js",
+        "scraper:jobs:keyword:node js",
+        "scraper:jobs:keyword:nodejs",
+        "scraper:jobs:keyword:node",
+        "scraper:jobs:keyword:js",
+      ]);
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(2, [
+        "SINTER",
+        expect.stringMatching(/^scraper:jobs:search:/),
+        "scraper:jobs:level:senior",
+        "scraper:jobs:country:brasil",
+        "scraper:jobs:model:remoto",
+      ]);
+      expect(result).toEqual(["job_1"]);
+    });
+
+    it("deve criar união temporária para múltiplas keywords antes da interseção", async () => {
+      mockClientInstance.sendCommand
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(["job_1", "job_2"]);
+
+      const result = await cacheSearchJobIds({
+        keywords: ["React", "Node"],
+        type: "Remoto",
+      });
+
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(1, [
+        "SUNIONSTORE",
+        expect.stringMatching(/^scraper:jobs:search:/),
+        "scraper:jobs:keyword:react",
+        "scraper:jobs:keyword:node",
+      ]);
+      expect(mockClientInstance.expire).toHaveBeenCalledWith(
+        expect.stringMatching(/^scraper:jobs:search:/),
+        30,
+      );
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(2, [
+        "SINTER",
+        expect.stringMatching(/^scraper:jobs:search:/),
+        "scraper:jobs:model:remoto",
+      ]);
+      expect(mockClientInstance.del).toHaveBeenCalledWith(
+        expect.stringMatching(/^scraper:jobs:search:/),
+      );
       expect(result).toEqual(["job_1", "job_2"]);
     });
   });
@@ -205,6 +312,60 @@ describe("Valkey Cache Lib", () => {
       ]);
       // Deve filtrar o nulo e o JSON quebrado mantendo apenas os válidos
       expect(result).toEqual([{ title: "Go Dev" }, { title: "Rust Dev" }]);
+    });
+  });
+
+  describe("cacheClearJobs", () => {
+    it("deve remover payloads e índices de vagas por SCAN em lotes", async () => {
+      mockClientInstance.sendCommand
+        .mockResolvedValueOnce(["0", ["scraper:job:1", "scraper:job:2"]])
+        .mockResolvedValueOnce([
+          "0",
+          ["scraper:jobs:index", "scraper:jobs:keyword:node"],
+        ]);
+      mockClientInstance.del.mockResolvedValueOnce(2).mockResolvedValueOnce(2);
+
+      const result = await cacheClearJobs();
+
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(1, [
+        "SCAN",
+        "0",
+        "MATCH",
+        "scraper:job:*",
+        "COUNT",
+        "500",
+      ]);
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(2, [
+        "SCAN",
+        "0",
+        "MATCH",
+        "scraper:jobs:*",
+        "COUNT",
+        "500",
+      ]);
+      expect(mockClientInstance.del).toHaveBeenNthCalledWith(1, [
+        "scraper:job:1",
+        "scraper:job:2",
+      ]);
+      expect(mockClientInstance.del).toHaveBeenNthCalledWith(2, [
+        "scraper:jobs:index",
+        "scraper:jobs:keyword:node",
+      ]);
+      expect(result).toEqual({
+        deleted: 4,
+        patterns: ["scraper:job:*", "scraper:jobs:*"],
+      });
+    });
+
+    it("não deve chamar DEL quando o SCAN não encontrar chaves", async () => {
+      mockClientInstance.sendCommand
+        .mockResolvedValueOnce(["0", []])
+        .mockResolvedValueOnce(["0", []]);
+
+      const result = await cacheClearJobs();
+
+      expect(mockClientInstance.del).not.toHaveBeenCalled();
+      expect(result.deleted).toBe(0);
     });
   });
 });

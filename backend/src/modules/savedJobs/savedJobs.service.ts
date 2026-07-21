@@ -3,6 +3,7 @@ import { db } from "../../db/client";
 import { NewSavedJob, SavedJob, savedJobs } from "../../db/schema";
 import { DB } from "../../db/types/types";
 import { AppError } from "../../lib/errors";
+import { NotificationsService } from "../notifications/notifications.service";
 
 export class SavedJobsService {
   constructor(private readonly tx: DB = db) {}
@@ -37,6 +38,7 @@ export class SavedJobsService {
       .insert(savedJobs)
       .values({ ...data, userId })
       .returning();
+    await new NotificationsService(this.tx).createForSavedJob(userId, result[0]);
     return result[0];
   }
 
@@ -45,6 +47,11 @@ export class SavedJobsService {
     jobId: string,
     data: Partial<NewSavedJob>,
   ): Promise<SavedJob> {
+    const previous = await this.getById(userId, jobId);
+    if (!previous) {
+      throw AppError.notFound("Vaga não encontrada");
+    }
+
     const result = await this.tx
       .update(savedJobs)
       .set({ ...data, updatedAt: new Date() })
@@ -54,6 +61,11 @@ export class SavedJobsService {
     if (!result[0]) {
       throw AppError.notFound("Vaga não encontrada");
     }
+    await new NotificationsService(this.tx).createForJobStatusChange(
+      userId,
+      previous,
+      result[0],
+    );
     return result[0];
   }
 

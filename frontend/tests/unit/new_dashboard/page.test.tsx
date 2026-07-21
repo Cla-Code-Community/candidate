@@ -39,6 +39,15 @@ vi.mock("@/domains/new_dashboard/hooks/useDashboardJobs", () => ({
   useDashboardJobs: () => mockUseDashboardJobs(),
 }));
 
+vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+  getDashboardNotificationFeed: vi.fn().mockResolvedValue({
+    messages: [],
+    notifications: [],
+    unreadCount: 0,
+  }),
+  markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
+}));
+
 function renderPage(pathname: string) {
   return render(
     <MemoryRouter initialEntries={[pathname]}>
@@ -121,6 +130,10 @@ describe("NewDashboardPage", () => {
         phone: "(11) 99999-9999",
         level: "Pleno",
         technologies: ["React", "TypeScript"],
+        technologyExperiences: [
+          { name: "React", years: 5 },
+          { name: "TypeScript", years: 4 },
+        ],
       },
       setUserProfile: vi.fn(),
       searchPreferences: {
@@ -128,6 +141,7 @@ describe("NewDashboardPage", () => {
         searchLocation: "Brasil",
         remoteOnly: false,
         emailNotifications: true,
+        careerChecklist: [],
       },
       setSearchPreferences: vi.fn(),
       isLoadingUserData: false,
@@ -210,13 +224,71 @@ describe("NewDashboardPage", () => {
     expect(dashboardJobsState.changeRecommendationsPage).toHaveBeenCalled();
   });
 
-  it("usa as keywords preferidas quando a busca está vazia", () => {
+  it("calcula o match das vagas com base nas tecnologias do perfil", () => {
+    dashboardJobsState.recommendedJobs = [
+      {
+        id: "job-match",
+        jobTitle: "Frontend React Developer",
+        company: "ACME",
+        location: "Brasil",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Pleno",
+        matchScore: 70,
+        tags: ["React"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/match",
+        source: "LinkedIn",
+        notes: "",
+        rawPayload: {
+          description: "Aplicação com React, TypeScript e design system.",
+        },
+      },
+    ];
+
+    renderPage("/vagas");
+
+    expect(screen.getByText("98%")).toBeInTheDocument();
+    expect(screen.getByText("98%")).toHaveAttribute(
+      "title",
+      "Tecnologias em comum: React, TypeScript",
+    );
+  });
+
+  it("envia filtros estruturados de localização para recomendações", () => {
+    renderPage("/vagas");
+
+    const [typeSelect, levelSelect, continentSelect, countrySelect] =
+      screen.getAllByRole("combobox");
+
+    fireEvent.change(typeSelect, { target: { value: "Híbrido" } });
+    fireEvent.change(levelSelect, { target: { value: "Sênior" } });
+    fireEvent.change(continentSelect, { target: { value: "América do Sul" } });
+    fireEvent.change(countrySelect, { target: { value: "Brasil" } });
+    fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
+
+    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
+      [],
+      {
+        type: "Híbrido",
+        model: "Híbrido",
+        level: "Sênior",
+        continent: "América do Sul",
+        country: "Brasil",
+        location: "Brasil",
+      },
+      1,
+    );
+  });
+
+  it("busca sem keywords quando o campo de busca está vazio", () => {
     renderPage("/vagas");
 
     fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
 
     expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
-      ["React"],
+      [],
       {},
       1,
     );

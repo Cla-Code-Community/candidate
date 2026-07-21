@@ -14,6 +14,9 @@ const ApiSearchJobSchema = z
     modality: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
     url: z.string().nullable().optional(),
+    matchScore: z.number().int().min(0).max(100).nullable().optional(),
+    matchSource: z.string().nullable().optional(),
+    matchedTechnologies: z.array(z.string()).nullable().optional(),
   })
   .passthrough();
 
@@ -50,7 +53,11 @@ type SearchJobsResponse = z.infer<typeof SearchJobsResponseSchema>;
 export type SearchJobFilters = {
   level?: string;
   location?: string;
+  continent?: string;
+  country?: string;
   type?: string;
+  model?: string;
+  contract?: string;
 };
 
 export type SearchJobsResult = {
@@ -101,12 +108,50 @@ function inferTypeFromText(value: string): JobType {
   return "Presencial";
 }
 
+function containsTokenOrPhrase(text: string, needle: string) {
+  if (needle.includes(" ")) return text.includes(needle);
+  return ` ${text} `.includes(` ${needle} `);
+}
+
+function containsAny(text: string, needles: string[]) {
+  return needles.some((needle) => containsTokenOrPhrase(text, needle));
+}
+
 function inferLevel(title: string): JobLevel {
-  const normalized = title.toLowerCase();
-  if (normalized.includes("sênior") || normalized.includes("senior")) {
+  const normalized = normalizeComparable(title).replace(/[^\p{L}\p{N}]+/gu, " ");
+
+  if (
+    containsAny(normalized, [
+      "estagio",
+      "estagiario",
+      "intern",
+      "internship",
+      "trainee",
+      "aprendiz",
+    ])
+  ) {
+    return "Estágio/Trainee";
+  }
+  if (
+    containsAny(normalized, [
+      "senior",
+      "sr",
+      "especialista",
+      "lead",
+      "principal",
+      "staff",
+    ])
+  ) {
     return "Sênior";
   }
-  if (normalized.includes("júnior") || normalized.includes("junior")) {
+  if (
+    containsAny(normalized, [
+      "junior",
+      "jr",
+      "entry level",
+      "assistente",
+    ])
+  ) {
     return "Júnior";
   }
   return "Pleno";
@@ -167,7 +212,10 @@ export function toRecommendedJob(job: ApiSearchJob, index: number): Job {
         .join(" "),
     ),
     level: inferLevel(title),
-    matchScore: stableMatchScore(`${title}:${job.company ?? ""}`),
+    matchScore:
+      typeof job.matchScore === "number"
+        ? job.matchScore
+        : stableMatchScore(`${title}:${job.company ?? ""}`),
     tags: tags.length > 0 ? tags : ["Geral"],
     posted: "Encontrada recentemente",
     status: "saved",
@@ -236,7 +284,11 @@ export async function searchDashboardJobs(
         : {}),
       ...(filters.level ? { level: filters.level } : {}),
       ...(filters.location ? { location: filters.location } : {}),
+      ...(filters.continent ? { continent: filters.continent } : {}),
+      ...(filters.country ? { country: filters.country } : {}),
       ...(filters.type ? { type: filters.type } : {}),
+      ...(filters.model ? { model: filters.model } : {}),
+      ...(filters.contract ? { contract: filters.contract } : {}),
       page,
       limit,
     },

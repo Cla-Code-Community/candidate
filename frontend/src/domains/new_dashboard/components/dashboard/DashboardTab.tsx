@@ -1,10 +1,10 @@
 import { BriefcaseBusiness, Plus } from "lucide-react";
-import type { Job, JobStatus } from "../../types";
+import type { Job, JobStatus, TechnologyExperience } from "../../types";
 import { KanbanBoard } from "./KanbanBoard";
 
 interface DashboardTabProps {
   jobs: Job[];
-  technologies: string[];
+  technologies: TechnologyExperience[];
   onOpenJob: (job: Job) => void;
   onStatusChange: (jobId: string, status: JobStatus) => void;
   onAddJob?: () => void;
@@ -41,6 +41,16 @@ export function DashboardTab({
       color: "bg-amber-500",
     },
   ];
+
+  function proficiencyPercent(years: number) {
+    if (years <= 0) return 15;
+    if (years < 1) return 25;
+    if (years < 2) return 40;
+    if (years < 3) return 55;
+    if (years < 5) return 70;
+    if (years < 8) return 85;
+    return 95;
+  }
 
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-8 px-6 py-8 lg:px-8">
@@ -109,19 +119,21 @@ export function DashboardTab({
         <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
           <h2 className="font-bold">Minhas Habilidades Técnicas</h2>
           <div className="mt-5 space-y-4">
-            {technologies.slice(0, 5).map((tech, index) => {
-              const percent = 95 - index * 10;
+            {technologies.map((tech) => {
+              const percent = proficiencyPercent(tech.years);
 
               return (
-                <div key={tech} className="grid grid-cols-[120px_minmax(0,1fr)_48px] items-center gap-3 text-xs">
-                  <span className="truncate font-semibold">{tech}</span>
+                <div key={tech.name} className="grid grid-cols-[120px_minmax(0,1fr)_84px] items-center gap-3 text-xs">
+                  <span className="truncate font-semibold">{tech.name}</span>
                   <div className="h-3 overflow-hidden rounded-full border border-border bg-muted">
                     <div
                       className="h-full rounded-full bg-primary"
                       style={{ width: `${percent}%` }}
                     />
                   </div>
-                  <span className="text-right font-bold">{percent}%</span>
+                  <span className="text-right font-bold">
+                    {percent}% · {tech.years}a
+                  </span>
                 </div>
               );
             })}

@@ -1,8 +1,10 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider, useDashboardTheme } from "@/domains/new_dashboard/context/ThemeContext";
 import { ToastProvider, useToastContext } from "@/domains/new_dashboard/context/ToastContext";
+import { Toast } from "@/domains/new_dashboard/components/shared/Toast";
+import { ThemeToggle } from "@/shared/ui/theme-toggle";
 
 const mockUseTheme = vi.fn();
 
@@ -97,9 +99,30 @@ describe("new_dashboard theme and toast contexts", () => {
     expect(screen.queryByText("Mensagem temporária")).not.toBeInTheDocument();
   });
 
+  it("não renderiza toast sem mensagem", () => {
+    const { container } = render(<Toast message="" />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   it("lança erro quando o contexto de toast é usado fora do provider", () => {
     expect(() => render(<ToastHookConsumer />)).toThrow(
       /useToastContext must be used within ToastProvider/i,
     );
+  });
+
+  it("renderiza toggle de tema compartilhado nos estados claro e escuro", () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(
+      <ThemeToggle theme="light" onToggle={onToggle} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /ativar tema escuro/i }));
+    expect(onToggle).toHaveBeenCalledOnce();
+
+    rerender(<ThemeToggle theme="dark" onToggle={onToggle} />);
+    expect(
+      screen.getByRole("button", { name: /ativar tema claro/i }),
+    ).toBeInTheDocument();
   });
 });

@@ -15,6 +15,7 @@ export function ProfileForm({
   onSave,
 }: ProfileFormProps) {
   const [technology, setTechnology] = useState("");
+  const [technologyYears, setTechnologyYears] = useState(1);
   const initials = userProfile.displayName
     .trim()
     .split(/\s|[._-]/)
@@ -34,6 +35,18 @@ export function ProfileForm({
       technologies: current.technologies.filter(
         (item) => item !== technologyToRemove,
       ),
+      technologyExperiences: current.technologyExperiences.filter(
+        (item) => item.name !== technologyToRemove,
+      ),
+    }));
+  };
+
+  const updateTechnologyYears = (technologyName: string, years: number) => {
+    setUserProfile((current) => ({
+      ...current,
+      technologyExperiences: current.technologyExperiences.map((item) =>
+        item.name === technologyName ? { ...item, years } : item,
+      ),
     }));
   };
 
@@ -46,8 +59,21 @@ export function ProfileForm({
       technologies: current.technologies.includes(nextTechnology)
         ? current.technologies
         : [...current.technologies, nextTechnology],
+      technologyExperiences: current.technologyExperiences.some(
+        (item) => item.name === nextTechnology,
+      )
+        ? current.technologyExperiences.map((item) =>
+            item.name === nextTechnology
+              ? { ...item, years: technologyYears }
+              : item,
+          )
+        : [
+            ...current.technologyExperiences,
+            { name: nextTechnology, years: technologyYears },
+          ],
     }));
     setTechnology("");
+    setTechnologyYears(1);
   };
 
   return (
@@ -130,12 +156,33 @@ export function ProfileForm({
           Tecnologias de domínio
         </span>
         <div className="mt-3 flex flex-wrap gap-2">
-          {userProfile.technologies.map((item) => (
+          {userProfile.technologies.map((item) => {
+            const experience = userProfile.technologyExperiences.find(
+              (skill) => skill.name === item,
+            );
+
+            return (
             <span
               key={item}
-              className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-bold text-primary dark:text-emerald-400"
+              className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-bold text-primary dark:text-emerald-400"
             >
               {item}
+              <input
+                type="number"
+                min={0}
+                max={50}
+                step={0.5}
+                value={experience?.years ?? 1}
+                onChange={(event) =>
+                  updateTechnologyYears(
+                    item,
+                    Number(event.target.value) || 0,
+                  )
+                }
+                aria-label={`Anos de experiência em ${item}`}
+                className="h-6 w-14 rounded-md border border-primary/20 bg-background px-2 text-[11px] text-foreground outline-none"
+              />
+              <span className="font-semibold opacity-80">anos</span>
               <button
                 type="button"
                 onClick={() => removeTechnology(item)}
@@ -145,14 +192,27 @@ export function ProfileForm({
                 ×
               </button>
             </span>
-          ))}
+            );
+          })}
         </div>
-        <div className="mt-3 flex max-w-xl gap-2">
+        <div className="mt-3 grid max-w-2xl gap-2 sm:grid-cols-[minmax(0,1fr)_120px_auto]">
           <input
             value={technology}
             onChange={(event) => setTechnology(event.target.value)}
             placeholder="Adicionar tecnologia..."
             className="h-10 flex-1 rounded-lg border border-input bg-background px-4 text-sm outline-none focus:border-ring"
+          />
+          <input
+            type="number"
+            min={0}
+            max={50}
+            step={0.5}
+            value={technologyYears}
+            onChange={(event) =>
+              setTechnologyYears(Number(event.target.value) || 0)
+            }
+            aria-label="Anos de experiência da nova tecnologia"
+            className="h-10 rounded-lg border border-input bg-background px-3 text-sm outline-none focus:border-ring"
           />
           <button
             type="button"

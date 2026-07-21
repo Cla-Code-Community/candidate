@@ -1,6 +1,6 @@
 import { ClipboardList } from "lucide-react";
 import { jobStatuses } from "../../constants";
-import type { Job, UserProfile } from "../../types";
+import type { CareerChecklist as CareerChecklistList, Job, UserProfile } from "../../types";
 import { CareerChecklist } from "./CareerChecklist";
 import { StatusCounters } from "./StatusCounters";
 import { WelcomeBanner } from "./WelcomeBanner";
@@ -8,10 +8,18 @@ import { WelcomeBanner } from "./WelcomeBanner";
 interface HomeTabProps {
   userProfile: UserProfile;
   jobs: Job[];
+  careerChecklist?: CareerChecklistList[];
+  onCareerChecklistChange?: (lists: CareerChecklistList[]) => void;
   onExploreJobs: () => void;
 }
 
-export function HomeTab({ userProfile, jobs, onExploreJobs }: HomeTabProps) {
+export function HomeTab({
+  userProfile,
+  jobs,
+  careerChecklist,
+  onCareerChecklistChange,
+  onExploreJobs,
+}: HomeTabProps) {
   const recentJobs = jobs.slice(0, 5);
 
   return (
@@ -23,7 +31,10 @@ export function HomeTab({ userProfile, jobs, onExploreJobs }: HomeTabProps) {
       />
       <StatusCounters jobs={jobs} />
       <div className="grid gap-4 lg:grid-cols-2">
-        <CareerChecklist />
+        <CareerChecklist
+          lists={careerChecklist}
+          onChange={onCareerChecklistChange}
+        />
         <section className="rounded-2xl border border-border bg-card px-6 py-5 shadow-sm">
           <div className="flex items-start gap-3">
             <ClipboardList className="mt-1 h-5 w-5 shrink-0 text-primary" />

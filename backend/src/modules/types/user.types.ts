@@ -17,6 +17,9 @@ export type UpdateProfileData = Partial<
     | "phone"
     | "cpf"
     | "technologies"
+    | "technologyExperiencesEncrypted"
     | "level"
   >
->;
+> & {
+  technologyExperiences?: Array<{ name: string; years: number }> | null;
+};

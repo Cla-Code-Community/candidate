@@ -1,5 +1,5 @@
 import { useAuth } from "@/domains/auth/application/AuthContext";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DashboardTab } from "./components/dashboard/DashboardTab";
 import { HelpTab } from "./components/help/HelpTab";
@@ -16,9 +16,12 @@ import { jobStatuses } from "./constants";
 import { useDashboardJobs } from "./hooks/useDashboardJobs";
 import { useUserDashboardData } from "./hooks/useUserDashboardData";
 import type {
+  CareerChecklist,
+  Job,
   JobStatus,
   NewJob,
   SearchPreferences,
+  TechnologyExperience,
   UserProfile,
 } from "./types";
 import {
@@ -36,6 +39,109 @@ function getSection(pathname: string) {
   return "home";
 }
 
+function normalizeMatchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function matchAliases(technology: string) {
+  const normalized = normalizeMatchText(technology);
+  const aliases = new Set([normalized]);
+
+  if (normalized.endsWith(" js")) {
+    aliases.add(normalized.replace(/\s+js$/, "js"));
+  }
+  if (normalized.endsWith("js") && normalized.length > 2) {
+    aliases.add(normalized.replace(/js$/, " js"));
+  }
+
+  return [...aliases].filter(Boolean);
+}
+
+function textMatchesAlias(text: string, alias: string) {
+  if (!alias) return false;
+  if (alias.includes(" ")) return text.includes(alias);
+  return ` ${text} `.includes(` ${alias} `);
+}
+
+function jobMatchText(job: Job) {
+  const rawPayload = job.rawPayload ?? {};
+  const rawValues = Object.values(rawPayload).flatMap((value) =>
+    Array.isArray(value) ? value : [value],
+  );
+
+  return normalizeMatchText(
+    [
+      job.jobTitle,
+      job.company,
+      job.location,
+      job.type,
+      job.level,
+      job.tags.join(" "),
+      ...rawValues.map((value) => (typeof value === "string" ? value : "")),
+    ].join(" "),
+  );
+}
+
+function scoreJobWithTechnologies(
+  job: Job,
+  technologies: TechnologyExperience[],
+): Job {
+  if (job.rawPayload?.matchSource === "backend_profile") return job;
+
+  const normalizedTechnologies = [
+    ...new Set(
+      technologies
+        .filter((technology) => technology.name.trim())
+        .map((technology) => ({
+          name: technology.name.trim(),
+          years: Math.max(0, technology.years),
+        })),
+    ),
+  ];
+  if (normalizedTechnologies.length === 0) return job;
+
+  const text = jobMatchText(job);
+  const matchedTechnologies = normalizedTechnologies.filter((technology) =>
+    matchAliases(technology.name).some((alias) =>
+      textMatchesAlias(text, alias),
+    ),
+  );
+
+  const totalWeight = normalizedTechnologies.reduce(
+    (total, technology) => total + Math.max(1, technology.years),
+    0,
+  );
+  const matchedWeight = matchedTechnologies.reduce(
+    (total, technology) => total + Math.max(1, technology.years),
+    0,
+  );
+  const coverage = matchedWeight / totalWeight;
+  const score =
+    matchedTechnologies.length === 0
+      ? 45
+      : Math.min(
+          99,
+          55 +
+            Math.round(coverage * 35) +
+            Math.min(matchedTechnologies.length * 4, 9),
+        );
+
+  return {
+    ...job,
+    matchScore: score,
+    rawPayload: {
+      ...(job.rawPayload ?? {}),
+      matchedTechnologies: matchedTechnologies.map((item) => item.name),
+    },
+  };
+}
+
 export default function NewDashboardPage() {
   const { user, refreshUser } = useAuth();
   const location = useLocation();
@@ -50,6 +156,7 @@ export default function NewDashboardPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const checklistSaveTimeout = useRef<number | null>(null);
   const showToast = useCallback((message: string) => setToast(message), []);
   const {
     userProfile,
@@ -74,8 +181,22 @@ export default function NewDashboardPage() {
     saveJobNotes,
   } = useDashboardJobs(user, { onError: showToast });
 
+  const matchedTrackedJobs = useMemo(
+    () =>
+      trackedJobs.map((job) =>
+        scoreJobWithTechnologies(job, userProfile.technologyExperiences),
+      ),
+    [trackedJobs, userProfile.technologyExperiences],
+  );
+  const matchedRecommendedJobs = useMemo(
+    () =>
+      recommendedJobs.map((job) =>
+        scoreJobWithTechnologies(job, userProfile.technologyExperiences),
+      ),
+    [recommendedJobs, userProfile.technologyExperiences],
+  );
   const selectedJob =
-    [...trackedJobs, ...recommendedJobs].find(
+    [...matchedTrackedJobs, ...matchedRecommendedJobs].find(
       (job) => job.id === selectedJobId,
     ) ?? null;
   const section = getSection(location.pathname);
@@ -85,6 +206,15 @@ export default function NewDashboardPage() {
     const timeout = window.setTimeout(() => setToast(""), 3000);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(
+    () => () => {
+      if (checklistSaveTimeout.current) {
+        window.clearTimeout(checklistSaveTimeout.current);
+      }
+    },
+    [],
+  );
 
   const handleSaveProfile = async (profile: UserProfile) => {
     try {
@@ -104,6 +234,28 @@ export default function NewDashboardPage() {
       // O hook já notificou a falha preservando as preferências editadas.
     }
   };
+
+  const handleCareerChecklistChange = useCallback(
+    (careerChecklist: CareerChecklist[]) => {
+      const nextPreferences = {
+        ...searchPreferences,
+        careerChecklist,
+      };
+
+      setSearchPreferences(nextPreferences);
+
+      if (checklistSaveTimeout.current) {
+        window.clearTimeout(checklistSaveTimeout.current);
+      }
+
+      checklistSaveTimeout.current = window.setTimeout(() => {
+        void saveSearchPreferences(nextPreferences).catch(() => {
+          // O hook já publica a mensagem de erro para o usuário.
+        });
+      }, 600);
+    },
+    [saveSearchPreferences, searchPreferences, setSearchPreferences],
+  );
 
   const handleStatusChange = async (jobId: string, status: JobStatus) => {
     try {
@@ -142,32 +294,6 @@ export default function NewDashboardPage() {
     }
   };
 
-  // const buildRecommendationSearch = () => {
-  //   const typedKeywords = parseSearchKeywords(searchQuery);
-  //   const filters = {
-  //     ...(filterLevel !== "Todos" ? { level: filterLevel } : {}),
-  //     ...(filterType !== "Todos" ? { type: filterType } : {}),
-  //     ...(countryFilter !== "Todos" ? { location: countryFilter } : {}),
-  //   };
-
-  //   return {
-  //     keywords:
-  //       typedKeywords.length > 0 ? typedKeywords : searchPreferences.keywords,
-  //     filters,
-  //   };
-  // };
-
-  // const handleSearchJobs = async () => {
-  //   try {
-  //     const { keywords, filters } = buildRecommendationSearch();
-
-  //     await refreshRecommendations(keywords, filters, 1);
-  //     showToast("Vagas recomendadas atualizadas.");
-  //   } catch {
-  //     // A camada de dados já apresentou o erro retornado pela API.
-  //   }
-  // };
-
   const handleRecommendationPageChange = async (page: number) => {
     try {
       await changeRecommendationsPage(page);
@@ -180,13 +306,17 @@ export default function NewDashboardPage() {
     const typedKeywords = parseSearchKeywords(searchQuery);
     const filters = {
       ...(filterLevel !== "Todos" ? { level: filterLevel } : {}),
-      ...(filterType !== "Todos" ? { type: filterType } : {}),
-      ...(countryFilter !== "Todos" ? { location: countryFilter } : {}),
+      ...(filterType !== "Todos"
+        ? { type: filterType, model: filterType }
+        : {}),
+      ...(continentFilter !== "Todos" ? { continent: continentFilter } : {}),
+      ...(countryFilter !== "Todos"
+        ? { country: countryFilter, location: countryFilter }
+        : {}),
     };
 
     return {
-      keywords:
-        typedKeywords.length > 0 ? typedKeywords : searchPreferences.keywords,
+      keywords: typedKeywords,
       filters,
     };
   };
@@ -201,6 +331,7 @@ export default function NewDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     countryFilter,
+    continentFilter,
     filterLevel,
     filterType,
     refreshRecommendations,
@@ -224,7 +355,14 @@ export default function NewDashboardPage() {
 
     return () => window.clearTimeout(timeoutId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, filterType, filterLevel, countryFilter, section]);
+  }, [
+    searchQuery,
+    filterType,
+    filterLevel,
+    continentFilter,
+    countryFilter,
+    section,
+  ]);
 
   const handleRecommendationPageSizeChange = async (limit: number) => {
     try {
@@ -240,8 +378,8 @@ export default function NewDashboardPage() {
       case "dashboard":
         return (
           <DashboardTab
-            jobs={trackedJobs}
-            technologies={userProfile.technologies}
+            jobs={matchedTrackedJobs}
+            technologies={userProfile.technologyExperiences}
             onOpenJob={(job) => setSelectedJobId(job.id)}
             onStatusChange={handleStatusChange}
             onAddJob={() => setIsAddJobOpen(true)}
@@ -250,7 +388,7 @@ export default function NewDashboardPage() {
       case "vagas":
         return (
           <JobTab
-            jobs={recommendedJobs}
+            jobs={matchedRecommendedJobs}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             filterType={filterType}
@@ -294,6 +432,8 @@ export default function NewDashboardPage() {
           <HomeTab
             userProfile={userProfile}
             jobs={trackedJobs}
+            careerChecklist={searchPreferences.careerChecklist}
+            onCareerChecklistChange={handleCareerChecklistChange}
             onExploreJobs={() => navigate("/vagas")}
           />
         );

@@ -63,7 +63,7 @@ describe("findUserByProvider", () => {
       { provider: "github", providerAccountId: "gh-abc" },
       tx as any,
     );
-    expect(result).toEqual(mockUser);
+    expect(result).toMatchObject(mockUser);
   });
 
   it("retorna null quando account nao existe", async () => {
@@ -116,7 +116,8 @@ describe("findUserByEmail", () => {
   it("retorna o usuario quando email existe", async () => {
     const tx = makeTx(undefined, mockUser);
     const result = await findUserByEmail("user@example.com", tx as any);
-    expect(result).toEqual(mockUser);
+    expect(result).toMatchObject(mockUser);
+    expect(result).toHaveProperty("technologyExperiences");
   });
 
   it("retorna undefined quando email nao existe", async () => {
@@ -136,6 +137,7 @@ describe("findUserByEmail", () => {
 
     const result = await findUserByEmail("user@example.com");
 
-    expect(result).toEqual(mockUser);
+    expect(result).toMatchObject(mockUser);
+    expect(result).toHaveProperty("technologyExperiences");
   });
 });
