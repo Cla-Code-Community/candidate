@@ -420,6 +420,7 @@ describe("new_dashboard api adapters", () => {
           keywords: ["React"],
           searchLocation: "Lisboa",
           remoteOnly: true,
+          jobTypes: ["Remoto"],
           emailNotifications: false,
           careerChecklist: [],
         },
@@ -473,6 +474,7 @@ describe("new_dashboard api adapters", () => {
           keywords: ["React"],
           searchLocation: "Brasil",
           remoteOnly: true,
+          jobTypes: ["Remoto"],
           emailNotifications: true,
           careerChecklist: [],
         },
@@ -494,6 +496,7 @@ describe("new_dashboard api adapters", () => {
       keywords: ["React"],
       searchLocation: "Brasil",
       remoteOnly: true,
+      jobTypes: ["Remoto"],
       emailNotifications: true,
       careerChecklist: [],
     });
@@ -509,6 +512,7 @@ describe("new_dashboard api adapters", () => {
       "/users/preferences",
       expect.objectContaining({
         searchLocation: "Brasil",
+        jobTypes: ["Remoto"],
         careerChecklist: [],
       }),
     );
