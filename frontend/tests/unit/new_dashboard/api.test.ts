@@ -20,6 +20,7 @@ import {
   updateDashboardSavedJob,
 } from "@/domains/new_dashboard/infrastructure/dashboardJobsApi";
 import {
+  clearDashboardNotifications,
   getDashboardNotificationFeed as getNotificationFeed,
   markDashboardNotificationsRead as markNotificationsRead,
 } from "@/domains/new_dashboard/infrastructure/notificationsApi";
@@ -74,6 +75,7 @@ describe("new_dashboard api adapters", () => {
         level: "Pleno",
         continent: "América do Sul",
         country: "Brasil",
+        matchSort: "desc",
       },
       3,
       25,
@@ -86,6 +88,7 @@ describe("new_dashboard api adapters", () => {
         level: "Pleno",
         continent: "América do Sul",
         country: "Brasil",
+        matchSort: "desc",
         page: 3,
         limit: 25,
       },
@@ -148,6 +151,7 @@ describe("new_dashboard api adapters", () => {
     const notifications = await getNotificationFeed("notification");
     const messages = await getNotificationFeed("message");
     await markNotificationsRead("notification");
+    await clearDashboardNotifications("notification");
 
     expect(notifications).toMatchObject({
       unreadCount: 2,
@@ -173,6 +177,9 @@ describe("new_dashboard api adapters", () => {
       null,
       { params: { channel: "notification" } },
     );
+    expect(apiMock.delete).toHaveBeenCalledWith("/notifications", {
+      params: { channel: "notification" },
+    });
   });
 
   it("normaliza tipos, origens e datas do feed de notificações", async () => {

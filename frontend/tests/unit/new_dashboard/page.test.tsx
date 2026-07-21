@@ -46,6 +46,7 @@ vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
     unreadCount: 0,
   }),
   markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
+  clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderPage(pathname: string) {
@@ -162,10 +163,10 @@ describe("NewDashboardPage", () => {
       screen.getByRole("heading", { name: /que bom te ver de volta/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/frontend developer/i)).toBeInTheDocument();
-    expect(screen.getByText(/candidaturas recentes/i)).toBeInTheDocument();
+    expect(screen.getByText(/vagas salvas recentes/i)).toBeInTheDocument();
   });
 
-  it("renderiza o dashboard de candidaturas", () => {
+  it("renderiza o dashboard de vagas", () => {
     renderPage("/dashboard");
 
     expect(screen.getByRole("heading", { name: /gerenciar vagas/i })).toBeInTheDocument();
@@ -220,8 +221,78 @@ describe("NewDashboardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
     fireEvent.click(screen.getByRole("button", { name: /próxima página/i }));
 
-    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalled();
-    expect(dashboardJobsState.changeRecommendationsPage).toHaveBeenCalled();
+    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
+      ["node.js"],
+      {},
+      2,
+      50,
+    );
+    expect(dashboardJobsState.changeRecommendationsPage).not.toHaveBeenCalled();
+  });
+
+  it("mantém a ordenação por match ao trocar de página", () => {
+    renderPage("/vagas");
+
+    fireEvent.change(screen.getByDisplayValue("Match (padrão)"), {
+      target: { value: "desc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /próxima página/i }));
+
+    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
+      [],
+      { matchSort: "desc" },
+      2,
+      50,
+    );
+  });
+
+  it("mantém a ordem recebida do backend ao selecionar match", () => {
+    dashboardJobsState.recommendedJobs = [
+      {
+        id: "job-low",
+        jobTitle: "Vaga menor match",
+        company: "ACME",
+        location: "Brasil",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Pleno",
+        matchScore: 45,
+        tags: ["React"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/low",
+        source: "LinkedIn",
+        notes: "",
+        rawPayload: { matchSource: "backend_profile" },
+      },
+      {
+        id: "job-high",
+        jobTitle: "Vaga maior match",
+        company: "Globex",
+        location: "Brasil",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Pleno",
+        matchScore: 98,
+        tags: ["React"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/high",
+        source: "Gupy",
+        notes: "",
+        rawPayload: { matchSource: "backend_profile" },
+      },
+    ];
+
+    renderPage("/vagas");
+
+    fireEvent.change(screen.getByDisplayValue("Match (padrão)"), {
+      target: { value: "desc" },
+    });
+
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("Vaga menor match");
+    expect(rows[1]).toHaveTextContent("Vaga maior match");
   });
 
   it("calcula o match das vagas com base nas tecnologias do perfil", () => {
@@ -259,13 +330,20 @@ describe("NewDashboardPage", () => {
   it("envia filtros estruturados de localização para recomendações", () => {
     renderPage("/vagas");
 
-    const [typeSelect, levelSelect, continentSelect, countrySelect] =
+    const [
+      typeSelect,
+      levelSelect,
+      continentSelect,
+      countrySelect,
+      matchSortSelect,
+    ] =
       screen.getAllByRole("combobox");
 
     fireEvent.change(typeSelect, { target: { value: "Híbrido" } });
     fireEvent.change(levelSelect, { target: { value: "Sênior" } });
     fireEvent.change(continentSelect, { target: { value: "América do Sul" } });
     fireEvent.change(countrySelect, { target: { value: "Brasil" } });
+    fireEvent.change(matchSortSelect, { target: { value: "desc" } });
     fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
 
     expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
@@ -277,6 +355,7 @@ describe("NewDashboardPage", () => {
         continent: "América do Sul",
         country: "Brasil",
         location: "Brasil",
+        matchSort: "desc",
       },
       1,
     );

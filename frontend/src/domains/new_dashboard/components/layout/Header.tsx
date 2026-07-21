@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { initialMessages, initialNotifications } from "../../constants";
 import {
+  clearDashboardNotifications,
   getDashboardNotificationFeed,
   markDashboardNotificationsRead,
 } from "../../infrastructure/notificationsApi";
@@ -50,7 +51,7 @@ export function Header({
 
   const routeTitles: Array<{ path: string; title: string }> = [
     { path: "/home", title: "Início" },
-    { path: "/dashboard", title: "Métricas & Candidaturas" },
+    { path: "/dashboard", title: "Métricas & Vagas" },
     { path: "/vagas", title: "Vagas" },
     { path: "/mentoria", title: "Mentoria" },
     { path: "/perfil", title: "Meu Perfil Profissional" },
@@ -305,11 +306,10 @@ export function Header({
                   type="button"
                   onClick={() => {
                     setUnreadCount(0);
-                    void markDashboardNotificationsRead("notification").catch(
-                      () => {
-                        // A leitura local já foi aplicada; a próxima carga reconcilia.
-                      },
-                    );
+                    setMenuNotifications([]);
+                    void clearDashboardNotifications("notification").catch(() => {
+                      // A limpeza local já foi aplicada; a próxima carga reconcilia.
+                    });
                   }}
                   className="text-xs text-slate-400 hover:text-foreground"
                 >

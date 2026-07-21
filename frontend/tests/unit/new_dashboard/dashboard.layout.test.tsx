@@ -27,6 +27,7 @@ vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
     unreadCount: 0,
   }),
   markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
+  clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderWithRouter(ui: React.ReactElement, pathname = "/dashboard") {
@@ -152,7 +153,7 @@ describe("new_dashboard dashboard and layout components", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: /métricas & candidaturas/i }),
+      screen.getByRole("heading", { name: /métricas & vagas/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/maria clara/i)).toBeInTheDocument();
     expect(screen.getByAltText(/avatar de maria clara/i)).toBeInTheDocument();

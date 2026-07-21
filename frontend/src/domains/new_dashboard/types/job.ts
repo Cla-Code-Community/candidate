@@ -52,3 +52,4 @@ export type JobType = z.infer<typeof JobTypeSchema>;
 export type JobLevel = z.infer<typeof JobLevelSchema>;
 export type Job = z.infer<typeof JobSchema>;
 export type NewJob = z.infer<typeof NewJobSchema>;
+export type MatchSort = "default" | "desc" | "asc";

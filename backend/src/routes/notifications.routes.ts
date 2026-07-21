@@ -3,6 +3,7 @@ import { validate } from "../middleware/validate";
 import { NotificationsController } from "../modules/notifications/notifications.controller";
 import { NotificationsService } from "../modules/notifications/notifications.service";
 import {
+  clearNotificationsQuerySchema,
   listNotificationsQuerySchema,
   markAllNotificationsReadQuerySchema,
 } from "../modules/notifications/schemas/notifications.schemas";
@@ -30,5 +31,13 @@ router.patch(
 router.patch("/:id/read", (req, res, next) => {
   controller.markRead(req, res).catch(next);
 });
+
+router.delete(
+  "/",
+  validate({ query: clearNotificationsQuerySchema }),
+  (req, res, next) => {
+    controller.clear(req, res).catch(next);
+  },
+);
 
 export { router as notificationsRoutes };

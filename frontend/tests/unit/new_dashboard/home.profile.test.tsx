@@ -63,7 +63,7 @@ describe("new_dashboard home and profile components", () => {
     localStorage.clear();
   });
 
-  it("renderiza o banner e a lista de candidaturas recentes no HomeTab", () => {
+  it("renderiza o banner e a lista de vagas salvas recentes no HomeTab", () => {
     render(
       <HomeTab
         userProfile={initialUser}

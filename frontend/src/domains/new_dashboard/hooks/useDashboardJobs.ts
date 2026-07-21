@@ -132,7 +132,7 @@ export function useDashboardJobs(
 
     const errors: string[] = [];
     if (savedResult.status === "rejected") {
-      errors.push("Não foi possível carregar suas candidaturas salvas.");
+      errors.push("Não foi possível carregar suas vagas salvas.");
     }
     if (recommendedResult.status === "rejected") {
       errors.push("Não foi possível atualizar as vagas recomendadas.");
@@ -289,7 +289,7 @@ export function useDashboardJobs(
         return savedJob;
       } catch (error) {
         onError?.(
-          errorMessage(error, "Não foi possível atualizar a candidatura."),
+          errorMessage(error, "Não foi possível atualizar a vaga."),
         );
         throw error;
       }
