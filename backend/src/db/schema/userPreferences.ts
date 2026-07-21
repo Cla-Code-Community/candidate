@@ -1,5 +1,6 @@
 import {
   boolean,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -26,6 +27,16 @@ export const userPreferences = pgTable("user_preferences", {
   jobTypes: text("job_types").array().default([]),
 
   emailNotifications: boolean("email_notifications").default(false),
+  careerChecklist: jsonb("career_checklist")
+    .$type<
+      Array<{
+        id: string;
+        title: string;
+        month: string;
+        items: Array<{ id: string; label: string; checked: boolean }>;
+      }>
+    >()
+    .default([]),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -10,6 +10,7 @@ import {
   type SearchJobsResult,
   updateDashboardSavedJob,
 } from "../infrastructure/dashboardJobsApi";
+import { requestDashboardNotificationsRefresh } from "../utils/notificationEvents";
 
 interface UseDashboardJobsOptions {
   onError?: (message: string) => void;
@@ -47,6 +48,26 @@ function readCachedTrackedJobs(userId: string): Job[] {
 
 function writeCachedTrackedJobs(userId: string, jobs: Job[]) {
   window.localStorage.setItem(trackedJobsCacheKey(userId), JSON.stringify(jobs));
+}
+
+function notifyJobEvent(job: Job, status?: JobStatus) {
+  const isApplied = status === "applied" || job.status === "applied";
+  const text = isApplied
+    ? `Sua candidatura para ${job.jobTitle}${
+        job.company ? ` na ${job.company}` : ""
+      } foi registrada.`
+    : `${job.jobTitle} foi adicionada às suas vagas salvas.`;
+
+  requestDashboardNotificationsRefresh({
+    channel: "notification",
+    incrementUnread: true,
+    item: {
+      id: `local:job:${job.id}:${Date.now()}`,
+      text,
+      type: isApplied ? "success" : "info",
+      date: "Agora",
+    },
+  });
 }
 
 export function useDashboardJobs(
@@ -192,6 +213,7 @@ export function useDashboardJobs(
           writeCachedTrackedJobs(user.id, next);
           return next;
         });
+        notifyJobEvent(savedJob);
         return savedJob;
       } catch (error) {
         if (isApiError(error) && error.status === 409) {
@@ -224,6 +246,7 @@ export function useDashboardJobs(
             writeCachedTrackedJobs(user.id, next);
             return next;
           });
+          notifyJobEvent(updated, status);
           return updated;
         }
 
@@ -262,6 +285,7 @@ export function useDashboardJobs(
           writeCachedTrackedJobs(user.id, next);
           return next;
         });
+        notifyJobEvent(savedJob, status);
         return savedJob;
       } catch (error) {
         onError?.(

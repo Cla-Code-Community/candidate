@@ -1,5 +1,6 @@
 import { ListChecks, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { CareerChecklist as CareerChecklistList } from "../../types";
 
 type ChecklistItem = {
   id: string;
@@ -14,7 +15,6 @@ type ChecklistList = {
   items: ChecklistItem[];
 };
 
-// TODO: mover para persistência por usuário no backend (preferências ou módulo próprio de checklists).
 const STORAGE_KEY = "new-dashboard-career-checklists";
 
 function createId() {
@@ -47,10 +47,21 @@ function loadLists(): ChecklistList[] {
   }
 }
 
-export function CareerChecklist() {
-  const [lists, setLists] = useState<ChecklistList[]>(() => loadLists());
+interface CareerChecklistProps {
+  lists?: CareerChecklistList[];
+  onChange?: (lists: CareerChecklistList[]) => void;
+}
+
+export function CareerChecklist({
+  lists: controlledLists,
+  onChange,
+}: CareerChecklistProps = {}) {
+  const [localLists, setLocalLists] = useState<ChecklistList[]>(() =>
+    loadLists(),
+  );
+  const lists = controlledLists ?? localLists;
   const [selectedListId, setSelectedListId] = useState<string | null>(
-    () => loadLists()[0]?.id ?? null,
+    () => lists[0]?.id ?? null,
   );
   const [newListTitle, setNewListTitle] = useState("");
   const [newListMonth, setNewListMonth] = useState(currentMonth);
@@ -62,8 +73,19 @@ export function CareerChecklist() {
   );
 
   useEffect(() => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(lists));
-  }, [lists]);
+    if (!controlledLists) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(localLists));
+    }
+  }, [controlledLists, localLists]);
+
+  function updateLists(updater: (current: ChecklistList[]) => ChecklistList[]) {
+    const next = updater(lists);
+    if (controlledLists) {
+      onChange?.(next);
+    } else {
+      setLocalLists(next);
+    }
+  }
 
   const completedItems =
     selectedList?.items.filter((item) => item.checked).length ?? 0;
@@ -79,7 +101,7 @@ export function CareerChecklist() {
       items: [],
     };
 
-    setLists((current) => [list, ...current]);
+    updateLists((current) => [list, ...current]);
     setSelectedListId(list.id);
     setNewListTitle("");
     setNewListMonth(currentMonth());
@@ -88,7 +110,9 @@ export function CareerChecklist() {
   function deleteSelectedList() {
     if (!selectedList) return;
 
-    setLists((current) => current.filter((list) => list.id !== selectedList.id));
+    updateLists((current) =>
+      current.filter((list) => list.id !== selectedList.id),
+    );
     setSelectedListId(null);
   }
 
@@ -96,7 +120,7 @@ export function CareerChecklist() {
     const label = newItemLabel.trim();
     if (!selectedList || !label) return;
 
-    setLists((current) =>
+    updateLists((current) =>
       current.map((list) =>
         list.id === selectedList.id
           ? {
@@ -115,7 +139,7 @@ export function CareerChecklist() {
   function toggleItem(itemId: string) {
     if (!selectedList) return;
 
-    setLists((current) =>
+    updateLists((current) =>
       current.map((list) =>
         list.id === selectedList.id
           ? {
@@ -134,7 +158,7 @@ export function CareerChecklist() {
   function deleteItem(itemId: string) {
     if (!selectedList) return;
 
-    setLists((current) =>
+    updateLists((current) =>
       current.map((list) =>
         list.id === selectedList.id
           ? {

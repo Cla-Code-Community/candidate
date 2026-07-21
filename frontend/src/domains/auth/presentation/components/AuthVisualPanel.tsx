@@ -11,7 +11,7 @@ export default function LeftSide() {
           alt="Profissionais de tecnologia"
           layout="fullWidth"
           className="h-full w-full object-cover opacity-[0.85] dark:opacity-30 mix-blend-multiply dark:mix-blend-luminosity"
-          priority={true}
+          loading="eager"
         />
         <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/10 via-purple-500/5 to-transparent pointer-events-none" />
       </div>

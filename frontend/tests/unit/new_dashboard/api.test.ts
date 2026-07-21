@@ -20,6 +20,10 @@ import {
   updateDashboardSavedJob,
 } from "@/domains/new_dashboard/infrastructure/dashboardJobsApi";
 import {
+  getDashboardNotificationFeed as getNotificationFeed,
+  markDashboardNotificationsRead as markNotificationsRead,
+} from "@/domains/new_dashboard/infrastructure/notificationsApi";
+import {
   getUserPreferences,
   getUserProfile,
   toSearchPreferences,
@@ -55,6 +59,9 @@ describe("new_dashboard api adapters", () => {
             keywords: ["React", "TypeScript"],
             url: "",
             description: "Detalhe",
+            matchScore: 91,
+            matchSource: "backend_profile",
+            matchedTechnologies: ["React", "TypeScript"],
           },
         ],
       },
@@ -65,7 +72,8 @@ describe("new_dashboard api adapters", () => {
       {
         type: "Remoto",
         level: "Pleno",
-        location: "Brasil",
+        continent: "América do Sul",
+        country: "Brasil",
       },
       3,
       25,
@@ -76,7 +84,8 @@ describe("new_dashboard api adapters", () => {
         keywords: "React",
         type: "Remoto",
         level: "Pleno",
-        location: "Brasil",
+        continent: "América do Sul",
+        country: "Brasil",
         page: 3,
         limit: 25,
       },
@@ -96,8 +105,188 @@ describe("new_dashboard api adapters", () => {
       tags: ["React", "TypeScript"],
       rawPayload: expect.objectContaining({
         description: "Detalhe",
+        matchSource: "backend_profile",
       }),
+      matchScore: 91,
     });
+  });
+
+  it("mapeia notificações e mensagens reais do backend", async () => {
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        unreadCount: 2,
+        notifications: [
+          {
+            id: "notification-1",
+            channel: "notification",
+            type: "high_match",
+            title: "Vaga com alto match encontrada",
+            message: "React Developer tem 91% de compatibilidade.",
+            readAt: null,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        unreadCount: 1,
+        notifications: [
+          {
+            id: "message-1",
+            channel: "message",
+            type: "mentor",
+            title: "Mentoria",
+            message: "Sua sessão foi confirmada.",
+            readAt: null,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+
+    const notifications = await getNotificationFeed("notification");
+    const messages = await getNotificationFeed("message");
+    await markNotificationsRead("notification");
+
+    expect(notifications).toMatchObject({
+      unreadCount: 2,
+      notifications: [
+        {
+          id: "notification-1",
+          type: "match",
+          text: "React Developer tem 91% de compatibilidade.",
+        },
+      ],
+    });
+    expect(messages).toMatchObject({
+      unreadCount: 1,
+      messages: [
+        {
+          id: "message-1",
+          sender: "Mentoria",
+        },
+      ],
+    });
+    expect(apiMock.patch).toHaveBeenCalledWith(
+      "/notifications/read-all",
+      null,
+      { params: { channel: "notification" } },
+    );
+  });
+
+  it("normaliza tipos, origens e datas do feed de notificações", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-21T12:00:00.000Z"));
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        unreadCount: 3,
+        notifications: [
+          {
+            id: "status-1",
+            channel: "notification",
+            type: "job_status_changed",
+            title: "Status atualizado",
+            message: "A vaga mudou de etapa.",
+            readAt: null,
+            createdAt: "2026-07-21T11:30:00.000Z",
+          },
+          {
+            id: "info-1",
+            channel: "notification",
+            type: "unknown",
+            title: "Sistema",
+            message: "Resumo disponível.",
+            readAt: null,
+            createdAt: "2026-07-20T12:00:00.000Z",
+          },
+          {
+            id: "hours-1",
+            channel: "notification",
+            type: "unknown",
+            title: "Sistema",
+            message: "Atualizado há poucas horas.",
+            readAt: null,
+            createdAt: "2026-07-21T09:00:00.000Z",
+          },
+          {
+            id: "days-1",
+            channel: "notification",
+            type: "unknown",
+            title: "Sistema",
+            message: "Atualizado há alguns dias.",
+            readAt: null,
+            createdAt: "2026-07-18T12:00:00.000Z",
+          },
+          {
+            id: "old-1",
+            channel: "notification",
+            type: "unknown",
+            title: "Sistema",
+            message: "Atualização antiga.",
+            readAt: null,
+            createdAt: "2026-07-10T12:00:00.000Z",
+          },
+          {
+            id: "invalid-date",
+            channel: "notification",
+            type: "unknown",
+            title: "Sistema",
+            message: "Data inválida.",
+            readAt: null,
+            createdAt: "data-invalida",
+          },
+        ],
+      },
+    });
+
+    const result = await getNotificationFeed("notification");
+
+    expect(result.notifications).toMatchObject([
+      { id: "status-1", type: "success", date: "Há 30 min" },
+      { id: "info-1", type: "info", date: "Há 1 dia" },
+      { id: "hours-1", type: "info", date: "Há 3 h" },
+      { id: "days-1", type: "info", date: "Há 3 dias" },
+      { id: "old-1", type: "info", date: "10/07/2026" },
+      { id: "invalid-date", type: "info", date: "Agora" },
+    ]);
+
+    vi.useRealTimers();
+  });
+
+  it("classifica mensagens de recrutador e sistema", async () => {
+    apiMock.get.mockResolvedValueOnce({
+      data: {
+        unreadCount: 2,
+        notifications: [
+          {
+            id: "recruiter-1",
+            channel: "message",
+            type: "recruiter_reply",
+            title: "RH TechCorp",
+            message: "Podemos conversar hoje?",
+            readAt: null,
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "system-1",
+            channel: "message",
+            type: "system",
+            title: "Candidate",
+            message: "Seu resumo semanal está pronto.",
+            readAt: null,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    });
+
+    const result = await getNotificationFeed("message");
+
+    expect(result.messages).toMatchObject([
+      { id: "recruiter-1", origin: "recruiter" },
+      { id: "system-1", origin: "system" },
+    ]);
   });
 
   it("mapeia vagas salvas e preserva dados auxiliares", async () => {
@@ -215,6 +404,7 @@ describe("new_dashboard api adapters", () => {
           avatarUrl: "https://cdn.example.com/avatar.png",
           phone: "(11) 99999-9999",
           technologies: ["React"],
+          technologyExperiences: [{ name: "React", years: 3 }],
           level: "Pleno",
         },
       })
@@ -224,6 +414,7 @@ describe("new_dashboard api adapters", () => {
           searchLocation: "Lisboa",
           remoteOnly: true,
           emailNotifications: false,
+          careerChecklist: [],
         },
       });
 
@@ -266,6 +457,7 @@ describe("new_dashboard api adapters", () => {
           avatarUrl: "https://cdn.example.com/avatar.png",
           phone: "(11) 99999-9999",
           technologies: ["React"],
+          technologyExperiences: [{ name: "React", years: 3 }],
           level: "Pleno",
         },
       })
@@ -275,6 +467,7 @@ describe("new_dashboard api adapters", () => {
           searchLocation: "Brasil",
           remoteOnly: true,
           emailNotifications: true,
+          careerChecklist: [],
         },
       });
 
@@ -288,24 +481,28 @@ describe("new_dashboard api adapters", () => {
       phone: "(11) 99999-9999",
       level: "Pleno",
       technologies: ["React"],
+      technologyExperiences: [{ name: "React", years: 3 }],
     });
     const updatedPreferences = await updateUserPreferences({
       keywords: ["React"],
       searchLocation: "Brasil",
       remoteOnly: true,
       emailNotifications: true,
+      careerChecklist: [],
     });
 
     expect(apiMock.patch).toHaveBeenCalledWith(
       "/users/profile",
       expect.objectContaining({
         avatarUrl: "https://cdn.example.com/avatar.png",
+        technologyExperiences: [{ name: "React", years: 3 }],
       }),
     );
     expect(apiMock.patch).toHaveBeenCalledWith(
       "/users/preferences",
       expect.objectContaining({
         searchLocation: "Brasil",
+        careerChecklist: [],
       }),
     );
     expect(updatedProfile.displayName).toBe("Maria Clara");
@@ -329,6 +526,47 @@ describe("new_dashboard api adapters", () => {
       title: "Dev",
       company: "ACME",
     });
+  });
+
+  it("reconhece abreviações de senioridade ao mapear vaga recomendada", () => {
+    expect(
+      toRecommendedJob(
+        {
+          title: "Software Engineering Intern",
+          company: "ACME",
+          location: "Brasil",
+          source: "LinkedIn",
+          url: "https://example.com/intern",
+        },
+        0,
+      ).level,
+    ).toBe("Estágio/Trainee");
+
+    expect(
+      toRecommendedJob(
+        {
+          title: "Jr Software Engineer",
+          company: "ACME",
+          location: "Brasil",
+          source: "Adzuna",
+          url: "https://example.com/jr",
+        },
+        0,
+      ).level,
+    ).toBe("Júnior");
+
+    expect(
+      toRecommendedJob(
+        {
+          title: "Sr Backend Engineer",
+          company: "ACME",
+          location: "Brasil",
+          source: "LinkedIn",
+          url: "https://example.com/sr",
+        },
+        1,
+      ).level,
+    ).toBe("Sênior");
   });
 
   it("cobre inferência de modelo e link inválido em vagas salvas", async () => {

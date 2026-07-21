@@ -14,6 +14,7 @@ export type CreateUserParams = {
   phone?: string | null;
   cpf?: string | null;
   technologies?: string[] | null;
+  technologyExperiences?: Array<{ name: string; years: number }> | null;
   level?: string | null;
 };
 

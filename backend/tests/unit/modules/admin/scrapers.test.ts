@@ -88,7 +88,7 @@ describe("scraperClient", () => {
       }),
     );
 
-    await expect(scraperClient.getJobs()).resolves.toEqual({
+    await expect(scraperClient.getJobs(50)).resolves.toEqual({
       ok: true,
       jobs: [],
       total: 0,
@@ -105,7 +105,7 @@ describe("scraperClient", () => {
     });
 
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining("/jobs"),
+      expect.stringContaining("/jobs?limit=50"),
       expect.any(Object),
     );
     expect(fetch).toHaveBeenCalledWith(

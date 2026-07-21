@@ -85,15 +85,20 @@ describe("api resources", () => {
     scrapersApi.jobs();
     scrapersApi.jobsCount();
     scrapersApi.trigger();
+    scrapersApi.clearJobsCache();
 
     expect(mockedApi.get).toHaveBeenNthCalledWith(1, "/admin/scrapers");
     expect(mockedApi.get).toHaveBeenNthCalledWith(2, "/admin/scrapers/status");
-    expect(mockedApi.get).toHaveBeenNthCalledWith(3, "/admin/scrapers/jobs");
+    expect(mockedApi.get).toHaveBeenNthCalledWith(
+      3,
+      "/admin/scrapers/jobs?limit=200",
+    );
     expect(mockedApi.get).toHaveBeenNthCalledWith(
       4,
       "/admin/scrapers/jobs/count",
     );
     expect(mockedApi.post).toHaveBeenCalledWith("/admin/scrapers/run");
+    expect(mockedApi.delete).toHaveBeenCalledWith("/admin/jobs/cache");
   });
 
   it("calls admin user mutation endpoints", () => {

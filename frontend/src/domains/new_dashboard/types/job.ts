@@ -9,7 +9,12 @@ export const JobStatusSchema = z.enum([
 ]);
 
 export const JobTypeSchema = z.enum(["Remoto", "Híbrido", "Presencial"]);
-export const JobLevelSchema = z.enum(["Júnior", "Pleno", "Sênior"]);
+export const JobLevelSchema = z.enum([
+  "Estágio/Trainee",
+  "Júnior",
+  "Pleno",
+  "Sênior",
+]);
 
 export const JobSchema = z.object({
   id: z.string(),

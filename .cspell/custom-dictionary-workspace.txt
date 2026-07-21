@@ -4,6 +4,7 @@ abordagem
 aborta
 abra
 abre
+abreviações
 Abrir
 absoluta
 Absolutas
@@ -62,6 +63,7 @@ ajustar
 Ajustes
 AKVGSK
 aleatório
+alegre
 além
 Alemanha
 alemania
@@ -100,6 +102,8 @@ andybalholm
 anexar
 Ângela
 angelacao
+anos
+Anos
 Anotações
 anteriores
 antigas
@@ -123,6 +127,7 @@ aplicar
 aplicável
 apontando
 aponte
+aprendiz
 Apresentação
 apresentável
 apresentou
@@ -140,6 +145,7 @@ asar
 Assinaturas
 assíncrona
 assíncrono
+assistente
 associados
 ataque
 ataques
@@ -195,6 +201,7 @@ básica
 Básicas
 bater
 Beene
+belo
 Benefícios
 benetesla
 Benevanio
@@ -241,6 +248,7 @@ Cancela
 cancelado
 cancelamento
 Cand
+canddate
 CANDIDATADAS
 Candidatar
 candidatura
@@ -259,9 +267,11 @@ carreira
 cascadia
 casos
 catálogo
+catarina
 CAUSA
 causar
 causava
+ceara
 Centraliza
 centralizado
 Centralizamos
@@ -359,6 +369,7 @@ conflito
 conhece
 conhecer
 conhecidas
+conhecido
 conjunto
 Conseguir
 considere
@@ -391,6 +402,8 @@ Controles
 conversão
 Converte
 convites
+cooperado
+cooperativa
 coreia
 coroutinelib
 corpo
@@ -486,6 +499,7 @@ destruir
 detalhada
 detalhadas
 detalhado
+Detalhe
 detecção
 detecta
 detectadas
@@ -525,6 +539,7 @@ disponível
 disso
 distinguir
 distribui
+distrito
 diversas
 documentação
 documentadas
@@ -546,7 +561,9 @@ ecossistema
 edita
 editadas
 editados
+efeito
 efetivamente
+efetivo
 eficiência
 egito
 elas
@@ -616,6 +633,7 @@ españa
 espanha
 Espanha
 especiais
+especialista
 específica
 especificação
 especificadas
@@ -634,6 +652,7 @@ esqueci
 essa
 estados
 Estados
+estagiario
 estágio
 estar
 Estas
@@ -725,6 +744,7 @@ falhar
 falhas
 falhe
 falhou
+falso
 falsos
 falta
 fazem
@@ -741,6 +761,7 @@ FINALIZADO
 fintech
 flexibilidade
 flexíveis
+florianopolis
 fluído
 flutuação
 fluxo
@@ -760,6 +781,7 @@ fornecidos
 fpconv
 frança
 França
+freela
 frequentemente
 fulano
 Fulano
@@ -813,6 +835,7 @@ hintrc
 Histórico
 hoje
 holanda
+horizonte
 hotjar
 hscan
 HSTS
@@ -880,6 +903,7 @@ individuais
 individualmente
 inesperado
 inexistente
+inferência
 inferidos
 infinito
 inflar
@@ -959,6 +983,7 @@ isolar
 isso
 iterações
 janela
+joana
 joaosilva
 jobsglobal
 jobsglobalscraper
@@ -966,7 +991,10 @@ jobstore
 jooble
 Jooble
 julho
+juridica
 KHTML
+kimi
+Kimi
 klarna
 Krsj
 kvstore
@@ -994,6 +1022,7 @@ linha
 linhas
 linit
 listagem
+listas
 loadlib
 localidade
 localiza
@@ -1027,6 +1056,7 @@ marca
 marcado
 marcar
 margem
+mariaclara
 marrocos
 mastigada
 mathlib
@@ -1049,8 +1079,10 @@ memória
 menos
 mensagem
 mensagens
+mensais
 mensuráveis
 mentores
+Mentorias
 mescladas
 mesma
 mesmas
@@ -1091,6 +1123,7 @@ monitorado
 Monitorar
 montá
 montar
+moonshotai
 Mostrando
 Mostrar
 motivo
@@ -1127,6 +1160,7 @@ normalizado
 normalizados
 normalizar
 Notas
+notificação
 Notificações
 notificou
 novamente
@@ -1149,6 +1183,7 @@ observáveis
 obtém
 obter
 ocasionais
+ocorre
 omitido
 onde
 Opção
@@ -1245,6 +1280,7 @@ persistir
 pesquisa
 pesquisadas
 Pesquisem
+pessoa
 Pessoas
 piechart
 pior
@@ -1271,6 +1307,7 @@ portas
 portfólio
 posicionamento
 posições
+positivo
 positivos
 possível
 possivelmente
@@ -1383,10 +1420,13 @@ recentemente
 recoloca
 Recomenda
 Recomendações
+recomendada
 recomendadas
 recomendado
 recomendados
+reconcilia
 reconecta
+reconhece
 recorre
 Recrutadores
 recrutamento
@@ -1404,6 +1444,7 @@ referência
 registrado
 registro
 registros
+regra
 regras
 Regressão
 reindexação
@@ -1558,6 +1599,7 @@ sinal
 sincronização
 Sincronizado
 Sincronizar
+síncrono
 Singapura
 singleflight
 SISMEMBER
