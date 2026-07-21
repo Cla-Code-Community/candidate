@@ -113,3 +113,9 @@ export async function markDashboardNotificationsRead(channel: NotificationChanne
     params: { channel },
   });
 }
+
+export async function clearDashboardNotifications(channel: NotificationChannel) {
+  await api.delete("/notifications", {
+    params: { channel },
+  });
+}

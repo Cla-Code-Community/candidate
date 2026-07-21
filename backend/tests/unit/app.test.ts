@@ -492,6 +492,65 @@ describe("jobsApiApp", () => {
     );
   });
 
+  it("GET /jobs/search ordena por match globalmente antes da paginação", async () => {
+    mocks.parsePagination.mockReturnValue({ page: 1, limit: 2 });
+    mocks.paginate.mockImplementationOnce((jobs: unknown[], params: any) => ({
+      data: jobs.slice(0, params.limit),
+      pagination: {
+        total: jobs.length,
+        page: params.page,
+        limit: params.limit,
+        totalPages: Math.ceil(jobs.length / params.limit),
+        hasNext: true,
+        hasPrev: false,
+      },
+    }));
+    mocks.cacheAbsoluteSMembers.mockResolvedValue(["low", "high", "middle"]);
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "low",
+        title: "Customer Success",
+        company: "ACME",
+        location: "Brasil",
+      },
+      {
+        id: "high",
+        title: "React TypeScript Node Developer",
+        company: "Globex",
+        location: "Brasil",
+      },
+      {
+        id: "middle",
+        title: "React Developer",
+        company: "Initech",
+        location: "Brasil",
+      },
+    ]);
+    mocks.getUserById.mockResolvedValue({
+      id: "test-user-id",
+      technologies: ["React", "TypeScript", "Node"],
+      technologyExperiencesEncrypted: null,
+    });
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({ matchSort: "desc", page: "1", limit: "2" })
+      .expect(200);
+
+    expect(mocks.cacheGetJobsByIds).toHaveBeenCalledWith([
+      "low",
+      "high",
+      "middle",
+    ]);
+    expect(res.body.jobs.map((job: any) => job.id)).toEqual([
+      "high",
+      "middle",
+    ]);
+    expect(res.body.total).toBe(3);
+    expect(res.body.source).toBe("valkey_global_index:match_sorted_desc");
+  });
+
   it("GET /jobs/search retorna paginação correta", async () => {
     mocks.parsePagination.mockReturnValue({ page: 2, limit: 10 });
     mocks.paginate.mockReturnValue({

@@ -10,6 +10,7 @@ import { logWarn } from "../logger";
 import {
   getUserMatchTechnologies,
   MatchableJob,
+  MatchedJob,
   scoreJobWithTechnologies,
 } from "../modules/jobs/jobMatch.service";
 import { NotificationsService } from "../modules/notifications/notifications.service";
@@ -258,6 +259,29 @@ function getKeywordsArray(query: Request["query"]): string[] {
     .filter(Boolean);
 }
 
+function getMatchSort(query: Request["query"]): "asc" | "desc" | null {
+  const value = firstQueryValue(query.matchSort) || firstQueryValue(query.sort);
+  return value === "asc" || value === "desc" ? value : null;
+}
+
+function sortJobsByMatch<T>(
+  jobs: T[],
+  direction: "asc" | "desc",
+) {
+  return [...jobs].sort((first, second) => {
+    const firstJob = first as { matchScore?: number | null };
+    const secondJob = second as { matchScore?: number | null };
+    const firstScore =
+      typeof firstJob.matchScore === "number" ? firstJob.matchScore : 0;
+    const secondScore =
+      typeof secondJob.matchScore === "number" ? secondJob.matchScore : 0;
+
+    return direction === "desc"
+      ? secondScore - firstScore
+      : firstScore - secondScore;
+  });
+}
+
 async function legacyResolveIds(
   keywordsArray: string[],
 ): Promise<{ ids: string[]; source: string }> {
@@ -294,14 +318,22 @@ async function enrichJobsWithProfileMatch(
   req: Request,
   jobs: unknown[],
   technologies: MatchTechnology[],
+  options: { notifyHighMatches?: boolean } = {},
 ) {
   if (technologies.length === 0) return jobs;
 
   const matchedJobs = jobs.map((job) =>
     scoreJobWithTechnologies(job as MatchableJob, technologies),
   );
+  if (options.notifyHighMatches === false) return matchedJobs;
+
+  await notifyHighMatchJobs(req, matchedJobs);
+  return matchedJobs;
+}
+
+async function notifyHighMatchJobs(req: Request, matchedJobs: MatchedJob[]) {
   const userId = req.session?.userId;
-  if (!userId) return matchedJobs;
+  if (!userId) return;
 
   const notifications = new NotificationsService();
   await Promise.all(
@@ -317,8 +349,6 @@ async function enrichJobsWithProfileMatch(
         }),
       ),
   );
-
-  return matchedJobs;
 }
 
 /**
@@ -339,6 +369,7 @@ jobsRoutes.get("/search", async (req: Request, res: Response) => {
     const keywordsArray = getKeywordsArray(req.query);
     const pagination = parsePagination(req.query);
     const hasFilters = hasStructuredFilters(req.query);
+    const matchSort = getMatchSort(req.query);
     const matchTechnologies = await getCurrentUserMatchTechnologies(req);
 
     let ids: string[] = [];
@@ -369,15 +400,30 @@ jobsRoutes.get("/search", async (req: Request, res: Response) => {
         const legacy = await legacyResolveIds(keywordsArray);
         const legacyJobs = await cacheGetJobsByIds(legacy.ids);
         const filteredJobs = filterJobs(legacyJobs, req.query);
-        const { data: pageJobs, pagination: meta } = paginate(
-          filteredJobs,
-          pagination,
-        );
-        const jobs = await enrichJobsWithProfileMatch(
-          req,
-          pageJobs,
-          matchTechnologies,
-        );
+        const { data: pageJobs, pagination: meta } = matchSort
+          ? paginate(
+              sortJobsByMatch(
+                await enrichJobsWithProfileMatch(
+                  req,
+                  filteredJobs,
+                  matchTechnologies,
+                  { notifyHighMatches: false },
+                ),
+                matchSort,
+              ),
+              pagination,
+            )
+          : paginate(filteredJobs, pagination);
+        if (matchSort) {
+          await notifyHighMatchJobs(req, pageJobs as MatchedJob[]);
+        }
+        const jobs = matchSort
+          ? pageJobs
+          : await enrichJobsWithProfileMatch(
+              req,
+              pageJobs,
+              matchTechnologies,
+            );
 
         return res.json({
           total: meta.total,
@@ -393,15 +439,30 @@ jobsRoutes.get("/search", async (req: Request, res: Response) => {
 
       const indexedJobs = await cacheGetJobsByIds(ids);
       const filteredJobs = filterJobs(indexedJobs, req.query);
-      const { data: pageJobs, pagination: meta } = paginate(
-        filteredJobs,
-        pagination,
-      );
-      const jobs = await enrichJobsWithProfileMatch(
-        req,
-        pageJobs,
-        matchTechnologies,
-      );
+      const { data: pageJobs, pagination: meta } = matchSort
+        ? paginate(
+            sortJobsByMatch(
+              await enrichJobsWithProfileMatch(
+                req,
+                filteredJobs,
+                matchTechnologies,
+                { notifyHighMatches: false },
+              ),
+              matchSort,
+            ),
+            pagination,
+          )
+        : paginate(filteredJobs, pagination);
+      if (matchSort) {
+        await notifyHighMatchJobs(req, pageJobs as MatchedJob[]);
+      }
+      const jobs = matchSort
+        ? pageJobs
+        : await enrichJobsWithProfileMatch(
+            req,
+            pageJobs,
+            matchTechnologies,
+          );
 
       return res.json({
         total: meta.total,
@@ -417,6 +478,33 @@ jobsRoutes.get("/search", async (req: Request, res: Response) => {
       const legacy = await legacyResolveIds(keywordsArray);
       ids = legacy.ids;
       source = legacy.source;
+    }
+
+    if (matchSort) {
+      const allJobs = await cacheGetJobsByIds(ids);
+      const matchedJobs = await enrichJobsWithProfileMatch(
+        req,
+        allJobs,
+        matchTechnologies,
+        { notifyHighMatches: false },
+      );
+      const sortedJobs = sortJobsByMatch(matchedJobs, matchSort);
+      const { data: jobs, pagination: meta } = paginate(
+        sortedJobs,
+        pagination,
+      );
+      await notifyHighMatchJobs(req, jobs as MatchedJob[]);
+
+      return res.json({
+        total: meta.total,
+        page: meta.page,
+        limit: meta.limit,
+        totalPages: meta.totalPages,
+        hasNext: meta.hasNext,
+        hasPrev: meta.hasPrev,
+        jobs,
+        source: `${source}:match_sorted_${matchSort}`,
+      });
     }
 
     const { data: pageIds, pagination: meta } = paginate(ids, pagination);

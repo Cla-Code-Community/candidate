@@ -9,6 +9,7 @@ import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
 import { Modal } from "@/domains/new_dashboard/components/shared/Modal";
 import {
+  clearDashboardNotifications,
   getDashboardNotificationFeed,
   markDashboardNotificationsRead,
 } from "@/domains/new_dashboard/infrastructure/notificationsApi";
@@ -33,6 +34,7 @@ vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
     unreadCount: 0,
   }),
   markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
+  clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderWithRouter(ui: React.ReactElement) {
@@ -75,12 +77,14 @@ describe("new_dashboard branch coverage", () => {
     localStorage.clear();
     vi.mocked(getDashboardNotificationFeed).mockReset();
     vi.mocked(markDashboardNotificationsRead).mockReset();
+    vi.mocked(clearDashboardNotifications).mockReset();
     vi.mocked(getDashboardNotificationFeed).mockResolvedValue({
       messages: [],
       notifications: [],
       unreadCount: 0,
     } as never);
     vi.mocked(markDashboardNotificationsRead).mockResolvedValue(undefined);
+    vi.mocked(clearDashboardNotifications).mockResolvedValue(undefined);
     mockUseAuth.mockReturnValue({
       user: null,
       logout: vi.fn(),
@@ -173,7 +177,10 @@ describe("new_dashboard branch coverage", () => {
     expect(markDashboardNotificationsRead).toHaveBeenCalledWith("notification");
 
     fireEvent.click(screen.getByText("Limpar"));
-    expect(markDashboardNotificationsRead).toHaveBeenCalledTimes(3);
+    expect(clearDashboardNotifications).toHaveBeenCalledWith("notification");
+    expect(
+      screen.queryByText("React Developer tem 91% de compatibilidade."),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Menu do usuário"));
     fireEvent.click(screen.getByText("Sair da Conta"));

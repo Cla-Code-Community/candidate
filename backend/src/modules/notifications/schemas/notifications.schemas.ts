@@ -16,3 +16,7 @@ export type ListNotificationsQuery = z.infer<
 export const markAllNotificationsReadQuerySchema = z.object({
   channel: z.enum(["notification", "message"]).optional(),
 });
+
+export const clearNotificationsQuerySchema = z.object({
+  channel: z.enum(["notification", "message"]).optional(),
+});

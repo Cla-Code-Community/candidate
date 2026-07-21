@@ -53,6 +53,7 @@ describe("new_dashboard job components", () => {
     const setFilterLevel = vi.fn();
     const setContinentFilter = vi.fn();
     const setCountryFilter = vi.fn();
+    const setMatchSort = vi.fn();
 
     render(
       <JobFilter
@@ -66,6 +67,8 @@ describe("new_dashboard job components", () => {
         setContinentFilter={setContinentFilter}
         countryFilter={"Todos" as CountryFilter}
         setCountryFilter={setCountryFilter}
+        matchSort="default"
+        setMatchSort={setMatchSort}
       />,
     );
 
@@ -87,12 +90,16 @@ describe("new_dashboard job components", () => {
     fireEvent.change(screen.getAllByRole("combobox")[3], {
       target: { value: "Portugal" },
     });
+    fireEvent.change(screen.getAllByRole("combobox")[4], {
+      target: { value: "desc" },
+    });
 
     expect(setSearchQuery).toHaveBeenCalledWith("react");
     expect(setFilterType).toHaveBeenCalledWith("Remoto");
     expect(setFilterLevel).toHaveBeenCalledWith("Sênior");
     expect(setContinentFilter).toHaveBeenCalledWith("Europa");
     expect(setCountryFilter).toHaveBeenCalledWith("Portugal");
+    expect(setMatchSort).toHaveBeenCalledWith("desc");
   });
 
   it("renderiza a tabela vazia e paginação local e remota", () => {
@@ -150,17 +157,17 @@ describe("new_dashboard job components", () => {
     expect(onPageChange).toHaveBeenCalledWith(3);
   });
 
-  it("renderiza a linha de vaga e aciona detalhes/aplicar", () => {
+  it("renderiza a linha de vaga e aciona detalhes/salvar", () => {
     const onOpen = vi.fn();
     const onStatusChange = vi.fn();
 
     render(<JobRow job={baseJob} onOpen={onOpen} onStatusChange={onStatusChange} />);
 
     fireEvent.click(screen.getAllByRole("button", { name: /detalhes/i })[0]);
-    fireEvent.click(screen.getByRole("button", { name: /aplicar/i }));
+    fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
 
     expect(onOpen).toHaveBeenCalledWith(baseJob);
-    expect(onStatusChange).toHaveBeenCalledWith(baseJob.id, "applied");
+    expect(onStatusChange).toHaveBeenCalledWith(baseJob.id, "saved");
   });
 
   it("mostra detalhes completos da vaga e atualiza status/notas", () => {
@@ -284,6 +291,9 @@ describe("new_dashboard job components", () => {
         useState<ContinentFilter>("Todos");
       const [countryFilter, setCountryFilter] =
         useState<CountryFilter>("Todos");
+      const [matchSort, setMatchSort] = useState<"default" | "desc" | "asc">(
+        "default",
+      );
 
       return (
         <JobTab
@@ -313,6 +323,8 @@ describe("new_dashboard job components", () => {
           setContinentFilter={setContinentFilter}
           countryFilter={countryFilter}
           setCountryFilter={setCountryFilter}
+          matchSort={matchSort}
+          setMatchSort={setMatchSort}
           searchPreferences={{ ...initialPreferences, remoteOnly: false }}
           onSearchJobs={onSearchJobs}
           onOpenJob={onOpenJob}

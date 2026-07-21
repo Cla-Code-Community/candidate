@@ -1,5 +1,6 @@
 import { Search } from "lucide-react";
 import { jobLevels, jobTypes } from "../../constants";
+import type { MatchSort } from "../../types";
 import {
   continentOptions,
   countryOptions,
@@ -18,6 +19,8 @@ interface JobFilterProps {
   setContinentFilter: (value: ContinentFilter) => void;
   countryFilter: CountryFilter;
   setCountryFilter: (value: CountryFilter) => void;
+  matchSort: MatchSort;
+  setMatchSort: (value: MatchSort) => void;
 }
 
 export function JobFilter({
@@ -31,9 +34,11 @@ export function JobFilter({
   setContinentFilter,
   countryFilter,
   setCountryFilter,
+  matchSort,
+  setMatchSort,
 }: JobFilterProps) {
   return (
-    <div className="grid gap-4 rounded-2xl border border-border bg-card p-4 md:grid-cols-[minmax(280px,1fr)_168px_168px_180px_180px]">
+    <div className="grid gap-4 rounded-2xl border border-border bg-card p-4 md:grid-cols-[minmax(280px,1fr)_168px_168px_180px_180px_180px]">
       <label className="relative block">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
@@ -92,6 +97,16 @@ export function JobFilter({
             {country === "Todos" ? "País (Todos)" : country}
           </option>
         ))}
+      </select>
+
+      <select
+        value={matchSort}
+        onChange={(event) => setMatchSort(event.target.value as MatchSort)}
+        className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
+      >
+        <option value="default">Match (padrão)</option>
+        <option value="desc">Maior match</option>
+        <option value="asc">Menor match</option>
       </select>
     </div>
   );

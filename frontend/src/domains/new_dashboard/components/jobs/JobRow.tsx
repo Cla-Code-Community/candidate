@@ -85,11 +85,11 @@ export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
         </button>
         <button
           type="button"
-          onClick={() => onStatusChange(job.id, "applied")}
+          onClick={() => onStatusChange(job.id, "saved")}
           className="rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
-          title={`Status atual: ${jobStatuses[job.status]}`}
+          title={`Salvar vaga. Status atual: ${jobStatuses[job.status]}`}
         >
-          Aplicar
+          Salvar
         </button>
       </td>
     </tr>

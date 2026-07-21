@@ -6,6 +6,7 @@ const mockNotificationsService = vi.hoisted(() => ({
   list: vi.fn(),
   markRead: vi.fn(),
   markAllRead: vi.fn(),
+  clear: vi.fn(),
 }));
 
 vi.mock("../../../src/modules/notifications/notifications.service", () => ({
@@ -60,6 +61,7 @@ describe("Integration - Notifications Routes", () => {
       readAt: new Date("2026-07-18T10:05:00.000Z").toISOString(),
     });
     mockNotificationsService.markAllRead.mockResolvedValue({ updated: 3 });
+    mockNotificationsService.clear.mockResolvedValue({ deleted: 4 });
 
     app = createJobsApiApp();
   });
@@ -106,6 +108,22 @@ describe("Integration - Notifications Routes", () => {
       "user_abc",
       "message",
     );
+  });
+
+  it("limpa as notificações de um canal", async () => {
+    const res = await request(app)
+      .delete(`${BASE}?channel=notification`)
+      .expect(200);
+
+    expect(res.body).toEqual({ deleted: 4 });
+    expect(mockNotificationsService.clear).toHaveBeenCalledWith(
+      "user_abc",
+      "notification",
+    );
+  });
+
+  it("valida canal inválido ao limpar notificações", async () => {
+    await request(app).delete(`${BASE}?channel=email`).expect(400);
   });
 
   it("retorna 404 quando a notificação não existe", async () => {

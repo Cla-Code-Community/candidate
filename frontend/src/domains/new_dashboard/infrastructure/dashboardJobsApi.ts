@@ -1,6 +1,13 @@
 import { api } from "@/shared/lib/apiClient";
 import { z } from "zod";
-import type { Job, JobLevel, JobStatus, JobType, NewJob } from "../types";
+import type {
+  Job,
+  JobLevel,
+  JobStatus,
+  JobType,
+  MatchSort,
+  NewJob,
+} from "../types";
 
 const ApiSearchJobSchema = z
   .object({
@@ -58,6 +65,7 @@ export type SearchJobFilters = {
   type?: string;
   model?: string;
   contract?: string;
+  matchSort?: Exclude<MatchSort, "default">;
 };
 
 export type SearchJobsResult = {
@@ -289,6 +297,7 @@ export async function searchDashboardJobs(
       ...(filters.type ? { type: filters.type } : {}),
       ...(filters.model ? { model: filters.model } : {}),
       ...(filters.contract ? { contract: filters.contract } : {}),
+      ...(filters.matchSort ? { matchSort: filters.matchSort } : {}),
       page,
       limit,
     },
