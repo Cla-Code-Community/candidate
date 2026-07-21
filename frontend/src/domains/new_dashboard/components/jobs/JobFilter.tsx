@@ -1,6 +1,7 @@
 import { Search } from "lucide-react";
-import { jobLevels, jobTypes } from "../../constants";
-import type { MatchSort } from "../../types";
+import { jobLevels } from "../../constants";
+import type { JobModelFilter, MatchSort } from "../../types";
+import { jobModelFilterOptions } from "../../utils/jobModelFilters";
 import {
   continentOptions,
   countryOptions,
@@ -11,8 +12,8 @@ import {
 interface JobFilterProps {
   searchQuery: string;
   setSearchQuery: (value: string) => void;
-  filterType: string;
-  setFilterType: (value: string) => void;
+  filterType: JobModelFilter;
+  setFilterType: (value: JobModelFilter) => void;
   filterLevel: string;
   setFilterLevel: (value: string) => void;
   continentFilter: ContinentFilter;
@@ -51,13 +52,19 @@ export function JobFilter({
 
       <select
         value={filterType}
-        onChange={(event) => setFilterType(event.target.value)}
+        onChange={(event) =>
+          setFilterType(event.target.value as JobModelFilter)
+        }
         className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
       >
         <option value="Todos">Modelo (Todos)</option>
-        {jobTypes.map((type) => (
-          <option key={type}>{type}</option>
-        ))}
+        {jobModelFilterOptions
+          .filter((option) => option.value !== "Todos")
+          .map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
       </select>
 
       <select

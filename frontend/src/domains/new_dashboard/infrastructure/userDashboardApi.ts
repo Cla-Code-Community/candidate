@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { api } from "@/shared/lib/apiClient";
-import type { SearchPreferences, UserProfile } from "../types";
+import type { JobType, SearchPreferences, UserProfile } from "../types";
 import { initialPreferences, initialUser } from "../constants";
 
 const ApiUserProfileSchema = z.object({
@@ -27,7 +27,10 @@ const ApiSearchPreferencesSchema = z.object({
   searchLocation: z.string().nullable().optional(),
   searchLanguage: z.string().nullable().optional(),
   remoteOnly: z.boolean().nullable().optional(),
-  jobTypes: z.array(z.string()).nullable().optional(),
+  jobTypes: z
+    .array(z.enum(["Remoto", "Híbrido", "Presencial"]))
+    .nullable()
+    .optional(),
   emailNotifications: z.boolean().nullable().optional(),
   careerChecklist: z
     .array(
@@ -50,6 +53,20 @@ const ApiSearchPreferencesSchema = z.object({
 
 type ApiUserProfile = z.infer<typeof ApiUserProfileSchema>;
 type ApiSearchPreferences = z.infer<typeof ApiSearchPreferencesSchema>;
+
+function normalizePreferenceJobTypes(
+  jobTypes: JobType[] | null | undefined,
+  remoteOnly: boolean | null | undefined,
+) {
+  if (jobTypes && jobTypes.length > 0) {
+    return [...new Set(jobTypes)];
+  }
+
+  if (remoteOnly === true) return ["Remoto"];
+  if (remoteOnly === false) return [];
+
+  return initialPreferences.jobTypes;
+}
 
 function fallbackNameParts(displayName: string) {
   const [firstName = initialUser.firstName, ...rest] = displayName.split(" ");
@@ -115,6 +132,10 @@ export function toUserProfile(data: unknown): UserProfile {
 
 export function toSearchPreferences(data: unknown): SearchPreferences {
   const preferences = ApiSearchPreferencesSchema.parse(data);
+  const jobTypes = normalizePreferenceJobTypes(
+    preferences.jobTypes,
+    preferences.remoteOnly,
+  );
 
   return {
     keywords:
@@ -123,7 +144,10 @@ export function toSearchPreferences(data: unknown): SearchPreferences {
         : initialPreferences.keywords,
     searchLocation:
       preferences.searchLocation?.trim() || initialPreferences.searchLocation,
-    remoteOnly: preferences.remoteOnly ?? initialPreferences.remoteOnly,
+    remoteOnly:
+      preferences.remoteOnly ??
+      (jobTypes.length === 1 && jobTypes[0] === "Remoto"),
+    jobTypes,
     emailNotifications:
       preferences.emailNotifications ?? initialPreferences.emailNotifications,
     careerChecklist:
@@ -150,6 +174,7 @@ function toPreferencesPayload(preferences: SearchPreferences) {
     keywords: preferences.keywords,
     searchLocation: preferences.searchLocation || null,
     remoteOnly: preferences.remoteOnly,
+    jobTypes: preferences.jobTypes,
     emailNotifications: preferences.emailNotifications,
     careerChecklist: preferences.careerChecklist,
   };

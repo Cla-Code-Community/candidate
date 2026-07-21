@@ -223,7 +223,9 @@ describe("new_dashboard home and profile components", () => {
     fireEvent.change(screen.getByLabelText(/localidade principal de busca/i), {
       target: { value: "Lisboa, Portugal" },
     });
-    fireEvent.click(screen.getByLabelText(/apenas oportunidades remotas/i));
+    fireEvent.change(screen.getByLabelText(/vagas exibidas inicialmente/i), {
+      target: { value: "RemotoHibrido" },
+    });
     fireEvent.click(
       screen.getByLabelText(/habilitar alertas de vagas no e-mail/i),
     );
@@ -235,6 +237,7 @@ describe("new_dashboard home and profile components", () => {
       expect.objectContaining({
         searchLocation: "Lisboa, Portugal",
         remoteOnly: false,
+        jobTypes: ["Remoto", "Híbrido"],
         emailNotifications: false,
       }),
     );

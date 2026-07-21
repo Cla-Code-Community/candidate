@@ -210,6 +210,7 @@ export const initialPreferences: SearchPreferences = {
   keywords: ["React", "Frontend", "Fullstack"],
   searchLocation: "São Paulo, SP",
   remoteOnly: true,
+  jobTypes: ["Remoto"],
   emailNotifications: true,
   careerChecklist: [],
 };
