@@ -27,7 +27,12 @@ export const jobStatusClasses: Record<JobStatus, string> = {
 };
 
 export const jobTypes: JobType[] = ["Remoto", "Híbrido", "Presencial"];
-export const jobLevels: JobLevel[] = ["Júnior", "Pleno", "Sênior"];
+export const jobLevels: JobLevel[] = [
+  "Estágio/Trainee",
+  "Júnior",
+  "Pleno",
+  "Sênior",
+];
 
 export const initialJobs: Job[] = [
   {
@@ -171,12 +176,14 @@ export const initialMessages: Message[] = [
     sender: "Julio Silva (Mentor)",
     text: "Olá Bruna! Consegue enviar seu portfólio antes do nosso papo?",
     date: "11:15",
+    origin: "mentor",
   },
   {
     id: 2,
     sender: "RH Fintech Hub",
     text: "Olá! Gostaríamos de marcar uma conversa técnica esta semana.",
     date: "Ontem",
+    origin: "recruiter",
   },
 ];
 
@@ -190,6 +197,13 @@ export const initialUser: UserProfile = {
   phone: "(11) 98765-4321",
   level: "Pleno",
   technologies: ["React", "TypeScript", "Tailwind CSS", "Next.js", "Node.js"],
+  technologyExperiences: [
+    { name: "React", years: 5 },
+    { name: "TypeScript", years: 4 },
+    { name: "Tailwind CSS", years: 3 },
+    { name: "Next.js", years: 3 },
+    { name: "Node.js", years: 2 },
+  ],
 };
 
 export const initialPreferences: SearchPreferences = {
@@ -197,4 +211,5 @@ export const initialPreferences: SearchPreferences = {
   searchLocation: "São Paulo, SP",
   remoteOnly: true,
   emailNotifications: true,
+  careerChecklist: [],
 };

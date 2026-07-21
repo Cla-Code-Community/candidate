@@ -1,8 +1,6 @@
 import { Search } from "lucide-react";
-import { useMemo } from "react";
 import type { Job, JobStatus, SearchPreferences } from "../../types";
 import {
-  matchesLocationFilters,
   type ContinentFilter,
   type CountryFilter,
 } from "../../utils/locationFilters";
@@ -57,43 +55,6 @@ export function JobTab({
   onOpenJob,
   onStatusChange,
 }: JobTabProps) {
-  const filteredJobs = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase();
-
-    return jobs.filter((job) => {
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        job.jobTitle.toLowerCase().includes(normalizedSearch) ||
-        job.company.toLowerCase().includes(normalizedSearch) ||
-        job.tags.some((tag) => tag.toLowerCase().includes(normalizedSearch));
-      const matchesType = filterType === "Todos" || job.type === filterType;
-      const matchesLevel = filterLevel === "Todos" || job.level === filterLevel;
-      const matchesRemotePreference =
-        !searchPreferences?.remoteOnly || job.type === "Remoto";
-      const matchesLocation = matchesLocationFilters(
-        job,
-        continentFilter,
-        countryFilter,
-      );
-
-      return (
-        matchesSearch &&
-        matchesType &&
-        matchesLevel &&
-        matchesRemotePreference &&
-        matchesLocation
-      );
-    });
-  }, [
-    continentFilter,
-    countryFilter,
-    filterLevel,
-    filterType,
-    jobs,
-    searchPreferences?.remoteOnly,
-    searchQuery,
-  ]);
-
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-6 py-8 lg:px-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -130,13 +91,15 @@ export function JobTab({
         setCountryFilter={setCountryFilter}
       />
 
-      <p className="text-sm font-semibold text-emerald-600">
-        • Filtro de busca ativo: Apenas oportunidades remotas habilitado nas
-        preferências.
-      </p>
+      {searchPreferences?.remoteOnly && (
+        <p className="text-sm font-semibold text-emerald-600">
+          • Filtro de busca ativo: Apenas oportunidades remotas habilitado nas
+          preferências.
+        </p>
+      )}
 
       <JobTable
-        jobs={filteredJobs}
+        jobs={jobs}
         pagination={pagination}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}

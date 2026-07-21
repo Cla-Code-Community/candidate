@@ -13,6 +13,10 @@ const ApiUserProfileSchema = z.object({
   avatarUrl: z.string().url().nullable().optional(),
   phone: z.string().nullable().optional(),
   technologies: z.array(z.string()).nullable().optional(),
+  technologyExperiences: z
+    .array(z.object({ name: z.string(), years: z.number() }))
+    .nullable()
+    .optional(),
   level: z.string().nullable().optional(),
 });
 
@@ -25,6 +29,23 @@ const ApiSearchPreferencesSchema = z.object({
   remoteOnly: z.boolean().nullable().optional(),
   jobTypes: z.array(z.string()).nullable().optional(),
   emailNotifications: z.boolean().nullable().optional(),
+  careerChecklist: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        month: z.string(),
+        items: z.array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            checked: z.boolean(),
+          }),
+        ),
+      }),
+    )
+    .nullable()
+    .optional(),
 });
 
 type ApiUserProfile = z.infer<typeof ApiUserProfileSchema>;
@@ -39,6 +60,25 @@ function fallbackNameParts(displayName: string) {
   };
 }
 
+function fallbackTechnologyExperiences(
+  technologies: string[],
+  experiences: ApiUserProfile["technologyExperiences"],
+) {
+  const experienceMap = new Map(
+    (experiences ?? [])
+      .filter((item) => item.name.trim())
+      .map((item) => [item.name.trim().toLowerCase(), item]),
+  );
+
+  return technologies.map((technology) => {
+    const existing = experienceMap.get(technology.trim().toLowerCase());
+    return {
+      name: technology,
+      years: existing?.years ?? 1,
+    };
+  });
+}
+
 export function toUserProfile(data: unknown): UserProfile {
   const profile = ApiUserProfileSchema.parse(data);
   const displayName =
@@ -47,6 +87,11 @@ export function toUserProfile(data: unknown): UserProfile {
     profile.email?.split("@")[0] ||
     initialUser.displayName;
   const nameParts = fallbackNameParts(displayName);
+
+  const technologies =
+    profile.technologies && profile.technologies.length > 0
+      ? profile.technologies
+      : initialUser.technologies;
 
   return {
     firstName: profile.firstName?.trim() || nameParts.firstName,
@@ -60,10 +105,11 @@ export function toUserProfile(data: unknown): UserProfile {
     avatarUrl: profile.avatarUrl?.trim() || initialUser.avatarUrl,
     phone: profile.phone?.trim() || initialUser.phone,
     level: profile.level?.trim() || initialUser.level,
-    technologies:
-      profile.technologies && profile.technologies.length > 0
-        ? profile.technologies
-        : initialUser.technologies,
+    technologies,
+    technologyExperiences: fallbackTechnologyExperiences(
+      technologies,
+      profile.technologyExperiences,
+    ),
   };
 }
 
@@ -80,6 +126,8 @@ export function toSearchPreferences(data: unknown): SearchPreferences {
     remoteOnly: preferences.remoteOnly ?? initialPreferences.remoteOnly,
     emailNotifications:
       preferences.emailNotifications ?? initialPreferences.emailNotifications,
+    careerChecklist:
+      preferences.careerChecklist ?? initialPreferences.careerChecklist,
   };
 }
 
@@ -92,6 +140,7 @@ function toProfilePayload(profile: UserProfile) {
     username: profile.username,
     phone: profile.phone || null,
     technologies: profile.technologies,
+    technologyExperiences: profile.technologyExperiences,
     level: profile.level || null,
   };
 }
@@ -102,6 +151,7 @@ function toPreferencesPayload(preferences: SearchPreferences) {
     searchLocation: preferences.searchLocation || null,
     remoteOnly: preferences.remoteOnly,
     emailNotifications: preferences.emailNotifications,
+    careerChecklist: preferences.careerChecklist,
   };
 }
 

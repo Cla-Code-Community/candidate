@@ -1,9 +1,18 @@
 import { useAuth } from "@/domains/auth/application/AuthContext";
 import { Bell, ChevronDown, Mail } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { initialMessages, initialNotifications } from "../../constants";
-import type { Message, UserProfile } from "../../types";
+import {
+  getDashboardNotificationFeed,
+  markDashboardNotificationsRead,
+} from "../../infrastructure/notificationsApi";
+import type { Message, Notification, UserProfile } from "../../types";
+import {
+  DASHBOARD_NOTIFICATIONS_REFRESH_EVENT,
+  type DashboardNotificationsRefreshDetail,
+} from "../../utils/notificationEvents";
+import { MessageDetailModal } from "./MessageDetailModal";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface HeaderProps {
@@ -12,6 +21,7 @@ interface HeaderProps {
   userInitials?: string;
   unreadNotifications?: number;
   messages?: Message[];
+  notifications?: Notification[];
 }
 
 export function Header({
@@ -20,6 +30,7 @@ export function Header({
   userInitials,
   unreadNotifications = 1,
   messages = initialMessages,
+  notifications = initialNotifications,
 }: HeaderProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -27,7 +38,13 @@ export function Header({
   const [showMessagesMenu, setShowMessagesMenu] = useState(false);
   const [showNotificationsMenu, setShowNotificationsMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [unreadMessagesCount, setUnreadMessagesCount] = useState(messages.length);
+  const [menuMessages, setMenuMessages] = useState<Message[]>(messages);
+  const [menuNotifications, setMenuNotifications] =
+    useState<Notification[]>(notifications);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(
+    messages.length,
+  );
   const [unreadCount, setUnreadCount] = useState(unreadNotifications);
   const actionsRef = useRef<HTMLDivElement>(null);
 
@@ -46,15 +63,16 @@ export function Header({
     "Início";
 
   const displayName =
-    userProfile?.displayName ?? user?.displayName ?? user?.name ?? user?.email ?? "Usuário";
+    userProfile?.displayName ??
+    user?.displayName ??
+    user?.name ??
+    user?.email ??
+    "Usuário";
   const accountLabel =
     userProfile?.email ??
     (userProfile?.username ? `@${userProfile.username}` : undefined) ??
     user?.email ??
-    displayName
-      .trim()
-      .replace(/\s+/g, "")
-      .toLowerCase();
+    displayName.trim().replace(/\s+/g, "").toLowerCase();
   const avatarUrl = userProfile?.avatarUrl || user?.avatarUrl || "";
   const initials =
     userInitials ??
@@ -66,6 +84,95 @@ export function Header({
       .slice(0, 2)
       .join("")
       .toUpperCase();
+
+  const loadFeeds = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const [messagesResult, notificationsResult] = await Promise.all([
+        getDashboardNotificationFeed("message"),
+        getDashboardNotificationFeed("notification"),
+      ]);
+
+      setMenuMessages((current) => {
+        const optimistic = current.filter(
+          (message) =>
+            String(message.id).startsWith("local:") &&
+            !messagesResult.messages.some((item) => item.text === message.text),
+        );
+        return [...optimistic, ...messagesResult.messages];
+      });
+      setUnreadMessagesCount(messagesResult.unreadCount);
+      setMenuNotifications((current) => {
+        const optimistic = current.filter(
+          (notification) =>
+            String(notification.id).startsWith("local:") &&
+            !notificationsResult.notifications.some(
+              (item) => item.text === notification.text,
+            ),
+        );
+        return [...optimistic, ...notificationsResult.notifications];
+      });
+      setUnreadCount(notificationsResult.unreadCount);
+    } catch {
+      // Mantém os dados de fallback até a API estar disponível.
+    }
+  }, [user]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount: setState só ocorre após o await resolver a Promise, não é síncrono no corpo do efeito; falso positivo conhecido da regra para esse padrão.
+    void loadFeeds();
+
+    const handleRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<DashboardNotificationsRefreshDetail>)
+        .detail;
+      if (detail?.incrementUnread) {
+        if (!detail.channel || detail.channel === "notification") {
+          setUnreadCount((current) => current + 1);
+        }
+        if (detail.channel === "message") {
+          setUnreadMessagesCount((current) => current + 1);
+        }
+      }
+      if (detail?.item) {
+        if (detail.channel === "message") {
+          setMenuMessages((current) => [
+            {
+              id: detail.item!.id,
+              sender: detail.item!.sender ?? "Candidate",
+              text: detail.item!.text,
+              date: detail.item!.date,
+              origin: detail.item!.origin,
+            },
+            ...current.filter((item) => item.text !== detail.item!.text),
+          ]);
+        } else {
+          setMenuNotifications((current) => [
+            {
+              id: detail.item!.id,
+              text: detail.item!.text,
+              type: detail.item!.type,
+              date: detail.item!.date,
+            },
+            ...current.filter((item) => item.text !== detail.item!.text),
+          ]);
+        }
+        return;
+      }
+      void loadFeeds();
+    };
+    window.addEventListener(
+      DASHBOARD_NOTIFICATIONS_REFRESH_EVENT,
+      handleRefresh,
+    );
+
+    return () => {
+      window.removeEventListener(
+        DASHBOARD_NOTIFICATIONS_REFRESH_EVENT,
+        handleRefresh,
+      );
+    };
+  }, [loadFeeds]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -95,10 +202,19 @@ export function Header({
           <button
             type="button"
             onClick={() => {
-              setShowMessagesMenu((current) => !current);
+              const willOpen = !showMessagesMenu;
+              setShowMessagesMenu(willOpen);
               setShowNotificationsMenu(false);
               setShowUserMenu(false);
-              setUnreadMessagesCount(0);
+              if (willOpen) {
+                setUnreadMessagesCount(0);
+                void markDashboardNotificationsRead("message")
+                  .then(loadFeeds)
+                  .then(() => setUnreadMessagesCount(0))
+                  .catch(() => {
+                    // A leitura local já foi aplicada; a próxima carga reconcilia.
+                  });
+              }
             }}
             className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
             aria-label="Mensagens"
@@ -115,21 +231,39 @@ export function Header({
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <span className="font-bold">Caixa de Mensagens</span>
                 <span className="text-xs font-bold text-primary">
-                  {unreadMessagesCount > 0 ? `${unreadMessagesCount} novas` : "Lidas"}
+                  {unreadMessagesCount > 0
+                    ? `${unreadMessagesCount} novas`
+                    : "Lidas"}
                 </span>
               </div>
               <div className="space-y-4 pt-4">
-                {messages.map((message) => (
-                  <div key={message.id}>
-                    <div className="flex items-start justify-between gap-3 text-xs">
-                      <span className="font-bold">{message.sender}</span>
-                      <span className="shrink-0 text-muted-foreground">{message.date}</span>
-                    </div>
-                    <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
-                      {message.text}
-                    </p>
-                  </div>
-                ))}
+                {menuMessages.length > 0 ? (
+                  menuMessages.map((message) => (
+                    <button
+                      key={message.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedMessage(message);
+                        setShowMessagesMenu(false);
+                      }}
+                      className="block w-full rounded-md text-left transition-colors hover:bg-muted/60"
+                    >
+                      <div className="flex items-start justify-between gap-3 text-xs">
+                        <span className="font-bold">{message.sender}</span>
+                        <span className="shrink-0 text-muted-foreground">
+                          {message.date}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">
+                        {message.text}
+                      </p>
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                    Nenhuma mensagem recente.
+                  </p>
+                )}
               </div>
             </div>
           ) : null}
@@ -139,10 +273,19 @@ export function Header({
           <button
             type="button"
             onClick={() => {
-              setShowNotificationsMenu((current) => !current);
+              const willOpen = !showNotificationsMenu;
+              setShowNotificationsMenu(willOpen);
               setShowMessagesMenu(false);
               setShowUserMenu(false);
-              setUnreadCount(0);
+              if (willOpen) {
+                setUnreadCount(0);
+                void markDashboardNotificationsRead("notification")
+                  .then(loadFeeds)
+                  .then(() => setUnreadCount(0))
+                  .catch(() => {
+                    // A leitura local já foi aplicada; a próxima carga reconcilia.
+                  });
+              }
             }}
             className="relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground transition-colors hover:bg-muted"
             aria-label="Notificações"
@@ -160,24 +303,39 @@ export function Header({
                 <span className="font-bold">Notificações Recentes</span>
                 <button
                   type="button"
-                  onClick={() => setUnreadCount(0)}
+                  onClick={() => {
+                    setUnreadCount(0);
+                    void markDashboardNotificationsRead("notification").catch(
+                      () => {
+                        // A leitura local já foi aplicada; a próxima carga reconcilia.
+                      },
+                    );
+                  }}
                   className="text-xs text-slate-400 hover:text-foreground"
                 >
                   Limpar
                 </button>
               </div>
               <div className="space-y-5 pt-4">
-                {initialNotifications.map((notification) => (
-                  <div key={notification.id} className="flex gap-3">
-                    <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                    <div>
-                      <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
-                        {notification.text}
-                      </p>
-                      <span className="text-[11px] text-slate-400">{notification.date}</span>
+                {menuNotifications.length > 0 ? (
+                  menuNotifications.map((notification) => (
+                    <div key={notification.id} className="flex gap-3">
+                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                      <div>
+                        <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                          {notification.text}
+                        </p>
+                        <span className="text-[11px] text-slate-400">
+                          {notification.date}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                    Nenhuma notificação recente.
+                  </p>
+                )}
               </div>
             </div>
           ) : null}
@@ -249,6 +407,12 @@ export function Header({
           ) : null}
         </div>
       </div>
+      {selectedMessage ? (
+        <MessageDetailModal
+          message={selectedMessage}
+          onClose={() => setSelectedMessage(null)}
+        />
+      ) : null}
     </header>
   );
 }

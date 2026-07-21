@@ -95,17 +95,36 @@ describe("SavedJobsService", () => {
     };
 
     it("cria e retorna a vaga quando não existe duplicata", async () => {
-      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
-      tx.insert.mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([{ ...mockJob, ...newJobData }]),
-        }),
+      const createdJob = { ...mockJob, ...newJobData };
+      const savedJobValues = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([createdJob]),
       });
+      const notificationValues = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: "notification-1" }]),
+      });
+
+      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
+      tx.insert
+        .mockReturnValueOnce({ values: savedJobValues })
+        .mockReturnValueOnce({ values: notificationValues });
 
       const result = await service.create("user-1", newJobData);
 
       expect(result).toMatchObject(newJobData);
-      expect(tx.insert).toHaveBeenCalledOnce();
+      expect(tx.insert).toHaveBeenCalledTimes(2);
+      expect(savedJobValues).toHaveBeenCalledWith({
+        ...newJobData,
+        userId: "user-1",
+      });
+      expect(notificationValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "user-1",
+          channel: "notification",
+          type: "job_saved",
+          entityType: "job",
+          entityId: createdJob.id,
+        }),
+      );
     });
 
     it("lança CONFLICT quando jobLink já existe para o usuário", async () => {
@@ -124,6 +143,7 @@ describe("SavedJobsService", () => {
 
   describe("update", () => {
     it("atualiza e retorna a vaga", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
       tx.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -172,6 +192,7 @@ describe("SavedJobsService", () => {
           returning: vi.fn().mockResolvedValue([mockJob]),
         }),
       });
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
       tx.update.mockReturnValue({ set: setMock });
 
       await service.update("user-1", "job-1", { jobTitle: "X" });
@@ -179,6 +200,44 @@ describe("SavedJobsService", () => {
       const setArg = setMock.mock.calls[0][0];
       expect(setArg).toHaveProperty("updatedAt");
       expect(setArg.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it("cria notificação quando o status da vaga muda", async () => {
+      const previousJob = { ...mockJob, status: "saved" };
+      const updatedJob = { ...mockJob, status: "applied" };
+      const notificationValues = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: "notification-1" }]),
+      });
+
+      tx.query.savedJobs.findFirst.mockResolvedValue(previousJob);
+      tx.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([updatedJob]),
+          }),
+        }),
+      });
+      tx.insert.mockReturnValueOnce({ values: notificationValues });
+
+      const result = await service.update("user-1", "job-1", {
+        status: "applied",
+      });
+
+      expect(result.status).toBe("applied");
+      expect(tx.insert).toHaveBeenCalledOnce();
+      expect(notificationValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "user-1",
+          channel: "notification",
+          type: "job_applied",
+          entityType: "job",
+          entityId: updatedJob.id,
+          metadata: expect.objectContaining({
+            previousStatus: "saved",
+            status: "applied",
+          }),
+        }),
+      );
     });
   });
 

@@ -48,6 +48,7 @@ export const users = pgTable(
     cpfHash: text("cpf_hash"),
     technologies: text("technologies").array().default([]),
     technologiesEncrypted: text("technologies_encrypted"),
+    technologyExperiencesEncrypted: text("technology_experiences_encrypted"),
     level: varchar("level", { length: 50 }),
     levelEncrypted: text("level_encrypted"),
 

@@ -156,7 +156,7 @@ describe("new_dashboard job components", () => {
 
     render(<JobRow job={baseJob} onOpen={onOpen} onStatusChange={onStatusChange} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /detalhes/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /detalhes/i })[0]);
     fireEvent.click(screen.getByRole("button", { name: /aplicar/i }));
 
     expect(onOpen).toHaveBeenCalledWith(baseJob);
@@ -271,7 +271,7 @@ describe("new_dashboard job components", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("filtra vagas no JobTab e dispara busca", () => {
+  it("exibe a página recebida no JobTab e dispara busca remota", () => {
     const onSearchJobs = vi.fn();
     const onOpenJob = vi.fn();
     const onStatusChange = vi.fn();
@@ -332,9 +332,9 @@ describe("new_dashboard job components", () => {
       target: { value: "Remoto" },
     });
     expect(screen.getByText("Remote React")).toBeInTheDocument();
-    expect(screen.queryByText("Onsite Java")).not.toBeInTheDocument();
+    expect(screen.getByText("Onsite Java")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /detalhes/i }));
+    fireEvent.click(screen.getAllByRole("button", { name: /detalhes/i })[0]);
     expect(onOpenJob).toHaveBeenCalled();
     expect(onStatusChange).not.toHaveBeenCalled();
   });

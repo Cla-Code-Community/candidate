@@ -16,6 +16,9 @@ export function ScraperGrid({
   onStartAll,
   onPauseAll,
 }: ScraperGridProps) {
+  const hasRunningScraper = scrapers.some((scraper) => scraper.active);
+  const startDisabled = isStarting || hasRunningScraper;
+
   return (
     <div className="bg-white dark:bg-[#0f131a] p-6 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm theme-transition">
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
@@ -31,10 +34,19 @@ export function ScraperGrid({
         <div className="flex gap-2">
           <button
             onClick={onStartAll}
-            disabled={isStarting}
+            disabled={startDisabled}
+            title={
+              hasRunningScraper
+                ? "Já existe uma execução em andamento"
+                : "Iniciar execução dos scrapers"
+            }
             className="rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isStarting ? "Iniciando..." : "Iniciar Todos"}
+            {isStarting
+              ? "Iniciando..."
+              : hasRunningScraper
+                ? "Em execução"
+                : "Iniciar Todos"}
           </button>
           <button
             onClick={onPauseAll}

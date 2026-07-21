@@ -20,6 +20,15 @@ vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => mockUseTheme(),
 }));
 
+vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+  getDashboardNotificationFeed: vi.fn().mockResolvedValue({
+    messages: [],
+    notifications: [],
+    unreadCount: 0,
+  }),
+  markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
+}));
+
 function renderWithRouter(ui: React.ReactElement, pathname = "/dashboard") {
   return render(
     <MemoryRouter initialEntries={[pathname]}>{ui}</MemoryRouter>,
@@ -67,7 +76,18 @@ describe("new_dashboard dashboard and layout components", () => {
           baseJob,
           { ...baseJob, id: "job-2", status: "interviewing", jobTitle: "Backend" },
         ]}
-        technologies={["React", "TypeScript", "Node.js"]}
+        technologies={[
+          { name: "React", years: 5 },
+          { name: "TypeScript", years: 4 },
+          { name: "Node.js", years: 2 },
+          { name: "Express", years: 3.5 },
+          { name: "Docker", years: 3.5 },
+          { name: "Postgres", years: 4 },
+          { name: "Drizzle", years: 1 },
+          { name: "PHP", years: 3 },
+          { name: "Laravel", years: 3 },
+          { name: "Linux", years: 15 },
+        ]}
         onOpenJob={vi.fn()}
         onStatusChange={vi.fn()}
         onAddJob={vi.fn()}
@@ -80,6 +100,8 @@ describe("new_dashboard dashboard and layout components", () => {
     expect(screen.getByText(/vagas monitoradas \(2\)/i)).toBeInTheDocument();
     expect(screen.getByText("React")).toBeInTheDocument();
     expect(screen.getByText("TypeScript")).toBeInTheDocument();
+    expect(screen.getByText("Laravel")).toBeInTheDocument();
+    expect(screen.getByText("Linux")).toBeInTheDocument();
   });
 
   it("permite arrastar uma vaga entre colunas no kanban", () => {

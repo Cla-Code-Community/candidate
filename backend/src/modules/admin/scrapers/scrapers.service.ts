@@ -40,8 +40,8 @@ export class ScrapersService {
     ];
   }
 
-  async getJobs(): Promise<GetJobsResult> {
-    return scraperClient.getJobs();
+  async getJobs(limit?: number): Promise<GetJobsResult> {
+    return scraperClient.getJobs(limit);
   }
 
   async getJobsCount(): Promise<JobsCountResult> {

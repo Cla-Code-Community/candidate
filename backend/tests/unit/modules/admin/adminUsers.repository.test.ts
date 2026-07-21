@@ -102,7 +102,13 @@ describe("AdminUsersRepository", () => {
 
     expect(mocks.limit).toHaveBeenCalledWith(10);
     expect(mocks.offset).toHaveBeenCalledWith(5);
-    expect(result).toEqual({ data: [user], total: 1, limit: 10, offset: 5 });
+    expect(result).toMatchObject({
+      data: [expect.objectContaining(user)],
+      total: 1,
+      limit: 10,
+      offset: 5,
+    });
+    expect(result.data[0]).toHaveProperty("technologyExperiences");
   });
 
   it("finds many users with default filters", async () => {
@@ -114,13 +120,20 @@ describe("AdminUsersRepository", () => {
 
     expect(mocks.limit).toHaveBeenCalledWith(50);
     expect(mocks.offset).toHaveBeenCalledWith(0);
-    expect(result).toEqual({ data: [user], total: 1, limit: 50, offset: 0 });
+    expect(result).toMatchObject({
+      data: [expect.objectContaining(user)],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    });
+    expect(result.data[0]).toHaveProperty("technologyExperiences");
   });
 
   it("finds user by id", async () => {
-    await expect(new AdminUsersRepository().findById("user-1")).resolves.toEqual(
-      user,
-    );
+    const result = await new AdminUsersRepository().findById("user-1");
+
+    expect(result).toMatchObject(user);
+    expect(result).toHaveProperty("technologyExperiences");
   });
 
   it("updates blocked state and role", async () => {
@@ -171,7 +184,10 @@ describe("AdminUsersRepository", () => {
   });
 
   it("deletes user", async () => {
-    await expect(new AdminUsersRepository().delete("user-1")).resolves.toEqual(user);
+    const result = await new AdminUsersRepository().delete("user-1");
+
+    expect(result).toMatchObject(user);
+    expect(result).toHaveProperty("technologyExperiences");
   });
 
   it("returns null when deleting affects no rows", async () => {

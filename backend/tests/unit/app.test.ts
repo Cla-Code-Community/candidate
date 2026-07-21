@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   cacheSearchKeywords: vi.fn(),
+  cacheSearchJobIds: vi.fn(),
   cacheAbsoluteSMembers: vi.fn(),
   cacheGetJobsByIds: vi.fn(),
   getCache: vi.fn(),
@@ -15,10 +16,13 @@ const mocks = vi.hoisted(() => ({
   dbInsert: vi.fn(),
   dbInsertValues: vi.fn(),
   dbInsertConflict: vi.fn(),
+  getUserById: vi.fn(),
+  createHighMatchIfMissing: vi.fn(),
 }));
 
 vi.mock("../../src/lib/cache.js", () => ({
   cacheSearchKeywords: mocks.cacheSearchKeywords,
+  cacheSearchJobIds: mocks.cacheSearchJobIds,
   cacheAbsoluteSMembers: mocks.cacheAbsoluteSMembers,
   cacheGetJobsByIds: mocks.cacheGetJobsByIds,
   getCache: mocks.getCache,
@@ -73,6 +77,18 @@ vi.mock("../../src/routes/users.routes.js", async () => {
   return { userRoutes: Router() };
 });
 
+vi.mock("../../src/modules/users/users.service.js", () => ({
+  UsersService: class {
+    getUserById = mocks.getUserById;
+  },
+}));
+
+vi.mock("../../src/modules/notifications/notifications.service.js", () => ({
+  NotificationsService: class {
+    createHighMatchIfMissing = mocks.createHighMatchIfMissing;
+  },
+}));
+
 vi.mock("../../src/middleware/withSession.js", () => ({
   withSession: (req: any, _res: any, next: any) => {
     req.session = { userId: "test-user-id" };
@@ -104,6 +120,7 @@ describe("jobsApiApp", () => {
       DEFAULT_PAGINATED(ids),
     );
     mocks.cacheSearchKeywords.mockResolvedValue(["id-1", "id-2"]);
+    mocks.cacheSearchJobIds.mockResolvedValue([]);
     mocks.cacheAbsoluteSMembers.mockResolvedValue(["id-1", "id-2"]);
     mocks.cacheGetJobsByIds.mockResolvedValue([
       { id: "id-1", title: "Dev Java", company: "ACME" },
@@ -119,6 +136,8 @@ describe("jobsApiApp", () => {
       onConflictDoNothing: mocks.dbInsertConflict,
     });
     mocks.dbInsert.mockReturnValue({ values: mocks.dbInsertValues });
+    mocks.getUserById.mockResolvedValue(null);
+    mocks.createHighMatchIfMissing.mockResolvedValue(undefined);
     mocks.getCache.mockResolvedValue({ lPush: vi.fn() });
     mocks.publish.mockResolvedValue(undefined);
   });
@@ -272,6 +291,140 @@ describe("jobsApiApp", () => {
     expect(res.body.total).toBe(1);
   });
 
+  it("GET /jobs/search usa índices estruturados quando há filtros", async () => {
+    mocks.cacheSearchJobIds.mockResolvedValue(["id-structured"]);
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-structured",
+        title: "Dev React Júnior",
+        company: "ACME",
+        location: "Brasil - Remoto",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({
+        keywords: "React",
+        level: "Júnior",
+        location: "Brasil",
+        type: "Remoto",
+      })
+      .expect(200);
+
+    expect(mocks.cacheSearchJobIds).toHaveBeenCalledWith({
+      keywords: ["React"],
+      level: "Júnior",
+      location: "Brasil",
+      continent: "",
+      country: "",
+      state: "",
+      city: "",
+      type: "Remoto",
+      model: "",
+      contract: "",
+    });
+    expect(mocks.cacheSearchKeywords).not.toHaveBeenCalled();
+    expect(mocks.cacheGetJobsByIds).toHaveBeenCalledWith(["id-structured"]);
+    expect(res.body.jobs).toEqual([
+      expect.objectContaining({ id: "id-structured" }),
+    ]);
+    expect(res.body.source).toContain("structured_indexes");
+    expect(res.body.source).toContain("verified");
+  });
+
+  it("GET /jobs/search valida resultados dos índices estruturados antes de responder", async () => {
+    mocks.cacheSearchJobIds.mockResolvedValue([
+      "id-good",
+      "id-pleno",
+      "id-presencial",
+      "id-us",
+    ]);
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-good",
+        title: "Dev React Júnior",
+        company: "ACME",
+        location: "Brasil - Remoto",
+      },
+      {
+        id: "id-pleno",
+        title: "Remote Frontend Software Engineer",
+        company: "Globex",
+        location: "Brasil - Remoto",
+      },
+      {
+        id: "id-presencial",
+        title: "Web Application Full Stack Developer",
+        company: "Carrier",
+        location: "Brasil",
+      },
+      {
+        id: "id-us",
+        title: "Dev React Júnior",
+        company: "Affirm",
+        location: "Miami, Flórida, Estados Unidos, Brasil",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({
+        level: "Júnior",
+        location: "Brasil",
+        type: "Remoto",
+      })
+      .expect(200);
+
+    expect(mocks.cacheGetJobsByIds).toHaveBeenCalledWith([
+      "id-good",
+      "id-pleno",
+      "id-presencial",
+      "id-us",
+    ]);
+    expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-good" })]);
+    expect(res.body.total).toBe(1);
+    expect(res.body.source).toBe("valkey_global_index:structured_indexes:verified");
+  });
+
+  it("GET /jobs/search filtra vagas de estágio e trainee", async () => {
+    mocks.cacheSearchJobIds.mockResolvedValue(["id-intern", "id-junior"]);
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-intern",
+        title: "Software Engineering Intern",
+        company: "ACME",
+        location: "Brasil - Remoto",
+      },
+      {
+        id: "id-junior",
+        title: "Junior Frontend Developer",
+        company: "Globex",
+        location: "Brasil - Remoto",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({
+        level: "Estágio/Trainee",
+        location: "Brasil",
+        type: "Remoto",
+      })
+      .expect(200);
+
+    expect(mocks.cacheSearchJobIds).toHaveBeenCalledWith(
+      expect.objectContaining({ level: "Estágio/Trainee" }),
+    );
+    expect(res.body.jobs).toEqual([
+      expect.objectContaining({ id: "id-intern" }),
+    ]);
+    expect(res.body.total).toBe(1);
+  });
+
   it("GET /jobs/search diferencia modelo híbrido de remoto", async () => {
     mocks.cacheGetJobsByIds.mockResolvedValue([
       {
@@ -296,6 +449,47 @@ describe("jobsApiApp", () => {
 
     expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-2" })]);
     expect(res.body.total).toBe(1);
+  });
+
+  it("GET /jobs/search calcula match por perfil e registra alto match", async () => {
+    mocks.getUserById.mockResolvedValue({
+      id: "test-user-id",
+      technologies: ["React", "TypeScript"],
+      technologyExperiencesEncrypted: null,
+    });
+    mocks.cacheGetJobsByIds.mockResolvedValue([
+      {
+        id: "id-match",
+        title: "React TypeScript Developer",
+        company: "ACME",
+        location: "Brasil - Remote",
+        url: "https://example.com/jobs/id-match",
+      },
+    ]);
+
+    const app = createJobsApiApp();
+    const res = await request(app)
+      .get("/jobs/search")
+      .query({ keywords: "React" })
+      .expect(200);
+
+    expect(res.body.jobs).toEqual([
+      expect.objectContaining({
+        id: "id-match",
+        matchScore: expect.any(Number),
+        matchSource: "backend_profile",
+        matchedTechnologies: ["React", "TypeScript"],
+      }),
+    ]);
+    expect(res.body.jobs[0].matchScore).toBeGreaterThanOrEqual(85);
+    expect(mocks.createHighMatchIfMissing).toHaveBeenCalledWith(
+      "test-user-id",
+      expect.objectContaining({
+        id: "id-match",
+        matchScore: expect.any(Number),
+        matchSource: "backend_profile",
+      }),
+    );
   });
 
   it("GET /jobs/search retorna paginação correta", async () => {
