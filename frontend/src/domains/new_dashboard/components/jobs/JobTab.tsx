@@ -1,9 +1,19 @@
 import { Search } from "lucide-react";
-import type { Job, JobStatus, MatchSort, SearchPreferences } from "../../types";
+import type {
+  Job,
+  JobModelFilter,
+  JobStatus,
+  MatchSort,
+  SearchPreferences,
+} from "../../types";
 import {
   type ContinentFilter,
   type CountryFilter,
 } from "../../utils/locationFilters";
+import {
+  getModelFilterFromJobTypes,
+  jobModelFilterOptions,
+} from "../../utils/jobModelFilters";
 import { JobFilter } from "./JobFilter";
 import { JobTable } from "./JobTable";
 
@@ -11,8 +21,8 @@ interface JobTabProps {
   jobs: Job[];
   searchQuery: string;
   setSearchQuery: (value: string) => void;
-  filterType: string;
-  setFilterType: (value: string) => void;
+  filterType: JobModelFilter;
+  setFilterType: (value: JobModelFilter) => void;
   filterLevel: string;
   setFilterLevel: (value: string) => void;
   continentFilter: ContinentFilter;
@@ -59,6 +69,13 @@ export function JobTab({
   onOpenJob,
   onStatusChange,
 }: JobTabProps) {
+  const preferredModelFilter = searchPreferences
+    ? getModelFilterFromJobTypes(searchPreferences.jobTypes)
+    : "Todos";
+  const preferredModelLabel = jobModelFilterOptions.find(
+    (option) => option.value === preferredModelFilter,
+  )?.label;
+
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-6 py-8 lg:px-8">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -97,10 +114,10 @@ export function JobTab({
         setMatchSort={setMatchSort}
       />
 
-      {searchPreferences?.remoteOnly && (
+      {preferredModelFilter !== "Todos" && preferredModelLabel && (
         <p className="text-sm font-semibold text-emerald-600">
-          • Filtro de busca ativo: Apenas oportunidades remotas habilitado nas
-          preferências.
+          • Preferência ativa: {preferredModelLabel.toLowerCase()} como padrão
+          nesta busca.
         </p>
       )}
 

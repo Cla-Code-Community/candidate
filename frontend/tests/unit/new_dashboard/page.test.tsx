@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
@@ -141,6 +141,7 @@ describe("NewDashboardPage", () => {
         keywords: ["React"],
         searchLocation: "Brasil",
         remoteOnly: false,
+        jobTypes: [],
         emailNotifications: true,
         careerChecklist: [],
       },
@@ -210,6 +211,63 @@ describe("NewDashboardPage", () => {
       screen.getByRole("heading", { name: /vagas abertas recomendadas/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /buscar vagas/i })).toBeInTheDocument();
+  });
+
+  it("usa apenas vagas remotas como padrão quando a preferência está ativa", async () => {
+    mockUseUserDashboardData.mockReturnValue({
+      ...mockUseUserDashboardData(),
+      searchPreferences: {
+        keywords: ["React"],
+        searchLocation: "Brasil",
+        remoteOnly: true,
+        jobTypes: ["Remoto"],
+        emailNotifications: true,
+        careerChecklist: [],
+      },
+    });
+    dashboardJobsState.recommendedJobs = [
+      {
+        id: "remote-job",
+        jobTitle: "Remote Node",
+        company: "Globex",
+        location: "Global",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Sênior",
+        matchScore: 91,
+        tags: ["Node.js"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/remote",
+        source: "Gupy",
+        notes: "",
+      },
+      {
+        id: "onsite-job",
+        jobTitle: "Onsite Node",
+        company: "ACME",
+        location: "São Paulo",
+        salary: "A combinar",
+        type: "Presencial",
+        level: "Sênior",
+        matchScore: 88,
+        tags: ["Node.js"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/onsite",
+        source: "LinkedIn",
+        notes: "",
+      },
+    ];
+
+    renderPage("/vagas");
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Somente remotas")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Remote Node")).toBeInTheDocument();
+    expect(screen.queryByText("Onsite Node")).not.toBeInTheDocument();
   });
 
   it("aciona a busca e paginação de vagas", () => {

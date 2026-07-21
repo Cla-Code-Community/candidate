@@ -18,6 +18,7 @@ import { useUserDashboardData } from "./hooks/useUserDashboardData";
 import type {
   CareerChecklist,
   Job,
+  JobModelFilter,
   JobStatus,
   MatchSort,
   NewJob,
@@ -29,6 +30,11 @@ import {
   type ContinentFilter,
   type CountryFilter,
 } from "./utils/locationFilters";
+import {
+  getModelFilterFromJobTypes,
+  modelFilterMatchesJob,
+  modelFilterToApiFilter,
+} from "./utils/jobModelFilters";
 import { parseSearchKeywords } from "./utils/searchKeywords";
 
 function getSection(pathname: string) {
@@ -149,7 +155,7 @@ export default function NewDashboardPage() {
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterType, setFilterType] = useState("Todos");
+  const [filterType, setFilterType] = useState<JobModelFilter>("Todos");
   const [filterLevel, setFilterLevel] = useState("Todos");
   const [continentFilter, setContinentFilter] =
     useState<ContinentFilter>("Todos");
@@ -159,12 +165,14 @@ export default function NewDashboardPage() {
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [toast, setToast] = useState("");
   const checklistSaveTimeout = useRef<number | null>(null);
+  const hasUserSelectedModelFilter = useRef(false);
   const showToast = useCallback((message: string) => setToast(message), []);
   const {
     userProfile,
     setUserProfile,
     searchPreferences,
     setSearchPreferences,
+    isLoadingUserData,
     isSavingProfile,
     isSavingPreferences,
     saveUserProfile,
@@ -195,6 +203,13 @@ export default function NewDashboardPage() {
         scoreJobWithTechnologies(job, userProfile.technologyExperiences),
       ),
     [recommendedJobs, userProfile.technologyExperiences],
+  );
+  const displayedRecommendedJobs = useMemo(
+    () =>
+      matchedRecommendedJobs.filter((job) =>
+        modelFilterMatchesJob(job, filterType),
+      ),
+    [filterType, matchedRecommendedJobs],
   );
   const selectedJob =
     [...matchedTrackedJobs, ...matchedRecommendedJobs].find(
@@ -230,11 +245,18 @@ export default function NewDashboardPage() {
   const handleSavePreferences = async (preferences: SearchPreferences) => {
     try {
       await saveSearchPreferences(preferences);
+      hasUserSelectedModelFilter.current = false;
+      setFilterType(getModelFilterFromJobTypes(preferences.jobTypes));
       showToast("Preferências de busca atualizadas.");
     } catch {
       // O hook já notificou a falha preservando as preferências editadas.
     }
   };
+
+  const handleFilterTypeChange = useCallback((value: JobModelFilter) => {
+    hasUserSelectedModelFilter.current = true;
+    setFilterType(value);
+  }, []);
 
   const handleCareerChecklistChange = useCallback(
     (careerChecklist: CareerChecklist[]) => {
@@ -313,9 +335,7 @@ export default function NewDashboardPage() {
     const typedKeywords = parseSearchKeywords(searchQuery);
     const filters = {
       ...(filterLevel !== "Todos" ? { level: filterLevel } : {}),
-      ...(filterType !== "Todos"
-        ? { type: filterType, model: filterType }
-        : {}),
+      ...modelFilterToApiFilter(filterType),
       ...(continentFilter !== "Todos" ? { continent: continentFilter } : {}),
       ...(countryFilter !== "Todos"
         ? { country: countryFilter, location: countryFilter }
@@ -346,6 +366,12 @@ export default function NewDashboardPage() {
     refreshRecommendations,
     searchQuery,
   ]);
+
+  useEffect(() => {
+    if (isLoadingUserData || hasUserSelectedModelFilter.current) return;
+
+    setFilterType(getModelFilterFromJobTypes(searchPreferences.jobTypes));
+  }, [isLoadingUserData, searchPreferences.jobTypes]);
 
   // Busca automática: dispara ao digitar (com debounce) ou ao trocar
   // qualquer filtro, sem precisar clicar em "Buscar vagas".
@@ -398,11 +424,11 @@ export default function NewDashboardPage() {
       case "vagas":
         return (
           <JobTab
-            jobs={matchedRecommendedJobs}
+            jobs={displayedRecommendedJobs}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             filterType={filterType}
-            setFilterType={setFilterType}
+            setFilterType={handleFilterTypeChange}
             filterLevel={filterLevel}
             setFilterLevel={setFilterLevel}
             continentFilter={continentFilter}

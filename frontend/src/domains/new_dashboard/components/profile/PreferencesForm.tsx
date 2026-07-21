@@ -1,4 +1,9 @@
-import type { SearchPreferences } from "../../types";
+import type { JobModelFilter, SearchPreferences } from "../../types";
+import {
+  getJobTypesFromModelFilter,
+  getModelFilterFromJobTypes,
+  jobModelFilterOptions,
+} from "../../utils/jobModelFilters";
 
 interface PreferencesFormProps {
   searchPreferences: SearchPreferences;
@@ -13,6 +18,10 @@ export function PreferencesForm({
   isSaving = false,
   onSave,
 }: PreferencesFormProps) {
+  const preferredModelFilter = getModelFilterFromJobTypes(
+    searchPreferences.jobTypes,
+  );
+
   return (
     <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
       <h2 className="text-[18px] font-bold">Preferências de Carreira</h2>
@@ -43,24 +52,34 @@ export function PreferencesForm({
             />
           </label>
 
-          <div className="flex flex-col justify-center gap-3">
-            <label className="flex cursor-pointer select-none items-start gap-3 text-xs font-bold text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={searchPreferences.remoteOnly}
-                onChange={(event) =>
+          <div className="flex flex-col justify-center gap-4">
+            <label>
+              <span className="mb-2 block text-xs font-bold uppercase text-muted-foreground">
+                Vagas Exibidas Inicialmente
+              </span>
+              <select
+                value={preferredModelFilter}
+                onChange={(event) => {
+                  const jobTypes = getJobTypesFromModelFilter(
+                    event.target.value as JobModelFilter,
+                  );
                   setSearchPreferences((current) => ({
                     ...current,
-                    remoteOnly: event.target.checked,
-                  }))
-                }
-                className="mt-0.5 h-4 w-4 rounded accent-primary"
-              />
-              <span>
-                <span className="block text-foreground">Apenas Oportunidades Remotas</span>
-                <span className="mt-1 block font-normal">
-                  Esconde vagas híbridas ou presenciais da listagem principal.
-                </span>
+                    jobTypes,
+                    remoteOnly:
+                      jobTypes.length === 1 && jobTypes[0] === "Remoto",
+                  }));
+                }}
+                className="h-10 w-full rounded-lg border border-input bg-card px-4 text-sm outline-none focus:border-ring"
+              >
+                {jobModelFilterOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-2 block text-xs text-muted-foreground">
+                Define o filtro padrão aplicado automaticamente na tela de vagas.
               </span>
             </label>
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { JobTypeSchema } from "./job";
 
 export const TechnologyExperienceSchema = z.object({
   name: z.string().min(1),
@@ -35,6 +36,7 @@ export const SearchPreferencesSchema = z.object({
   keywords: z.array(z.string()),
   searchLocation: z.string().min(1),
   remoteOnly: z.boolean(),
+  jobTypes: z.array(JobTypeSchema),
   emailNotifications: z.boolean(),
   careerChecklist: z.array(CareerChecklistSchema),
 });

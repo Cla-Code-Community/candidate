@@ -38,13 +38,15 @@ export const updateProfileSchema = z
 
 // ── Preferences ───────────────────────────────────────────────────────────────
 
+const jobTypePreferenceSchema = z.enum(["Remoto", "Híbrido", "Presencial"]);
+
 export const updatePreferencesSchema = z
   .object({
     keywords: z.array(z.string().min(1)).max(20),
     searchLocation: z.string().min(1).max(100).nullable(),
     searchLanguage: z.string().length(2).nullable(),
     remoteOnly: z.boolean(),
-    jobTypes: z.array(z.string().min(1)).max(10),
+    jobTypes: z.array(jobTypePreferenceSchema).max(3),
     emailNotifications: z.boolean(),
     careerChecklist: z
       .array(
