@@ -40,7 +40,7 @@ export function HomeTab({
             <ClipboardList className="mt-1 h-5 w-5 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
               <h3 className="text-[18px] font-bold text-foreground">
-                Candidaturas recentes
+                Vagas salvas recentes
               </h3>
 
               {recentJobs.length > 0 ? (
@@ -68,7 +68,7 @@ export function HomeTab({
                 <div className="mt-4 rounded-lg border border-dashed border-border bg-background p-4">
                   <p className="text-sm leading-6 text-muted-foreground">
                     Nenhuma vaga salva ainda. Busque oportunidades e salve as
-                    candidaturas que quiser acompanhar aqui.
+                    vagas que quiser acompanhar aqui.
                   </p>
                   <button
                     type="button"

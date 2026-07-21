@@ -77,7 +77,7 @@ export function DashboardTab({
       <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-bold">Quadro Kanban de Candidaturas</h2>
+            <h2 className="text-lg font-bold">Quadro Kanban de Vagas</h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Acompanhe e movimente o progresso de seus processos seletivos.
             </p>
@@ -95,7 +95,7 @@ export function DashboardTab({
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="font-bold">Análise de Candidaturas</h2>
+          <h2 className="font-bold">Análise de Vagas</h2>
           <div className="mt-5 space-y-4">
             {funnelItems.map((item) => (
               <div key={item.label}>

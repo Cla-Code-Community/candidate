@@ -19,6 +19,7 @@ import type {
   CareerChecklist,
   Job,
   JobStatus,
+  MatchSort,
   NewJob,
   SearchPreferences,
   TechnologyExperience,
@@ -153,6 +154,7 @@ export default function NewDashboardPage() {
   const [continentFilter, setContinentFilter] =
     useState<ContinentFilter>("Todos");
   const [countryFilter, setCountryFilter] = useState<CountryFilter>("Todos");
+  const [matchSort, setMatchSort] = useState<MatchSort>("default");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [toast, setToast] = useState("");
@@ -174,7 +176,6 @@ export default function NewDashboardPage() {
     recommendedPagination,
     isRefreshingJobs,
     refreshRecommendations,
-    changeRecommendationsPage,
     addTrackedJob,
     changeJobStatus,
     changeJobNotesLocally,
@@ -296,7 +297,13 @@ export default function NewDashboardPage() {
 
   const handleRecommendationPageChange = async (page: number) => {
     try {
-      await changeRecommendationsPage(page);
+      const { keywords, filters } = buildRecommendationSearch();
+      await refreshRecommendations(
+        keywords,
+        filters,
+        page,
+        recommendedPagination.limit,
+      );
     } catch {
       // A camada de dados já apresentou o erro retornado pela API.
     }
@@ -313,6 +320,7 @@ export default function NewDashboardPage() {
       ...(countryFilter !== "Todos"
         ? { country: countryFilter, location: countryFilter }
         : {}),
+      ...(matchSort !== "default" ? { matchSort } : {}),
     };
 
     return {
@@ -334,6 +342,7 @@ export default function NewDashboardPage() {
     continentFilter,
     filterLevel,
     filterType,
+    matchSort,
     refreshRecommendations,
     searchQuery,
   ]);
@@ -361,6 +370,7 @@ export default function NewDashboardPage() {
     filterLevel,
     continentFilter,
     countryFilter,
+    matchSort,
     section,
   ]);
 
@@ -399,6 +409,8 @@ export default function NewDashboardPage() {
             setContinentFilter={setContinentFilter}
             countryFilter={countryFilter}
             setCountryFilter={setCountryFilter}
+            matchSort={matchSort}
+            setMatchSort={setMatchSort}
             searchPreferences={searchPreferences}
             isSearching={isRefreshingJobs}
             pagination={recommendedPagination}

@@ -1,5 +1,5 @@
 import { Search } from "lucide-react";
-import type { Job, JobStatus, SearchPreferences } from "../../types";
+import type { Job, JobStatus, MatchSort, SearchPreferences } from "../../types";
 import {
   type ContinentFilter,
   type CountryFilter,
@@ -19,6 +19,8 @@ interface JobTabProps {
   setContinentFilter: (value: ContinentFilter) => void;
   countryFilter: CountryFilter;
   setCountryFilter: (value: CountryFilter) => void;
+  matchSort: MatchSort;
+  setMatchSort: (value: MatchSort) => void;
   searchPreferences?: SearchPreferences;
   isSearching?: boolean;
   pagination?: {
@@ -46,6 +48,8 @@ export function JobTab({
   setContinentFilter,
   countryFilter,
   setCountryFilter,
+  matchSort,
+  setMatchSort,
   searchPreferences,
   isSearching = false,
   pagination,
@@ -89,6 +93,8 @@ export function JobTab({
         setContinentFilter={setContinentFilter}
         countryFilter={countryFilter}
         setCountryFilter={setCountryFilter}
+        matchSort={matchSort}
+        setMatchSort={setMatchSort}
       />
 
       {searchPreferences?.remoteOnly && (

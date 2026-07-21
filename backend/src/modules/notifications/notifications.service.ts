@@ -105,6 +105,20 @@ export class NotificationsService {
     return { updated: result.length };
   }
 
+  async clear(userId: string, channel?: "notification" | "message") {
+    const result = await this.tx
+      .delete(userNotifications)
+      .where(
+        and(
+          eq(userNotifications.userId, userId),
+          channel ? eq(userNotifications.channel, channel) : undefined,
+        ),
+      )
+      .returning({ id: userNotifications.id });
+
+    return { deleted: result.length };
+  }
+
   async createForSavedJob(userId: string, job: SavedJob) {
     const type = job.status === "applied" ? "job_applied" : "job_saved";
     const title =

@@ -67,6 +67,12 @@ function makeUpdateBuilder(result: Partial<UserNotification>[] = [notification])
   return { builder: { set }, set, where, returning };
 }
 
+function makeDeleteBuilder(result: Partial<UserNotification>[] = [notification]) {
+  const returning = vi.fn().mockResolvedValue(result);
+  const where = vi.fn().mockReturnValue({ returning });
+  return { builder: { where }, where, returning };
+}
+
 function makeTx() {
   return {
     query: {
@@ -77,6 +83,7 @@ function makeTx() {
     select: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   };
 }
 
@@ -168,6 +175,20 @@ describe("NotificationsService", () => {
 
     await expect(service.markAllRead("user-1", "message")).resolves.toEqual({
       updated: 2,
+    });
+  });
+
+  it("limpa notificações de um canal", async () => {
+    const deleteQuery = makeDeleteBuilder([{ id: "n1" }, { id: "n2" }]);
+    tx.delete.mockReturnValue(deleteQuery.builder);
+
+    await expect(service.clear("user-1", "notification")).resolves.toEqual({
+      deleted: 2,
+    });
+
+    expect(tx.delete).toHaveBeenCalled();
+    expect(deleteQuery.returning).toHaveBeenCalledWith({
+      id: expect.anything(),
     });
   });
 

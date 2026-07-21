@@ -13,7 +13,7 @@ export function StatusCounters({ jobs }: StatusCountersProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <CounterCard label="Vagas salvas" value={saved} helper="Salvas para depois" />
-      <CounterCard label="Candidaturas ativas" value={active} helper="Envios realizados" />
+      <CounterCard label="Processos ativos" value={active} helper="Candidaturas realizadas" />
       <CounterCard label="Entrevistas agendadas" value={interviews} helper="Fases em andamento" />
       <CounterCard label="Vagas concluídas" value={accepted} helper="Histórico geral" />
     </div>

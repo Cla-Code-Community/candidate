@@ -36,4 +36,13 @@ export class NotificationsController {
     );
     return res.json(result);
   }
+
+  async clear(req: Request, res: Response) {
+    const userId = this.requireUserId(req);
+    const result = await this.service.clear(
+      userId,
+      (req.query as { channel?: "notification" | "message" }).channel,
+    );
+    return res.json(result);
+  }
 }
