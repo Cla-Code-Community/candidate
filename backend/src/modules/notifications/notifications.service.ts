@@ -2,6 +2,7 @@ import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { db } from "../../db/client";
 import { NewUserNotification, SavedJob, userNotifications } from "../../db/schema";
 import { DB } from "../../db/types/types";
+import { ownedBy } from "../../lib/authorization/ownership";
 import { AppError } from "../../lib/errors";
 import {
   jobNotificationIdentity,
@@ -27,7 +28,7 @@ export class NotificationsService {
   constructor(private readonly tx: DB = db) {}
 
   async list(userId: string, filters: ListNotificationsQuery) {
-    const conditions = [eq(userNotifications.userId, userId)];
+    const conditions = [ownedBy(userId, userNotifications.userId)];
 
     if (filters.channel) {
       conditions.push(eq(userNotifications.channel, filters.channel));
@@ -50,7 +51,7 @@ export class NotificationsService {
         .from(userNotifications)
         .where(
           and(
-            eq(userNotifications.userId, userId),
+            ownedBy(userId, userNotifications.userId),
             filters.channel
               ? eq(userNotifications.channel, filters.channel)
               : undefined,
@@ -77,7 +78,7 @@ export class NotificationsService {
       .where(
         and(
           eq(userNotifications.id, notificationId),
-          eq(userNotifications.userId, userId),
+          ownedBy(userId, userNotifications.userId),
         ),
       )
       .returning();
@@ -95,7 +96,7 @@ export class NotificationsService {
       .set({ readAt: new Date() })
       .where(
         and(
-          eq(userNotifications.userId, userId),
+          ownedBy(userId, userNotifications.userId),
           channel ? eq(userNotifications.channel, channel) : undefined,
           isNull(userNotifications.readAt),
         ),
@@ -110,7 +111,7 @@ export class NotificationsService {
       .delete(userNotifications)
       .where(
         and(
-          eq(userNotifications.userId, userId),
+          ownedBy(userId, userNotifications.userId),
           channel ? eq(userNotifications.channel, channel) : undefined,
         ),
       )
@@ -181,7 +182,7 @@ export class NotificationsService {
     const existing = await this.tx.query.userNotifications.findFirst({
       where: (notification, { and, eq }) =>
         and(
-          eq(notification.userId, userId),
+          ownedBy(userId, notification.userId),
           eq(notification.type, "high_match"),
           eq(notification.entityType, "job"),
           eq(notification.entityId, entityId),

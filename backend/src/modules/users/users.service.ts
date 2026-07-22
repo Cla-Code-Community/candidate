@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
 import { db } from "../../db/client";
 import { User, UserPreferences, userPreferences, users } from "../../db/schema";
 import { DB } from "../../db/types/types";
+import { ownedBy } from "../../lib/authorization/ownership";
 import { AppError } from "../../lib/errors";
 import { UpdateProfileData } from "../types/user.types";
 import { UpdatePreferencesData } from "./schemas/user.schemas";
@@ -30,7 +30,7 @@ export class UsersService {
 
   async getPreferences(userId: string): Promise<UserPreferences | undefined> {
     return this.tx.query.userPreferences.findFirst({
-      where: (p, { eq }) => eq(p.userId, userId),
+      where: (p) => ownedBy(userId, p.userId),
     });
   }
 
@@ -52,7 +52,7 @@ export class UsersService {
     const result = await this.tx
       .update(userPreferences)
       .set({ ...data, updatedAt: new Date() })
-      .where(eq(userPreferences.userId, userId))
+      .where(ownedBy(userId, userPreferences.userId))
       .returning();
 
     if (!result[0]) {
