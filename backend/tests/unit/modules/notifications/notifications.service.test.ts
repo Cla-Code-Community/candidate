@@ -1,4 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const drizzleMocks = vi.hoisted(() => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}));
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return {
+    ...actual,
+    and: drizzleMocks.and,
+    eq: drizzleMocks.eq,
+  };
+});
+
 import type {
   NewUserNotification,
   SavedJob,
@@ -94,6 +109,11 @@ describe("NotificationsService", () => {
   beforeEach(() => {
     tx = makeTx();
     service = new NotificationsService(tx as any);
+    drizzleMocks.and.mockImplementation((...conditions) => conditions);
+    drizzleMocks.eq.mockImplementation((column, value) => ({
+      column,
+      value,
+    }));
   });
 
   it("lista notificações com filtros de canal e não lidas", async () => {
@@ -113,6 +133,11 @@ describe("NotificationsService", () => {
     });
     expect(listBuilder.limit).toHaveBeenCalledWith(10);
     expect(tx.select).toHaveBeenCalledTimes(2);
+    expect(listBuilder.where).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { column: expect.anything(), value: "user-1" },
+      ]),
+    );
   });
 
   it("usa unreadCount zero quando a consulta agregada não retorna linhas", async () => {
@@ -155,6 +180,10 @@ describe("NotificationsService", () => {
       service.markRead("user-1", "notification-1"),
     ).resolves.toBe(notification);
     expect(update.set).toHaveBeenCalledWith({ readAt: expect.any(Date) });
+    expect(update.where).toHaveBeenCalledWith([
+      { column: expect.anything(), value: "notification-1" },
+      { column: expect.anything(), value: "user-1" },
+    ]);
   });
 
   it("lança not found ao marcar como lida quando não encontra a notificação", async () => {
@@ -176,6 +205,12 @@ describe("NotificationsService", () => {
     await expect(service.markAllRead("user-1", "message")).resolves.toEqual({
       updated: 2,
     });
+    expect(update.where).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { column: expect.anything(), value: "user-1" },
+        { column: expect.anything(), value: "message" },
+      ]),
+    );
   });
 
   it("limpa notificações de um canal", async () => {
@@ -187,6 +222,12 @@ describe("NotificationsService", () => {
     });
 
     expect(tx.delete).toHaveBeenCalled();
+    expect(deleteQuery.where).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { column: expect.anything(), value: "user-1" },
+        { column: expect.anything(), value: "notification" },
+      ]),
+    );
     expect(deleteQuery.returning).toHaveBeenCalledWith({
       id: expect.anything(),
     });
@@ -325,5 +366,33 @@ describe("NotificationsService", () => {
         }),
       }),
     );
+  });
+
+  it("deduplica alto match usando userId para impedir colisão cross-user", async () => {
+    tx.query.userNotifications.findFirst.mockResolvedValue(notification);
+
+    const result = await service.createHighMatchIfMissing("user-1", {
+      id: "job-1",
+      title: "Backend Developer",
+      company: "Candidate",
+      link: "https://jobs.test/1",
+      matchScore: 95,
+    });
+
+    expect(result).toBe(notification);
+
+    const where = tx.query.userNotifications.findFirst.mock.calls[0][0].where;
+    const table = {
+      userId: "userNotifications.userId",
+      type: "userNotifications.type",
+      entityType: "userNotifications.entityType",
+      entityId: "userNotifications.entityId",
+    };
+    expect(where(table, drizzleMocks)).toEqual([
+      { column: "userNotifications.userId", value: "user-1" },
+      { column: "userNotifications.type", value: "high_match" },
+      { column: "userNotifications.entityType", value: "job" },
+      { column: "userNotifications.entityId", value: "job-1" },
+    ]);
   });
 });

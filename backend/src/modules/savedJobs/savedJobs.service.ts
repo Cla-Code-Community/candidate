@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../../db/client";
 import { NewSavedJob, SavedJob, savedJobs } from "../../db/schema";
 import { DB } from "../../db/types/types";
+import { ownedBy } from "../../lib/authorization/ownership";
 import { AppError } from "../../lib/errors";
 import { NotificationsService } from "../notifications/notifications.service";
 
@@ -10,14 +11,14 @@ export class SavedJobsService {
 
   async getAll(userId: string): Promise<SavedJob[]> {
     return this.tx.query.savedJobs.findMany({
-      where: (j, { eq }) => eq(j.userId, userId),
+      where: (j) => ownedBy(userId, j.userId),
       orderBy: (j, { desc }) => desc(j.createdAt),
     });
   }
 
   async getById(userId: string, jobId: string): Promise<SavedJob | undefined> {
     return this.tx.query.savedJobs.findFirst({
-      where: (j, { and, eq }) => and(eq(j.userId, userId), eq(j.id, jobId)),
+      where: (j, { and, eq }) => and(ownedBy(userId, j.userId), eq(j.id, jobId)),
     });
   }
 
@@ -27,7 +28,7 @@ export class SavedJobsService {
   ): Promise<SavedJob> {
     const existing = await this.tx.query.savedJobs.findFirst({
       where: (j, { and, eq }) =>
-        and(eq(j.userId, userId), eq(j.jobLink, data.jobLink)),
+        and(ownedBy(userId, j.userId), eq(j.jobLink, data.jobLink)),
     });
 
     if (existing) {
@@ -55,7 +56,7 @@ export class SavedJobsService {
     const result = await this.tx
       .update(savedJobs)
       .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(savedJobs.id, jobId), eq(savedJobs.userId, userId)))
+      .where(and(eq(savedJobs.id, jobId), ownedBy(userId, savedJobs.userId)))
       .returning();
 
     if (!result[0]) {
@@ -72,6 +73,6 @@ export class SavedJobsService {
   async delete(userId: string, jobId: string): Promise<void> {
     await this.tx
       .delete(savedJobs)
-      .where(and(eq(savedJobs.id, jobId), eq(savedJobs.userId, userId)));
+      .where(and(eq(savedJobs.id, jobId), ownedBy(userId, savedJobs.userId)));
   }
 }
