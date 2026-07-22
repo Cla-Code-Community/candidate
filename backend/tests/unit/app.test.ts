@@ -321,8 +321,8 @@ describe("jobsApiApp", () => {
       country: "",
       state: "",
       city: "",
-      type: "Remoto",
-      model: "",
+      type: ["Remoto"],
+      model: [],
       contract: "",
     });
     expect(mocks.cacheSearchKeywords).not.toHaveBeenCalled();

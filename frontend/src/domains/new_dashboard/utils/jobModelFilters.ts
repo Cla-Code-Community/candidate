@@ -50,9 +50,9 @@ export function modelFilterMatchesJob(job: Job, filterType: JobModelFilter) {
 
 export function modelFilterToApiFilter(filterType: JobModelFilter) {
   const jobTypes = getJobTypesFromModelFilter(filterType);
-  if (jobTypes.length !== 1) return {};
+  if (jobTypes.length === 0) return {};
 
-  const [type] = jobTypes;
+  const type = jobTypes.join(",");
   return {
     type,
     model: type,

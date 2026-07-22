@@ -35,6 +35,15 @@ function firstQueryValue(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function queryValues(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : [value];
+
+  return values
+    .flatMap((item) => (typeof item === "string" ? item.split(",") : []))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function normalizeComparable(value: string): string {
   return value
     .normalize("NFD")
@@ -209,16 +218,22 @@ function matchesLocationFilter(jobLocation: string, location: string): boolean {
   return normalizedLocation.includes(location);
 }
 
+function getTypeFilters(query: Request["query"]): string[] {
+  const rawTypes = queryValues(query.model).length > 0
+    ? queryValues(query.model)
+    : queryValues(query.type);
+
+  return [...new Set(rawTypes.map(normalizeComparable).filter(Boolean))];
+}
+
 function filterJobs(jobs: unknown[], query: Request["query"]): unknown[] {
   const level = normalizeLevelFilter(firstQueryValue(query.level));
   const location = normalizeComparable(
     firstQueryValue(query.country) || firstQueryValue(query.location),
   );
-  const type = normalizeComparable(
-    firstQueryValue(query.model) || firstQueryValue(query.type),
-  );
+  const types = getTypeFilters(query);
 
-  if (!level && !location && !type) return jobs;
+  if (!level && !location && types.length === 0) return jobs;
 
   return jobs.filter((job) => {
     const candidate = job as SearchJob;
@@ -227,7 +242,8 @@ function filterJobs(jobs: unknown[], query: Request["query"]): unknown[] {
 
     const matchesLevel = !level || inferJobLevel(title) === level;
     const matchesLocation = matchesLocationFilter(jobLocation, location);
-    const matchesType = !type || inferJobType(candidate) === type;
+    const matchesType =
+      types.length === 0 || types.includes(inferJobType(candidate));
 
     return matchesLevel && matchesLocation && matchesType;
   });
@@ -387,8 +403,8 @@ jobsRoutes.get("/search", async (req: Request, res: Response) => {
         country: firstQueryValue(req.query.country),
         state: firstQueryValue(req.query.state),
         city: firstQueryValue(req.query.city),
-        type: firstQueryValue(req.query.type),
-        model: firstQueryValue(req.query.model),
+        type: queryValues(req.query.type),
+        model: queryValues(req.query.model),
         contract:
           firstQueryValue(req.query.contract) ||
           firstQueryValue(req.query.contractType) ||
