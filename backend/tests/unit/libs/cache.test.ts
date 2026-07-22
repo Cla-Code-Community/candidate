@@ -286,6 +286,33 @@ describe("Valkey Cache Lib", () => {
       );
       expect(result).toEqual(["job_1", "job_2"]);
     });
+
+    it("deve unir múltiplos modelos antes de intersectar com outros filtros", async () => {
+      mockClientInstance.sendCommand
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(["job_1", "job_2"]);
+
+      const result = await cacheSearchJobIds({
+        model: ["Remoto", "Híbrido"],
+        level: "Sênior",
+      });
+
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(1, [
+        "SUNIONSTORE",
+        expect.stringMatching(/^scraper:jobs:filter:/),
+        "scraper:jobs:model:remoto",
+        "scraper:jobs:model:hibrido",
+      ]);
+      expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(2, [
+        "SINTER",
+        "scraper:jobs:level:senior",
+        expect.stringMatching(/^scraper:jobs:filter:/),
+      ]);
+      expect(mockClientInstance.del).toHaveBeenCalledWith(
+        expect.stringMatching(/^scraper:jobs:filter:/),
+      );
+      expect(result).toEqual(["job_1", "job_2"]);
+    });
   });
 
   describe("cacheGetJobsByIds", () => {

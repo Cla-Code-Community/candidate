@@ -1,4 +1,5 @@
 Abaixo
+aberta
 abertas
 abordagem
 aborta
@@ -23,6 +24,7 @@ acesso
 acessos
 achar
 acidental
+aciona
 acompanhamento
 acompanhar
 acompanhe
@@ -106,6 +108,7 @@ anos
 Anos
 Anotações
 anteriores
+antiga
 antigas
 antigo
 antigos
@@ -239,6 +242,7 @@ cadastrar
 Cadastro
 cadvisor
 caixa
+calcula
 calculável
 Camada
 camadas
@@ -299,6 +303,7 @@ Ciclos
 Círculo
 cirúrgica
 clampeia
+classifica
 clicar
 clientes
 cmdmeta
@@ -363,6 +368,7 @@ configuradas
 configurado
 configurados
 Configurar
+confirmada
 conflita
 conflitam
 conflito
@@ -400,6 +406,7 @@ controla
 Controle
 Controles
 conversão
+conversar
 Converte
 convites
 cooperado
@@ -441,6 +448,7 @@ currículo
 curta
 customuser
 daqui
+datas
 datname
 davecgh
 debuglib
@@ -783,6 +791,7 @@ frança
 França
 freela
 frequentemente
+frequentes
 fulano
 Fulano
 funciona
@@ -829,6 +838,8 @@ habilitado
 habilitar
 hashedpassword
 híbrid
+híbridas
+Híbridas
 híbrido
 Hierarquia
 hintrc
@@ -1131,6 +1142,7 @@ movimente
 muda
 mudam
 mude
+mudou
 múltiplas
 múltiplos
 mundiais
@@ -1200,6 +1212,7 @@ oportunidade
 oportunidades
 optar
 ordem
+ordenação
 Orfaos
 órfãos
 organicamente
@@ -1261,6 +1274,7 @@ perfeitamente
 perfis
 performático
 pergunta
+perguntas
 periodo
 permanecem
 permanente
@@ -1290,6 +1304,7 @@ plataformas
 plugar
 pmezard
 pôde
+Podemos
 poderem
 poderia
 poderosa
@@ -1314,6 +1329,7 @@ possivelmente
 Possuam
 possui
 possuir
+poucas
 pouco
 prática
 práticas
@@ -1335,6 +1351,7 @@ prefixo
 Prefixo
 prefs
 preparar
+presenciais
 presencial
 presente
 presentes
@@ -1428,6 +1445,7 @@ reconcilia
 reconecta
 reconhece
 recorre
+recrutador
 Recrutadores
 recrutamento
 recupera
@@ -1557,6 +1575,7 @@ seguro
 seguros
 sejam
 SELECIONADA
+selecionar
 seletivos
 seletor
 Selo
