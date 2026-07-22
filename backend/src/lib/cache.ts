@@ -197,13 +197,35 @@ export type CacheJobIndexFilters = {
   country?: string;
   state?: string;
   city?: string;
-  type?: string;
-  model?: string;
+  type?: string | string[];
+  model?: string | string[];
   contract?: string;
 };
 
-export function cacheJobIndexKeys(filters: CacheJobIndexFilters): string[] {
-  const entries: Array<[string, string | undefined]> = [
+function filterValues(value: string | string[] | undefined): string[] {
+  const values = Array.isArray(value) ? value : [value];
+
+  return values
+    .flatMap((item) => item?.split(",") ?? [])
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function cacheJobIndexKey(kind: string, value: string): string {
+  const normalized =
+    kind === "level"
+      ? normalizeLevelIndexValue(value)
+      : normalizeIndexValue(value);
+
+  if (!normalized || normalized === "todos" || normalized === "all") {
+    return "";
+  }
+
+  return `scraper:jobs:${kind}:${normalized}`;
+}
+
+function cacheJobIndexKeyGroups(filters: CacheJobIndexFilters): string[][] {
+  const entries: Array<[string, string | string[] | undefined]> = [
     ["level", filters.level],
     ["location", filters.location],
     ["continent", filters.continent],
@@ -215,17 +237,16 @@ export function cacheJobIndexKeys(filters: CacheJobIndexFilters): string[] {
   ];
 
   return entries
-    .map(([kind, value]) => {
-      const normalized =
-        kind === "level"
-          ? normalizeLevelIndexValue(value ?? "")
-          : normalizeIndexValue(value ?? "");
-      if (!normalized || normalized === "todos" || normalized === "all") {
-        return "";
-      }
-      return `scraper:jobs:${kind}:${normalized}`;
-    })
-    .filter(Boolean);
+    .map(([kind, value]) =>
+      filterValues(value)
+        .map((item) => cacheJobIndexKey(kind, item))
+        .filter(Boolean),
+    )
+    .filter((group) => group.length > 0);
+}
+
+export function cacheJobIndexKeys(filters: CacheJobIndexFilters): string[] {
+  return cacheJobIndexKeyGroups(filters).flatMap((group) => group);
 }
 
 export async function cacheSearchJobIds(
@@ -233,26 +254,39 @@ export async function cacheSearchJobIds(
 ): Promise<string[]> {
   const client = await getCache();
   const keywordKeys = keywordSearchKeys(filters.keywords ?? []);
-  const filterKeys = cacheJobIndexKeys(filters);
+  const tempKeys: string[] = [];
 
-  if (keywordKeys.length === 0 && filterKeys.length === 0) {
-    return await client.sMembers("scraper:jobs:index");
-  }
+  const filterKeys = await Promise.all(
+    cacheJobIndexKeyGroups(filters).map(async (group) => {
+      if (group.length === 1) return group[0];
 
-  if (keywordKeys.length === 0) {
-    if (filterKeys.length === 1) return await client.sMembers(filterKeys[0]);
-    return (await client.sendCommand(["SINTER", ...filterKeys])) as string[];
-  }
-
-  if (keywordKeys.length === 1) {
-    const keys = [keywordKeys[0], ...filterKeys];
-    if (keys.length === 1) return await client.sMembers(keys[0]);
-    return (await client.sendCommand(["SINTER", ...keys])) as string[];
-  }
-
-  const tempKey = `scraper:jobs:search:${randomUUID()}`;
+      const tempKey = `scraper:jobs:filter:${randomUUID()}`;
+      tempKeys.push(tempKey);
+      await client.sendCommand(["SUNIONSTORE", tempKey, ...group]);
+      await client.expire(tempKey, 30);
+      return tempKey;
+    }),
+  );
 
   try {
+    if (keywordKeys.length === 0 && filterKeys.length === 0) {
+      return await client.sMembers("scraper:jobs:index");
+    }
+
+    if (keywordKeys.length === 0) {
+      if (filterKeys.length === 1) return await client.sMembers(filterKeys[0]);
+      return (await client.sendCommand(["SINTER", ...filterKeys])) as string[];
+    }
+
+    if (keywordKeys.length === 1) {
+      const keys = [keywordKeys[0], ...filterKeys];
+      if (keys.length === 1) return await client.sMembers(keys[0]);
+      return (await client.sendCommand(["SINTER", ...keys])) as string[];
+    }
+
+    const tempKey = `scraper:jobs:search:${randomUUID()}`;
+    tempKeys.push(tempKey);
+
     await client.sendCommand(["SUNIONSTORE", tempKey, ...keywordKeys]);
     await client.expire(tempKey, 30);
 
@@ -260,7 +294,7 @@ export async function cacheSearchJobIds(
     if (keys.length === 1) return await client.sMembers(keys[0]);
     return (await client.sendCommand(["SINTER", ...keys])) as string[];
   } finally {
-    await client.del(tempKey);
+    await Promise.all(tempKeys.map((key) => client.del(key)));
   }
 }
 

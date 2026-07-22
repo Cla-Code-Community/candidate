@@ -164,6 +164,8 @@ export default function NewDashboardPage() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [toast, setToast] = useState("");
+  const [hasUserChangedJobFilters, setHasUserChangedJobFilters] =
+    useState(false);
   const checklistSaveTimeout = useRef<number | null>(null);
   const hasUserSelectedModelFilter = useRef(false);
   const showToast = useCallback((message: string) => setToast(message), []);
@@ -211,6 +213,14 @@ export default function NewDashboardPage() {
       ),
     [filterType, matchedRecommendedJobs],
   );
+  const preferredModelFilter = useMemo(
+    () => getModelFilterFromJobTypes(searchPreferences.jobTypes),
+    [searchPreferences.jobTypes],
+  );
+  const showPreferenceNotice =
+    !hasUserChangedJobFilters &&
+    preferredModelFilter !== "Todos" &&
+    filterType === preferredModelFilter;
   const selectedJob =
     [...matchedTrackedJobs, ...matchedRecommendedJobs].find(
       (job) => job.id === selectedJobId,
@@ -246,6 +256,7 @@ export default function NewDashboardPage() {
     try {
       await saveSearchPreferences(preferences);
       hasUserSelectedModelFilter.current = false;
+      setHasUserChangedJobFilters(false);
       setFilterType(getModelFilterFromJobTypes(preferences.jobTypes));
       showToast("Preferências de busca atualizadas.");
     } catch {
@@ -255,7 +266,36 @@ export default function NewDashboardPage() {
 
   const handleFilterTypeChange = useCallback((value: JobModelFilter) => {
     hasUserSelectedModelFilter.current = true;
+    setHasUserChangedJobFilters(true);
     setFilterType(value);
+  }, []);
+
+  const handleSearchQueryChange = useCallback((value: string) => {
+    setHasUserChangedJobFilters(true);
+    setSearchQuery(value);
+  }, []);
+
+  const handleFilterLevelChange = useCallback((value: string) => {
+    setHasUserChangedJobFilters(true);
+    setFilterLevel(value);
+  }, []);
+
+  const handleContinentFilterChange = useCallback(
+    (value: ContinentFilter) => {
+      setHasUserChangedJobFilters(true);
+      setContinentFilter(value);
+    },
+    [],
+  );
+
+  const handleCountryFilterChange = useCallback((value: CountryFilter) => {
+    setHasUserChangedJobFilters(true);
+    setCountryFilter(value);
+  }, []);
+
+  const handleMatchSortChange = useCallback((value: MatchSort) => {
+    setHasUserChangedJobFilters(true);
+    setMatchSort(value);
   }, []);
 
   const handleCareerChecklistChange = useCallback(
@@ -370,8 +410,9 @@ export default function NewDashboardPage() {
   useEffect(() => {
     if (isLoadingUserData || hasUserSelectedModelFilter.current) return;
 
-    setFilterType(getModelFilterFromJobTypes(searchPreferences.jobTypes));
-  }, [isLoadingUserData, searchPreferences.jobTypes]);
+    setFilterType(preferredModelFilter);
+    setHasUserChangedJobFilters(false);
+  }, [isLoadingUserData, preferredModelFilter]);
 
   // Busca automática: dispara ao digitar (com debounce) ou ao trocar
   // qualquer filtro, sem precisar clicar em "Buscar vagas".
@@ -426,18 +467,19 @@ export default function NewDashboardPage() {
           <JobTab
             jobs={displayedRecommendedJobs}
             searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
+            setSearchQuery={handleSearchQueryChange}
             filterType={filterType}
             setFilterType={handleFilterTypeChange}
             filterLevel={filterLevel}
-            setFilterLevel={setFilterLevel}
+            setFilterLevel={handleFilterLevelChange}
             continentFilter={continentFilter}
-            setContinentFilter={setContinentFilter}
+            setContinentFilter={handleContinentFilterChange}
             countryFilter={countryFilter}
-            setCountryFilter={setCountryFilter}
+            setCountryFilter={handleCountryFilterChange}
             matchSort={matchSort}
-            setMatchSort={setMatchSort}
+            setMatchSort={handleMatchSortChange}
             searchPreferences={searchPreferences}
+            showPreferenceNotice={showPreferenceNotice}
             isSearching={isRefreshingJobs}
             pagination={recommendedPagination}
             onSearchJobs={handleSearchJobs}

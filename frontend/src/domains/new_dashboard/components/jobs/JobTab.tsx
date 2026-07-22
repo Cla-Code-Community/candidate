@@ -32,6 +32,7 @@ interface JobTabProps {
   matchSort: MatchSort;
   setMatchSort: (value: MatchSort) => void;
   searchPreferences?: SearchPreferences;
+  showPreferenceNotice?: boolean;
   isSearching?: boolean;
   pagination?: {
     total: number;
@@ -61,6 +62,7 @@ export function JobTab({
   matchSort,
   setMatchSort,
   searchPreferences,
+  showPreferenceNotice = false,
   isSearching = false,
   pagination,
   onSearchJobs,
@@ -114,7 +116,9 @@ export function JobTab({
         setMatchSort={setMatchSort}
       />
 
-      {preferredModelFilter !== "Todos" && preferredModelLabel && (
+      {showPreferenceNotice &&
+        preferredModelFilter !== "Todos" &&
+        preferredModelLabel && (
         <p className="text-sm font-semibold text-emerald-600">
           • Preferência ativa: {preferredModelLabel.toLowerCase()} como padrão
           nesta busca.

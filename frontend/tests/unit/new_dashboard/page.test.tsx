@@ -266,8 +266,15 @@ describe("NewDashboardPage", () => {
       expect(screen.getByDisplayValue("Somente remotas")).toBeInTheDocument();
     });
 
+    expect(screen.getByText(/preferência ativa/i)).toBeInTheDocument();
     expect(screen.getByText("Remote Node")).toBeInTheDocument();
     expect(screen.queryByText("Onsite Node")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByDisplayValue("Match (padrão)"), {
+      target: { value: "desc" },
+    });
+
+    expect(screen.queryByText(/preferência ativa/i)).not.toBeInTheDocument();
   });
 
   it("aciona a busca e paginação de vagas", () => {

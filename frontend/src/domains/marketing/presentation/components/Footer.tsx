@@ -1,4 +1,6 @@
 import { Github } from "lucide-react";
+import LogoWhite from "@/shared/assets/logo-painel-vagas.svg";
+import LogoBlack from "@/shared/assets/black.svg";
 
 export function Footer() {
   return (
@@ -26,7 +28,7 @@ export function Footer() {
             <ul className="space-y-4 text-gray-500 dark:text-gray-400">
               <li><a href="#features" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Funcionalidades</a></li>
               <li><a href="#how-it-works" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Como Funciona</a></li>
-              {/* <li><a href="#pricing" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Preços</a></li> */}
+              <li><a href="#pricing" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Preços</a></li>
               <li><a href="#status" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Status</a></li>
             </ul>
           </div>
