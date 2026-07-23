@@ -5,7 +5,7 @@
 ![Monorepo](https://img.shields.io/badge/architecture-monorepo-0A66C2)
 ![License ISC](https://img.shields.io/badge/license-ISC-lightgrey)
 
-Plataforma de captura, agregação e consulta de vagas com arquitetura monorepo, composta por frontend web, backend Node.js e aplicação desktop com Electron.
+Plataforma de captura, agregação e consulta de vagas com arquitetura monorepo, composta por frontend web, API Node.js, scraper Go, painel administrativo e aplicação desktop com Electron.
 
 O produto evoluiu para um modelo orientado a serviços (API + scraper Go + cache/índices), com autenticação, preferências de usuário e integração com banco de dados.
 
@@ -32,17 +32,18 @@ O produto evoluiu para um modelo orientado a serviços (API + scraper Go + cache
 - [Testes e qualidade](#testes-e-qualidade)
 - [Fluxo de desenvolvimento e branching](#fluxo-de-desenvolvimento-e-branching)
 - [Git Hooks e qualidade local](#git-hooks-e-qualidade-local)
-- [Inconsistências atuais mapeadas](#inconsistências-atuais-mapeadas)
 - [Roadmap técnico sugerido](#roadmap-técnico-sugerido)
 - [Contribuição](#contribuição)
 
 ## Visão geral
 
-Este repositório centraliza três frentes:
+Este repositório centraliza as frentes principais do produto:
 
-- Frontend React para visualização e operação da plataforma.
-- Backend Node.js/Express (TypeScript) com autenticação, preferências e rotas de domínio.
-- Scraper em Go para coleta de vagas em múltiplas fontes.
+- `frontend`: aplicação web para usuários finais, com landing page, autenticação e dashboard de vagas. A nova estrutura de painel do frontend fica em `frontend/src/domains/new_dashboard`.
+- `backend`: API Node.js/Express com autenticação, perfis, preferências, vagas salvas, notificações, rotas admin e observabilidade.
+- `scraper-go`: serviço Go de scraping multi-fonte, cache, deduplicação e indexação em Valkey.
+- `front_admin`: painel administrativo para operação, usuários, permissões, scrapers, auditoria e observabilidade.
+- `electron`: shell desktop que empacota a experiência principal.
 
 Objetivo de produto: fornecer uma base robusta para busca, filtragem e gestão de vagas com foco em qualidade de dados, escalabilidade e operação contínua.
 
@@ -53,8 +54,9 @@ Objetivo de produto: fornecer uma base robusta para busca, filtragem e gestão d
 ├─ frontend/                # Dashboard web (React + Vite)
 ├─ backend/                 # API Node.js (Express + TS + Drizzle)
 ├─ scraper-go/              # Serviço Go de scraping multi-fonte
+├─ front_admin/             # Painel administrativo (React + Vite)
 ├─ electron/                # Shell desktop
-├─ docker-compose.yml       # App stack (frontend + backend + scraper-go)
+├─ docker-compose.yml       # App stack (frontend + front_admin + backend + scraper-go)
 ├─ docker-compose.infra.yml # Infra stack (Postgres + Valkey)
 ├─ docker-compose.migrate.yml # Migration job do backend
 └─ .github/workflows/ci.yml # CI
@@ -63,10 +65,11 @@ Objetivo de produto: fornecer uma base robusta para busca, filtragem e gestão d
 ## Stack real do projeto
 
 - Frontend: React 19, TypeScript, Vite 8, Tailwind CSS, Vitest.
+- Front admin: React 19, TypeScript, Vite 8, Tailwind CSS 4, Vitest.
 - Backend: Node.js 22+, Express 5, TypeScript, Drizzle ORM, Zod, Iron Session, Redis/Valkey.
 - Scraping: Go (serviço dedicado em scraper-go).
 - Desktop: Electron + Electron Builder.
-- Qualidade: Vitest (frontend/backend), cobertura v8, ESLint (frontend), GitHub Actions CI.
+- Qualidade: Vitest (frontend/backend/front_admin), cobertura v8, ESLint (frontend/front_admin), GitHub Actions CI.
 - Dados: Postgres (persistência) + Valkey/Redis (cache e índice).
 
 ## Quickstart local
@@ -79,12 +82,12 @@ Objetivo de produto: fornecer uma base robusta para busca, filtragem e gestão d
 
 ### Caminho recomendado: stack completa com Docker
 
-Use este fluxo para subir Postgres, Valkey, scraper Go, backend e frontend com a mesma rede Docker.
+Use este fluxo para subir Postgres, Valkey, scraper Go, backend, frontend e front_admin com a mesma rede Docker.
 
 1. Instale as dependências locais:
 
 ```bash
-npm ci
+npm install
 ```
 
 2. Crie o `.env` da raiz a partir do exemplo versionado:
@@ -107,7 +110,7 @@ docker network create vagas-net
 
 Se a rede já existir, o Docker vai avisar e você pode seguir para o próximo passo.
 
-4. Suba Postgres, Valkey, scraper, backend e frontend:
+4. Suba Postgres, Valkey, scraper, backend, frontend e front_admin:
 
 ```bash
 docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml up --build -d
@@ -116,6 +119,7 @@ docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compo
 5. Acesse os serviços:
 
 - Frontend: http://localhost:5173
+- Front admin: http://localhost:5174
 - Backend health: http://localhost:3001/health
 - Scraper health: http://localhost:8081/health
 - Vagas salvas no scraper: http://localhost:8081/admin/jobs/count
@@ -129,6 +133,7 @@ Arquivos esperados:
 - `.env`: usado pela infra/scraper e por comandos auxiliares.
 - `backend/.env`: usado pelo backend local.
 - `frontend/.env`: usado pelo Vite local.
+- `front_admin` usa `VITE_API_URL`, mas ainda não possui `.env.example` próprio.
 
 Criação dos arquivos locais:
 
@@ -150,11 +155,20 @@ Comandos:
 npm run dev
 ```
 
+Esse comando sobe apenas o necessário para a maioria das contribuições: frontend e backend.
+
+Para trabalhar também no painel administrativo:
+
+```bash
+npm run dev:admin
+```
+
 Execução separada:
 
 ```bash
 npm run dev:frontend
 npm run dev:backend
+npm run dev:front_admin
 ```
 
 ### Execução de testes
@@ -163,21 +177,30 @@ npm run dev:backend
 npm run test:coverage
 ```
 
+### Instalação limpa e CI
+
+Para onboarding e desenvolvimento local, prefira `npm install`.
+
+Use `npm ci` em automações como GitHub Actions, Docker/deploy ou quando quiser reinstalar tudo exatamente a partir do `package-lock.json`. Ele remove `node_modules`, não altera o lockfile e falha se `package.json` e `package-lock.json` estiverem fora de sincronia.
+
 ## Comandos verificados
 
-Os comandos abaixo existem hoje no repositório e foram conferidos nos package.json de raiz, frontend e backend.
+Os comandos abaixo existem hoje no repositório e foram conferidos nos `package.json` da raiz, backend, frontend e front_admin.
 
 ### Raiz
 
 - npm run dev
+- npm run dev:admin
 - npm run dev:frontend
 - npm run dev:backend
+- npm run dev:front_admin
 - npm run scraper
 - npm run scraper:watch
 - npm run test
 - npm run test:coverage
 - npm run build
 - npm run build:frontend
+- npm run build:front_admin
 - npm run validate
 - npm run electron
 - npm run electron:dev
@@ -208,6 +231,15 @@ Os comandos abaixo existem hoje no repositório e foram conferidos nos package.j
 - npm run test
 - npm run test:coverage
 - npm run test:watch
+
+### Front admin
+
+- npm run dev
+- npm run build
+- npm run lint
+- npm run test
+- npm run test:coverage
+- npm run preview
 
 ## API backend (estado atual)
 
@@ -251,6 +283,19 @@ Saved jobs:
 - PATCH /saved-jobs/:id
 - DELETE /saved-jobs/:id
 
+Admin:
+
+- GET /admin/users
+- GET /admin/users/:id
+- PATCH /admin/users/:id/block
+- PATCH /admin/users/:id/unblock
+- POST /admin/users/:id/reset
+- POST /admin/scrapers/run
+- GET /admin/observability/metrics
+- GET /admin/observability/dashboards
+- GET /admin/audit
+- GET /admin/permissions/rules
+
 Swagger:
 
 - GET /docs
@@ -260,7 +305,7 @@ Swagger:
 Este projeto separa infraestrutura e aplicação em dois arquivos Compose:
 
 - `docker-compose.infra.yml`: Postgres + Valkey.
-- `docker-compose.yml`: scraper Go + backend + frontend.
+- `docker-compose.yml`: scraper Go + backend + frontend + front_admin.
 - `docker-compose.migrate.yml`: job de migrations do backend.
 
 Subir infraestrutura, migrations e aplicação:
@@ -289,6 +334,7 @@ Ver logs:
 docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f migrate
 docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f backend
 docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f frontend
+docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f front_admin
 docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml logs -f scraper-go
 ```
 
@@ -312,6 +358,7 @@ Por isso o `docker-compose.yml` e o `docker-compose.migrate.yml` sobrescrevem va
 Serviços padrão:
 
 - Frontend: http://localhost:5173
+- Front admin: http://localhost:5174
 - Backend: http://localhost:3001
 - Scraper Go: http://localhost:8081
 
@@ -356,12 +403,14 @@ Arquivos locais ignorados pelo Git:
 - .env
 - backend/.env
 - frontend/.env
+- front_admin/.env, se criado localmente
 
 Uso recomendado:
 
 - Docker Compose: copie `.env.example` para `.env`. O Compose usa esse arquivo para infra, scraper, backend e build do frontend.
 - Backend local via Node: use `backend/.env`.
 - Frontend local via Vite: use `frontend/.env`.
+- Front admin local via Vite: crie `front_admin/.env` com `VITE_API_URL=http://localhost:3001` quando precisar sobrescrever o padrão.
 
 Variáveis centrais de operação:
 
@@ -380,6 +429,10 @@ Variáveis centrais de operação:
 - PAGE_TIMEOUT_MS
 - MAX_PAGES_PER_KEYWORD
 - CACHE_TTL_MS
+- VITE_API_BASE_URL
+- VITE_API_URL
+- VITE_API_PROXY_TARGET
+- VITE_APP_ENV
 
 Segurança operacional:
 
@@ -395,6 +448,7 @@ Estrutura:
 - backend/tests/integration
 - frontend/tests/unit
 - frontend/tests/integration
+- front_admin/tests
 
 Threshold mínimo:
 
@@ -409,6 +463,7 @@ Comandos:
 npm run test:coverage
 npm --workspace frontend run test:coverage
 npm --workspace backend run test:coverage
+npm --workspace front_admin run test:coverage
 ```
 
 Observação importante: o backend já está configurado para coletar cobertura apenas em src/**/*.ts, evitando contagem de artefatos gerados.
@@ -424,6 +479,8 @@ Executa em push para master/develop e em pull_request:
 - Coverage backend
 - Lint frontend
 - Build frontend
+
+Observação: o painel admin já possui testes e build próprios, mas ainda deve ser incluído no fluxo de validação/CI quando se tornar parte obrigatória do release.
 
 ## Fluxo de desenvolvimento e branching
 
@@ -451,7 +508,7 @@ Hooks configurados:
 - commit-msg: valida mensagem de commit com commitlint (Conventional Commits).
 - pre-push: executa validação do monorepo (test backend + lint/build frontend).
 
-Bootstrap recomendado para novos ambientes:
+Bootstrap local com instalação e hooks:
 
 ```bash
 npm run setup:dev
@@ -515,4 +572,6 @@ Se você vai trabalhar em backend, scraper ou testes, use também:
 
 - [BACKEND.md](BACKEND.md)
 - [SCRAPER.md](SCRAPER.md)
+- [frontend/README.md](frontend/README.md)
+- [front_admin/README.md](front_admin/README.md)
 - [TESTING.md](TESTING.md)
