@@ -11,6 +11,8 @@ Este documento descreve as principais funcionalidades, rotas, módulos e variáv
 - Banco de dados gerenciado com Drizzle (Postgres).
 - Autenticação via OAuth (Google/GitHub/LinkedIn) e credenciais (email/senha) com `iron-session`.
 - Cache/índices em memória (Redis) e integração com sistema Valkey para pesquisa rápida.
+- Rotas administrativas para usuários, permissões, scrapers, auditoria e observabilidade.
+- Métricas Prometheus em `/metrics`.
 - Documentação OpenAPI/Swagger disponível em `/docs` (quando habilitado).
 
 ## Como executar (rápido)
@@ -40,12 +42,13 @@ npm test
 npm run test:watch
 ```
 
-Scripts relevantes em `package.json`:
+Scripts relevantes em `backend/package.json`:
 
 - `start`, `dev`, `api` — iniciar servidor
 - `scraper`, `scraper:watch` — executar scraper (index.ts / Go)
 - `test`, `test:coverage`, `test:watch` — testes com Vitest
 - `db:generate`, `db:migrate`, `db:push` — comandos Drizzle
+- `security:backfill-user-pii` — backfill de campos de PII criptografados
 
 ## Arquitetura e módulos principais
 
@@ -59,7 +62,9 @@ Módulos principais:
 - `src/modules/auth` — OAuth providers, `AuthController`, `AuthService`, `credentials` (registro/login/logout).
 - `src/modules/users` — perfis e preferências do usuário (`UsersController`, `UsersService`).
 - `src/modules/savedJobs` — CRUD de vagas salvas (`SavedJobsController`, `SavedJobsService`).
-- `src/modules/*` — outros módulos relacionados a credenciais, buscas e integrações.
+- `src/modules/notifications` — notificações do usuário autenticado.
+- `src/modules/jobs` — regras de matching/score de vagas.
+- `src/modules/admin` — usuários admin, permissões, scrapers, auditoria, dashboard e observabilidade.
 
 Adaptadores externos:
 
@@ -85,6 +90,8 @@ Cache & Indexes:
 - `requireAuth` — valida autenticação nas rotas que exigem usuário.
 - `securityHeaders` — cabeçalhos de segurança.
 - `cors` — configuração de CORS (opções em `src/middleware/cors.ts`).
+- `requestId` — correlação de requisições.
+- `metrics` — coleta de métricas Prometheus.
 - `errorHandler` — tratamento centralizado de erros.
 
 ## Endpoints principais
@@ -93,6 +100,7 @@ Base: `/`
 
 - Sistema
   - `GET /health` — verifica disponibilidade (retorna `{ ok: true }`).
+  - `GET /metrics` — métricas Prometheus.
   - `GET /docs` — UI do Swagger (quando habilitado).
 
 - Auth / OAuth
@@ -119,6 +127,12 @@ Base: `/`
   - `GET /keywords` — lista keywords persistidas no banco.
   - `POST /keywords` — enfileira uma keyword para processamento pelo serviço Go (retorna 202).
 
+- Notificações
+  - `GET /notifications` — lista notificações do usuário autenticado.
+  - `PATCH /notifications/:id/read` — marca uma notificação como lida.
+  - `PATCH /notifications/read-all` — marca todas como lidas.
+  - `DELETE /notifications` — limpa notificações conforme filtros aceitos.
+
 - Vagas salvas (Saved Jobs)
   - `GET /saved-jobs` — lista vagas salvas do usuário.
   - `GET /saved-jobs/:id` — obtém vaga salva por id.
@@ -126,9 +140,21 @@ Base: `/`
   - `PATCH /saved-jobs/:id` — atualiza vaga salva.
   - `DELETE /saved-jobs/:id` — remove vaga salva.
 
+- Admin
+  - `GET /admin/users` — lista usuários.
+  - `GET /admin/users/:id` — obtém usuário por id.
+  - `PATCH /admin/users/:id/block` — bloqueia usuário.
+  - `PATCH /admin/users/:id/unblock` — desbloqueia usuário.
+  - `POST /admin/users/:id/reset` — reseta credenciais/senha conforme regra do serviço.
+  - `POST /admin/scrapers/run` — dispara execução dos scrapers.
+  - `GET /admin/observability/metrics` — visão de métricas administrativas.
+  - `GET /admin/observability/dashboards` — lista dashboards de observabilidade.
+  - `GET /admin/audit` — consulta logs de auditoria.
+  - `GET /admin/permissions/rules` — lista regras de permissão.
+
 Observações de segurança nas rotas:
 
-- Rotas sob `/users`, `/jobs`, `/keywords` e `/saved-jobs` usam `withSession` + `requireAuth` (quando aplicável).
+- Rotas sob `/users`, `/jobs`, `/keywords`, `/notifications`, `/saved-jobs` e `/admin` usam `withSession` + `requireAuth` (quando aplicável).
 - `auth` usa `withSession` para armazenar OAuth state e criar sessão.
 
 ## Variáveis de ambiente importantes
@@ -148,6 +174,9 @@ Definidas/consumidas em `src/config.ts` e outros módulos:
 - `VALKEY_URL` — endpoint do Valkey (se usado).
 - `GO_SCRAPER_URL` — URL do serviço Go que realiza scraping.
 - `SESSION_SECRET` — senha para `iron-session` (obrigatória em produção).
+- `ENCRYPTION_MASTER_KEY`, `ENCRYPTION_KEY_ID`, `SEARCH_KEY` — criptografia e campos pesquisáveis de PII.
+- `CORS_ALLOWED_ORIGINS` — origens permitidas, incluindo `http://localhost:5173` e `http://localhost:5174` em desenvolvimento local com admin.
+- `PROMETHEUS_URL` — integração com Prometheus para rotas de observabilidade.
 - `PORT` — porta do servidor (padrão 3001).
 
 ## Segurança e criptografia
@@ -155,6 +184,7 @@ Definidas/consumidas em `src/config.ts` e outros módulos:
 - Senhas armazenadas usando Argon2 (`argon2`), com opções configuradas no serviço de credenciais.
 - Cookies de sessão `httpOnly` e `secure` quando NODE_ENV=production.
 - Índices únicos e constraints no DB (ex: email/username/keyword uniques) definidos nas tabelas Drizzle.
+- Campos sensíveis de perfil usam criptografia e hashes pesquisáveis onde aplicável.
 
 ## Integração com serviço Go
 
@@ -179,8 +209,11 @@ Definidas/consumidas em `src/config.ts` e outros módulos:
 
 ## Docker / Infra
 
-- `Dockerfile` presente no diretório `backend`.
-- `docker-compose.yml` no projeto raiz orquestra serviços (possivelmente `scraper-go`, `postgres`, `redis`).
+- `backend/Dockerfile` existe para o backend.
+- O fluxo Docker principal usa `docker/node.Dockerfile` com targets para backend, frontend e admin.
+- `docker-compose.yml` no projeto raiz orquestra `scraper-go`, `backend`, `frontend` e `front_admin`.
+- `docker-compose.infra.yml` sobe Postgres e Valkey.
+- `docker-compose.migrate.yml` executa migrations e backfill antes do backend.
 
 ## Pontos de atenção / Próximos passos sugeridos
 
@@ -200,7 +233,7 @@ Seguem exemplos práticos para os endpoints mais usados. Ajuste `HOST` para seu 
 
 Request:
 
-POST /api/auth/register
+POST /auth/register
 
 ```json
 {
@@ -229,7 +262,7 @@ Response (201):
 
 Request:
 
-POST /api/auth/login
+POST /auth/login
 
 ```json
 {
@@ -251,7 +284,7 @@ Response (200):
 
 Request:
 
-GET /api/jobs/search?keywords=react,node&page=1&limit=10
+GET /jobs/search?keywords=react,node&page=1&limit=10
 
 Response (200):
 
@@ -272,7 +305,7 @@ Response (200):
 
 Request:
 
-POST /api/keywords
+POST /keywords
 
 ```json
 {
@@ -293,7 +326,7 @@ Response (202):
 
 Request:
 
-POST /api/saved-jobs
+POST /saved-jobs
 
 ```json
 {
@@ -325,7 +358,7 @@ Response (201):
 
 Request:
 
-GET /api/users/profile
+GET /users/profile
 
 Response (200):
 
