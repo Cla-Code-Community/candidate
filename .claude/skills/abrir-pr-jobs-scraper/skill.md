@@ -52,8 +52,14 @@ Rode os comandos de verificacao da tabela acima. Se algum falhar, informe e pare
 
 > **Importante:** Este projeto usa um modelo de fork. O remote `origin` aponta para o fork do
 > desenvolvedor (ex: `jeremiassnts/Jobs_Scraper_Global`) e o remote `upstream` aponta para o
-> repositorio principal (`Benevanio/Jobs_Scraper_Global`). O PR sempre deve ser criado do fork
+> repositorio principal (`Cla-Code-Community/candidate`). O PR sempre deve ser criado do fork
 > (origin) para o upstream, usando a flag `--head` do `gh pr create`.
+>
+> **Owner do fork:** derive sempre a partir do remote `origin` (nao use `gh repo view`, que
+> resolve o repo default e retorna o owner do upstream):
+> ```bash
+> FORK_OWNER=$(git remote get-url origin | sed -E 's#.*[/:]([^/]+)/[^/]+(\.git)?$#\1#')
+> ```
 
 1. Buscar os commits da branch que estao a frente de develop:
    ```bash
@@ -64,8 +70,8 @@ Rode os comandos de verificacao da tabela acima. Se algum falhar, informe e pare
    - Informar: "Esta branch nao tem commits a frente de develop. Nao ha mudancas para abrir PR."
    - Parar a execucao
 3. **Se ja existir um PR aberto para essa branch:**
-   - Detectar o owner do fork: `gh repo view --json owner -q .owner.login` (rodado no diretorio do projeto, que aponta para origin)
-   - Verificar com: `gh pr list --head <owner-do-fork>:$(git branch --show-current) --repo Benevanio/Jobs_Scraper_Global --state open`
+   - Detectar o owner do fork a partir do remote `origin`: `FORK_OWNER=$(git remote get-url origin | sed -E 's#.*[/:]([^/]+)/[^/]+(\.git)?$#\1#')`
+   - Verificar com: `gh pr list --head "$FORK_OWNER:$(git branch --show-current)" --repo Cla-Code-Community/candidate --state open`
    - Se existir, informar ao usuario e perguntar se quer atualizar o PR existente ou parar
 
 ### Passo 4: Rodar testes
@@ -100,6 +106,8 @@ Rode os comandos de verificacao da tabela acima. Se algum falhar, informe e pare
 
 ### Passo 6: Montar e mostrar preview
 
+> **Por que o formato importa:** o identificador `PAV-XX` no titulo e o link do Linear no corpo sao o que a integracao Linear ↔ GitHub usa para vincular o PR ao card e move-lo automaticamente (para **In Review** ao abrir o PR e para **Done** ao mergear). Nao remova o `PAV-XX` do titulo nem o link do Linear do corpo — sem eles, o card nao se move sozinho.
+
 Montar o PR completo e mostrar ao usuario:
 
 **Titulo:**
@@ -109,7 +117,7 @@ PAV-XX: <titulo da task no Linear>
 
 **Target:**
 ```
-Benevanio/Jobs_Scraper_Global (branch develop)
+Cla-Code-Community/candidate (branch develop)
 ```
 
 **Body:**
@@ -136,7 +144,7 @@ Mostrar tudo formatado e perguntar: **"O PR esta correto? Confirma a criacao? (s
 
 ### Passo 8: Criar o PR
 
-> **Modelo de fork:** O PR e criado do fork (origin) para o upstream (Benevanio/Jobs_Scraper_Global).
+> **Modelo de fork:** O PR e criado do fork (origin) para o upstream (Cla-Code-Community/candidate).
 > E necessario usar `--head <owner-do-fork>:<branch>` para que o GitHub identifique corretamente
 > a branch de origem no fork.
 
@@ -147,20 +155,49 @@ Mostrar tudo formatado e perguntar: **"O PR esta correto? Confirma a criacao? (s
    - **Se a branch nao existe no remote:** perguntar ao usuario: "A branch ainda nao foi enviada ao remote. Deseja fazer push agora? (s/n)"
    - Se confirmar, rodar: `git push -u origin $(git branch --show-current)`
    - Se negar, parar a execucao
-2. Detectar o owner do fork:
+2. Detectar o owner do fork a partir do remote `origin`:
    ```bash
-   FORK_OWNER=$(gh repo view --json owner -q .owner.login)
+   FORK_OWNER=$(git remote get-url origin | sed -E 's#.*[/:]([^/]+)/[^/]+(\.git)?$#\1#')
    ```
 3. Criar o PR via GitHub CLI:
    ```bash
    gh pr create \
-     --repo Benevanio/Jobs_Scraper_Global \
+     --repo Cla-Code-Community/candidate \
      --base develop \
      --head "$FORK_OWNER:$(git branch --show-current)" \
      --title "PAV-XX: <titulo>" \
      --body "<body completo>"
    ```
-4. Confirmar ao usuario com o link do PR criado
+4. **Fallback obrigatorio se o `gh pr create` falhar** com erros do tipo
+   `No commits between ...`, `Head sha can't be blank` ou `Head ref must be a branch`
+   (mesmo com a branch existindo no fork e com commits a frente de develop):
+
+   > **Por que acontece:** em fork cujo nome difere do upstream, o `gh pr create`
+   > pode corromper o `--head` ao montar a requisicao (ex.: truncar `feature/...`
+   > para `ature/...`), fazendo o GitHub nao encontrar a branch. Antes de tentar o
+   > fallback, confirme que a branch esta ok comparando direto na API:
+   > ```bash
+   > gh api "repos/Cla-Code-Community/candidate/compare/develop...$FORK_OWNER:$(git branch --show-current)" \
+   >   --jq '{status:.status, ahead_by:.ahead_by}'
+   > ```
+   > Se retornar `ahead_by > 0`, a branch esta correta e o problema e o `gh pr create`.
+
+   Criar o PR direto pela API REST (que respeita o `head` sem corromper):
+   ```bash
+   PAYLOAD=$(mktemp)
+   cat > "$PAYLOAD" <<JSON
+   {
+     "title": "PAV-XX: <titulo>",
+     "head": "$FORK_OWNER:$(git branch --show-current)",
+     "base": "develop",
+     "body": <body como string JSON, com \n para quebras de linha>
+   }
+   JSON
+   gh api --method POST repos/Cla-Code-Community/candidate/pulls --input "$PAYLOAD" \
+     --jq '{number:.number, url:.html_url}'
+   rm -f "$PAYLOAD"
+   ```
+5. Confirmar ao usuario com o link do PR criado
 
 ## Erros comuns
 
@@ -170,3 +207,4 @@ Mostrar tudo formatado e perguntar: **"O PR esta correto? Confirma a criacao? (s
 - **Bloquear por causa de testes falhando** — mostrar as falhas, mas deixar o usuario decidir
 - **Esquecer de buscar upstream/develop atualizado** — sempre rodar `git fetch upstream develop` antes de comparar
 - **Nao usar --head no gh pr create** — como o projeto usa fork, e obrigatorio passar `--head <owner-do-fork>:<branch>` para o PR ser criado corretamente
+- **Desistir quando o `gh pr create` falha com "No commits between..."** — em fork com nome diferente do upstream o `gh` pode corromper o `--head`; valide a branch com o `gh api .../compare` e crie o PR pelo fallback via `gh api .../pulls` (Passo 8)
