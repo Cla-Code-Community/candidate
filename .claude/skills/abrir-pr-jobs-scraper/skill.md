@@ -168,7 +168,36 @@ Mostrar tudo formatado e perguntar: **"O PR esta correto? Confirma a criacao? (s
      --title "PAV-XX: <titulo>" \
      --body "<body completo>"
    ```
-4. Confirmar ao usuario com o link do PR criado
+4. **Fallback obrigatorio se o `gh pr create` falhar** com erros do tipo
+   `No commits between ...`, `Head sha can't be blank` ou `Head ref must be a branch`
+   (mesmo com a branch existindo no fork e com commits a frente de develop):
+
+   > **Por que acontece:** em fork cujo nome difere do upstream, o `gh pr create`
+   > pode corromper o `--head` ao montar a requisicao (ex.: truncar `feature/...`
+   > para `ature/...`), fazendo o GitHub nao encontrar a branch. Antes de tentar o
+   > fallback, confirme que a branch esta ok comparando direto na API:
+   > ```bash
+   > gh api "repos/Cla-Code-Community/candidate/compare/develop...$FORK_OWNER:$(git branch --show-current)" \
+   >   --jq '{status:.status, ahead_by:.ahead_by}'
+   > ```
+   > Se retornar `ahead_by > 0`, a branch esta correta e o problema e o `gh pr create`.
+
+   Criar o PR direto pela API REST (que respeita o `head` sem corromper):
+   ```bash
+   PAYLOAD=$(mktemp)
+   cat > "$PAYLOAD" <<JSON
+   {
+     "title": "PAV-XX: <titulo>",
+     "head": "$FORK_OWNER:$(git branch --show-current)",
+     "base": "develop",
+     "body": <body como string JSON, com \n para quebras de linha>
+   }
+   JSON
+   gh api --method POST repos/Cla-Code-Community/candidate/pulls --input "$PAYLOAD" \
+     --jq '{number:.number, url:.html_url}'
+   rm -f "$PAYLOAD"
+   ```
+5. Confirmar ao usuario com o link do PR criado
 
 ## Erros comuns
 
@@ -178,3 +207,4 @@ Mostrar tudo formatado e perguntar: **"O PR esta correto? Confirma a criacao? (s
 - **Bloquear por causa de testes falhando** — mostrar as falhas, mas deixar o usuario decidir
 - **Esquecer de buscar upstream/develop atualizado** — sempre rodar `git fetch upstream develop` antes de comparar
 - **Nao usar --head no gh pr create** — como o projeto usa fork, e obrigatorio passar `--head <owner-do-fork>:<branch>` para o PR ser criado corretamente
+- **Desistir quando o `gh pr create` falha com "No commits between..."** — em fork com nome diferente do upstream o `gh` pode corromper o `--head`; valide a branch com o `gh api .../compare` e crie o PR pelo fallback via `gh api .../pulls` (Passo 8)
