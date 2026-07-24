@@ -100,6 +100,8 @@ Rode os comandos de verificacao da tabela acima. Se algum falhar, informe e pare
 
 ### Passo 6: Montar e mostrar preview
 
+> **Por que o formato importa:** o identificador `PAV-XX` no titulo e o link do Linear no corpo sao o que a integracao Linear ↔ GitHub usa para vincular o PR ao card e move-lo automaticamente (para **In Review** ao abrir o PR e para **Done** ao mergear). Nao remova o `PAV-XX` do titulo nem o link do Linear do corpo — sem eles, o card nao se move sozinho.
+
 Montar o PR completo e mostrar ao usuario:
 
 **Titulo:**

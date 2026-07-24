@@ -12,6 +12,7 @@ O produto evoluiu para um modelo orientado a serviços (API + scraper Go + cache
 ## Links oficiais
 
 - Gestão de produto (Linear): https://linear.app/tatame/team/PAV/all
+- Guia do usuário — Linear e integração com GitHub: [GUIA-LINEAR-GITHUB.md](GUIA-LINEAR-GITHUB.md)
 - Design system oficial (Figma): https://www.figma.com/design/gollJBtK8PGkffNN4zk9t9/Painel-Dev---releitura?node-id=0-1&p=f&t=zU8zrFzPsNPxZ3qU-0
 - Documentação backend detalhada: [BACKEND.md](BACKEND.md)
 - Documentação scraper Go: [SCRAPER.md](SCRAPER.md)
