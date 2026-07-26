@@ -315,7 +315,37 @@ describe("new_dashboard job components", () => {
 
     expect(screen.getByText("LinkedIn, Gupy")).toBeInTheDocument();
     expect(screen.getByText(/seniority/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/detalhes avançados da vaga/i)).toHaveLength(2);
+    expect(screen.getByText(/detalhes avançados da vaga/i)).toBeInTheDocument();
+  });
+
+  it("formata HTML codificado e descarta conteúdo inseguro da descrição", () => {
+    const { container } = render(
+      <JobDetailModal
+        job={{
+          ...baseJob,
+          rawPayload: {
+            description:
+              "&lt;h3&gt;Sobre a vaga&lt;/h3&gt;&lt;p&gt;Crie produtos com &lt;strong&gt;React&lt;/strong&gt;.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;TypeScript&lt;/li&gt;&lt;/ul&gt;&lt;a href=&quot;https://example.com/details&quot;&gt;Saiba mais&lt;/a&gt;&lt;script&gt;alert('xss')&lt;/script&gt;",
+          },
+        }}
+        onClose={vi.fn()}
+        onStatusChange={vi.fn()}
+        onNotesChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Sobre a vaga" }),
+    ).toBeInTheDocument();
+    expect(container.querySelector("strong")).toHaveTextContent("React");
+    expect(screen.getByRole("listitem")).toHaveTextContent("TypeScript");
+    expect(screen.getByRole("link", { name: "Saiba mais" })).toHaveAttribute(
+      "href",
+      "https://example.com/details",
+    );
+    expect(container.querySelector("script")).not.toBeInTheDocument();
+    expect(screen.queryByText(/alert\('xss'\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/&lt;h3&gt;/i)).not.toBeInTheDocument();
   });
 
   it("valida e salva uma vaga manual nova", () => {

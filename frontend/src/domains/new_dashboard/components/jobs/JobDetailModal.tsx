@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { jobStatusClasses, jobStatuses } from "../../constants";
 import type { Job, JobStatus } from "../../types";
 import { Modal } from "../shared/Modal";
+import { FormattedJobDescription } from "./FormattedJobDescription";
 
 interface JobDetailModalProps {
   job: Job;
@@ -49,7 +50,9 @@ export function JobDetailModal({
   onStatusChange,
   onNotesChange,
 }: JobDetailModalProps) {
-  const payloadEntries = Object.entries(job.rawPayload ?? {});
+  const payloadEntries = Object.entries(job.rawPayload ?? {}).filter(
+    ([key]) => key !== "description",
+  );
   const description = payloadValueToText(job.rawPayload?.description);
   const hasDescription = description !== "Não informado";
 
@@ -131,9 +134,7 @@ export function JobDetailModal({
             <span className="text-xs font-bold uppercase text-muted-foreground">
               Descrição
             </span>
-            <p className="max-h-48 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-background p-3 text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
+            <FormattedJobDescription description={description} />
           </div>
         ) : null}
 
