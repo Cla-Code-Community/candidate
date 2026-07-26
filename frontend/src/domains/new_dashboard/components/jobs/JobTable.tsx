@@ -201,9 +201,9 @@ export function JobTable({
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left">
-          <thead className="border-b border-border bg-muted/45 text-xs uppercase text-muted-foreground">
+          <thead className="border-b border-border bg-muted/45 text-xs text-muted-foreground">
             <tr>
-              <th className="px-6 py-4 font-bold">Cargo / Empresa</th>
+              <th className="px-6 py-4 font-bold">Cargo / empresa</th>
               <th
                 className="px-4 py-4 font-bold"
                 aria-sort={ariaSort("source")}

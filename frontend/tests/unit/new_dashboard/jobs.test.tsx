@@ -140,6 +140,9 @@ describe("new_dashboard job components", () => {
 
     expect(screen.getByText(/exibindo 1-10 de 12 vagas/i)).toBeInTheDocument();
     expect(
+      screen.getByRole("columnheader", { name: "Cargo / empresa" }),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("columnheader", { name: /publicada em/i }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /próxima página/i }));
