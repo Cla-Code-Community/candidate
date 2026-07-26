@@ -1,7 +1,84 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import type { Job, JobStatus } from "../../types";
 import { JobRow } from "./JobRow";
+
+type SortColumn = "source" | "level" | "posted";
+type SortDirection = "asc" | "desc";
+
+const levelOrder: Record<Job["level"], number> = {
+  "Estágio/Trainee": 0,
+  Júnior: 1,
+  Pleno: 2,
+  Sênior: 3,
+};
+
+function publicationTimestamp(job: Job) {
+  const rawPostedAt = job.rawPayload?.postedAt;
+  if (typeof rawPostedAt === "string" && rawPostedAt.trim()) {
+    const timestamp = new Date(rawPostedAt).getTime();
+    if (!Number.isNaN(timestamp)) return timestamp;
+  }
+
+  const formattedDate = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(job.posted);
+  if (!formattedDate) return null;
+
+  const [, day, month, year] = formattedDate;
+  return Date.UTC(Number(year), Number(month) - 1, Number(day));
+}
+
+function compareNullableValues<T>(
+  first: T | null,
+  second: T | null,
+  direction: SortDirection,
+  compare: (left: T, right: T) => number,
+) {
+  if (first === null && second === null) return 0;
+  if (first === null) return 1;
+  if (second === null) return -1;
+
+  const result = compare(first, second);
+  return direction === "asc" ? result : -result;
+}
+
+function compareJobs(
+  first: Job,
+  second: Job,
+  column: SortColumn,
+  direction: SortDirection,
+) {
+  if (column === "source") {
+    return compareNullableValues(
+      first.source.trim() || null,
+      second.source.trim() || null,
+      direction,
+      (left, right) =>
+        left.localeCompare(right, "pt-BR", { sensitivity: "base" }),
+    );
+  }
+
+  if (column === "level") {
+    return compareNullableValues(
+      levelOrder[first.level],
+      levelOrder[second.level],
+      direction,
+      (left, right) => left - right,
+    );
+  }
+
+  return compareNullableValues(
+    publicationTimestamp(first),
+    publicationTimestamp(second),
+    direction,
+    (left, right) => left - right,
+  );
+}
 
 interface JobTableProps {
   jobs: Job[];
@@ -27,6 +104,27 @@ export function JobTable({
 }: JobTableProps) {
   const [requestedPage, setRequestedPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sort, setSort] = useState<{
+    column: SortColumn;
+    direction: SortDirection;
+  } | null>(null);
+
+  const sortedJobs = useMemo(() => {
+    if (!sort) return jobs;
+
+    return jobs
+      .map((job, index) => ({ job, index }))
+      .sort(
+        (first, second) =>
+          compareJobs(
+            first.job,
+            second.job,
+            sort.column,
+            sort.direction,
+          ) || first.index - second.index,
+      )
+      .map(({ job }) => job);
+  }, [jobs, sort]);
 
   if (jobs.length === 0) {
     return (
@@ -47,8 +145,8 @@ export function JobTable({
   const currentPage = Math.min(pagination?.page ?? requestedPage, totalPages);
   const firstItemIndex = (currentPage - 1) * effectivePageSize;
   const visibleJobs = isRemotePaginated
-    ? jobs
-    : jobs.slice(firstItemIndex, firstItemIndex + pageSize);
+    ? sortedJobs
+    : sortedJobs.slice(firstItemIndex, firstItemIndex + pageSize);
   const firstVisibleItem = firstItemIndex + 1;
   const lastVisibleItem = Math.min(
     firstItemIndex + visibleJobs.length,
@@ -66,6 +164,39 @@ export function JobTable({
     },
   );
 
+  const toggleSort = (column: SortColumn) => {
+    setSort((current) => {
+      if (current?.column === column) {
+        return {
+          column,
+          direction: current.direction === "asc" ? "desc" : "asc",
+        };
+      }
+
+      return {
+        column,
+        direction: column === "posted" ? "desc" : "asc",
+      };
+    });
+  };
+
+  const sortIcon = (column: SortColumn) => {
+    if (sort?.column !== column) {
+      return <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />;
+    }
+
+    return sort.direction === "asc" ? (
+      <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+    ) : (
+      <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+    );
+  };
+
+  const ariaSort = (column: SortColumn) => {
+    if (sort?.column !== column) return "none";
+    return sort.direction === "asc" ? "ascending" : "descending";
+  };
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="overflow-x-auto">
@@ -73,9 +204,49 @@ export function JobTable({
           <thead className="border-b border-border bg-muted/45 text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-6 py-4 font-bold">Cargo / Empresa</th>
-              <th className="px-4 py-4 font-bold">Fonte</th>
+              <th
+                className="px-4 py-4 font-bold"
+                aria-sort={ariaSort("source")}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleSort("source")}
+                  className="inline-flex items-center gap-1.5 hover:text-foreground"
+                  aria-label="Ordenar por fonte"
+                >
+                  Fonte
+                  {sortIcon("source")}
+                </button>
+              </th>
               <th className="px-4 py-4 font-bold">Modelo</th>
-              <th className="px-4 py-4 font-bold">Nível</th>
+              <th
+                className="px-4 py-4 font-bold"
+                aria-sort={ariaSort("level")}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleSort("level")}
+                  className="inline-flex items-center gap-1.5 hover:text-foreground"
+                  aria-label="Ordenar por nível"
+                >
+                  Nível
+                  {sortIcon("level")}
+                </button>
+              </th>
+              <th
+                className="px-4 py-4 font-bold"
+                aria-sort={ariaSort("posted")}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleSort("posted")}
+                  className="inline-flex items-center gap-1.5 hover:text-foreground"
+                  aria-label="Ordenar por data de publicação"
+                >
+                  Publicada em
+                  {sortIcon("posted")}
+                </button>
+              </th>
               <th className="px-4 py-4 font-bold">Match</th>
               <th className="px-6 py-4 text-right font-bold">Ações</th>
             </tr>

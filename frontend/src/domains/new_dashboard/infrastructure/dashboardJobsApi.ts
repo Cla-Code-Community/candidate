@@ -20,6 +20,7 @@ const ApiSearchJobSchema = z
     location: z.string().nullable().optional(),
     modality: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
+    postedAt: z.string().nullable().optional(),
     url: z.string().nullable().optional(),
     matchScore: z.number().int().min(0).max(100).nullable().optional(),
     matchSource: z.string().nullable().optional(),
@@ -173,6 +174,27 @@ function stableMatchScore(value: string) {
   return 70 + (hash % 26);
 }
 
+function formatPublicationDate(value: string | null | undefined) {
+  const rawDate = value?.trim();
+  if (!rawDate) return "Não informado";
+
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(rawDate);
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    return `${day}/${month}/${year}`;
+  }
+
+  const parsedDate = new Date(rawDate);
+  if (Number.isNaN(parsedDate.getTime())) return "Não informado";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(parsedDate);
+}
+
 function compactTags(values: Array<string | null | undefined>) {
   return [
     ...new Set(
@@ -225,7 +247,7 @@ export function toRecommendedJob(job: ApiSearchJob, index: number): Job {
         ? job.matchScore
         : stableMatchScore(`${title}:${job.company ?? ""}`),
     tags: tags.length > 0 ? tags : ["Geral"],
-    posted: "Encontrada recentemente",
+    posted: formatPublicationDate(job.postedAt),
     status: "saved",
     jobLink,
     source:
@@ -249,9 +271,7 @@ export function toDashboardSavedJob(job: ApiSavedJob): Job {
     level: inferLevel(title),
     matchScore: stableMatchScore(`${title}:${job.company ?? ""}`),
     tags: job.keyword?.trim() ? [job.keyword.trim()] : ["Geral"],
-    posted: job.createdAt
-      ? new Date(job.createdAt).toLocaleDateString("pt-BR")
-      : "Salva recentemente",
+    posted: "Não informado",
     status: job.status,
     jobLink: job.jobLink,
     source: job.source?.trim() || "Manual",

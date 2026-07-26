@@ -180,6 +180,20 @@ export default function NewDashboardPage() {
     saveUserProfile,
     saveSearchPreferences,
   } = useUserDashboardData(user, { onError: showToast });
+  const preferredModelFilter = useMemo(
+    () => getModelFilterFromJobTypes(searchPreferences.jobTypes),
+    [searchPreferences.jobTypes],
+  );
+  const initialRecommendationSearch = useMemo(
+    () =>
+      isLoadingUserData
+        ? null
+        : {
+            keywords: [],
+            filters: modelFilterToApiFilter(preferredModelFilter),
+          },
+    [isLoadingUserData, preferredModelFilter],
+  );
   const {
     trackedJobs,
     recommendedJobs,
@@ -190,7 +204,10 @@ export default function NewDashboardPage() {
     changeJobStatus,
     changeJobNotesLocally,
     saveJobNotes,
-  } = useDashboardJobs(user, { onError: showToast });
+  } = useDashboardJobs(user, {
+    onError: showToast,
+    initialRecommendationSearch,
+  });
 
   const matchedTrackedJobs = useMemo(
     () =>
@@ -212,10 +229,6 @@ export default function NewDashboardPage() {
         modelFilterMatchesJob(job, filterType),
       ),
     [filterType, matchedRecommendedJobs],
-  );
-  const preferredModelFilter = useMemo(
-    () => getModelFilterFromJobTypes(searchPreferences.jobTypes),
-    [searchPreferences.jobTypes],
   );
   const showPreferenceNotice =
     !hasUserChangedJobFilters &&

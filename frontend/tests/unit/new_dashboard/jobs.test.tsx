@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AddJobModal } from "@/domains/new_dashboard/components/jobs/AddJobModal";
@@ -124,6 +124,9 @@ describe("new_dashboard job components", () => {
     );
 
     expect(screen.getByText(/exibindo 1-10 de 12 vagas/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: /publicada em/i }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /próxima página/i }));
     expect(screen.getByText(/exibindo 11-12 de 12 vagas/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/vagas por página/i), {
@@ -166,8 +169,81 @@ describe("new_dashboard job components", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /detalhes/i })[0]);
     fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
 
+    expect(screen.getByText("Hoje")).toBeInTheDocument();
     expect(onOpen).toHaveBeenCalledWith(baseJob);
     expect(onStatusChange).toHaveBeenCalledWith(baseJob.id, "saved");
+  });
+
+  it("ordena a tabela por fonte, nível e data de publicação", () => {
+    const jobs: Job[] = [
+      {
+        ...baseJob,
+        id: "linkedin-senior",
+        jobTitle: "Vaga LinkedIn",
+        source: "LinkedIn",
+        level: "Sênior",
+        posted: "10/07/2026",
+        rawPayload: { postedAt: "2026-07-10T12:00:00Z" },
+      },
+      {
+        ...baseJob,
+        id: "adzuna-junior",
+        jobTitle: "Vaga Adzuna",
+        source: "Adzuna",
+        level: "Júnior",
+        posted: "25/07/2026",
+        rawPayload: { postedAt: "2026-07-25T12:00:00Z" },
+      },
+      {
+        ...baseJob,
+        id: "greenhouse-pleno",
+        jobTitle: "Vaga Greenhouse",
+        source: "Greenhouse",
+        level: "Pleno",
+        posted: "Não informado",
+        rawPayload: {},
+      },
+    ];
+
+    render(
+      <JobTable
+        jobs={jobs}
+        onOpenJob={vi.fn()}
+        onStatusChange={vi.fn()}
+      />,
+    );
+
+    const visibleTitles = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[0].textContent);
+
+    fireEvent.click(screen.getByRole("button", { name: /ordenar por fonte/i }));
+    expect(visibleTitles()).toEqual([
+      "Vaga AdzunaACME",
+      "Vaga GreenhouseACME",
+      "Vaga LinkedInACME",
+    ]);
+    expect(
+      screen.getByRole("columnheader", { name: /^fonte$/i }),
+    ).toHaveAttribute("aria-sort", "ascending");
+
+    fireEvent.click(screen.getByRole("button", { name: /ordenar por nível/i }));
+    expect(visibleTitles()).toEqual([
+      "Vaga AdzunaACME",
+      "Vaga GreenhouseACME",
+      "Vaga LinkedInACME",
+    ]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /ordenar por data de publicação/i }),
+    );
+    expect(visibleTitles()).toEqual([
+      "Vaga AdzunaACME",
+      "Vaga LinkedInACME",
+      "Vaga GreenhouseACME",
+    ]);
   });
 
   it("mostra detalhes completos da vaga e atualiza status/notas", () => {
