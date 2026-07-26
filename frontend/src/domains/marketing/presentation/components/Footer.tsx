@@ -19,7 +19,7 @@ export function Footer() {
               Automatizando a busca por vagas de TI para desenvolvedores do mundo inteiro. Encontre o emprego ideal sem perder horas pesquisando.
             </p>
             <div className="flex items-center gap-4 text-gray-400 dark:text-gray-500">
-              <a href="#" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"><Github size={20} /></a>
+              <a href="https://github.com/Cla-Code-Community/candidate" target="_blank" rel="noopener noreferrer" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"><Github size={20} /></a>
             </div>
           </div>
 
@@ -27,8 +27,8 @@ export function Footer() {
             <h4 className="text-gray-900 dark:text-white font-semibold mb-6">Produto</h4>
             <ul className="space-y-4 text-gray-500 dark:text-gray-400">
               <li><a href="#features" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Funcionalidades</a></li>
+              <li><a href="#time" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Time</a></li>
               <li><a href="#how-it-works" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Como Funciona</a></li>
-              <li><a href="#pricing" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Preços</a></li>
               <li><a href="#status" className="hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">Status</a></li>
             </ul>
           </div>
