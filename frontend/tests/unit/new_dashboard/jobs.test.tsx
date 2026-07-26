@@ -8,7 +8,7 @@ import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
 import { JobTab } from "@/domains/new_dashboard/components/jobs/JobTab";
 import { JobTable } from "@/domains/new_dashboard/components/jobs/JobTable";
 import { initialPreferences } from "@/domains/new_dashboard/constants";
-import type { Job } from "@/domains/new_dashboard/types";
+import type { Job, JobModelFilter } from "@/domains/new_dashboard/types";
 import type {
   ContinentFilter,
   CountryFilter,
@@ -72,8 +72,23 @@ describe("new_dashboard job components", () => {
       />,
     );
 
+    const searchInput = screen.getByPlaceholderText(
+      /buscar por cargo, empresa ou keywords/i,
+    );
+    const filterGrid = searchInput.closest("label")?.parentElement;
+
+    expect(filterGrid).toHaveClass(
+      "grid-cols-1",
+      "sm:grid-cols-2",
+      "xl:grid-cols-3",
+      "2xl:grid-cols-[minmax(280px,1fr)_repeat(5,minmax(0,180px))]",
+    );
+    screen.getAllByRole("combobox").forEach((select) => {
+      expect(select).toHaveClass("w-full", "min-w-0");
+    });
+
     fireEvent.change(
-      screen.getByPlaceholderText(/buscar por cargo, empresa ou keywords/i),
+      searchInput,
       {
         target: { value: "react" },
       },
@@ -147,8 +162,6 @@ describe("new_dashboard job components", () => {
           page: 2,
           limit: 10,
           totalPages: 3,
-          hasNext: true,
-          hasPrev: true,
         }}
         onPageChange={onPageChange}
         onPageSizeChange={vi.fn()}
@@ -361,7 +374,8 @@ describe("new_dashboard job components", () => {
 
     function Harness() {
       const [searchQuery, setSearchQuery] = useState("");
-      const [filterType, setFilterType] = useState("Todos");
+      const [filterType, setFilterType] =
+        useState<JobModelFilter>("Todos");
       const [filterLevel, setFilterLevel] = useState("Todos");
       const [continentFilter, setContinentFilter] =
         useState<ContinentFilter>("Todos");
