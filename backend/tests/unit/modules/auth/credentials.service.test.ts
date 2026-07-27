@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   verify: vi.fn(),
   // generateUsername
   generateUsername: vi.fn(),
+  // email de boas-vindas
+  sendWelcome: vi.fn(),
 }));
 
 // ─── Mock: database client ────────────────────────────────────────────────────
@@ -51,6 +53,14 @@ vi.mock("argon2", () => ({
 
 vi.mock("../../../../src/utils/generateUsername", () => ({
   generateUsername: mocks.generateUsername,
+}));
+
+// ─── Mock: EmailService (boas-vindas) ─────────────────────────────────────────
+
+vi.mock("../../../../src/modules/email/email.service", () => ({
+  emailService: {
+    sendWelcome: mocks.sendWelcome,
+  },
 }));
 
 // ─── Import after mocks ───────────────────────────────────────────────────────
@@ -119,6 +129,7 @@ describe("CredentialsService", () => {
     mocks.verify.mockResolvedValue(true);
     mocks.hash.mockResolvedValue("$argon2id$hashed");
     mocks.generateUsername.mockResolvedValue("mocked-username");
+    mocks.sendWelcome.mockResolvedValue(undefined);
 
     service = new CredentialsService();
   });
@@ -182,6 +193,24 @@ describe("CredentialsService", () => {
       const { session } = await service.register(registerInput);
 
       expect(session).toEqual({ userId: "uuid-user-1", role: "user" });
+    });
+
+    it("dispara e-mail de boas-vindas com email + nome no sucesso (EMAIL-06)", async () => {
+      await service.register(registerInput);
+
+      expect(mocks.sendWelcome).toHaveBeenCalledWith({
+        email: mockUser.email,
+        name: mockUser.displayName,
+      });
+    });
+
+    it("conclui o registro mesmo se o envio de boas-vindas falhar (EMAIL-08)", async () => {
+      mocks.sendWelcome.mockRejectedValue(new Error("fila indisponível"));
+
+      const result = await service.register(registerInput);
+
+      expect(result.user).toMatchObject({ email: mockUser.email });
+      expect(result.session).toEqual({ userId: mockUser.id, role: "user" });
     });
   });
 

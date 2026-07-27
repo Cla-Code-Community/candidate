@@ -4,6 +4,8 @@ import { userPreferences } from "../../db/schema";
 import { credentials } from "../../db/schema/credentials";
 import type { User } from "../../db/schema/users";
 import { AppError } from "../../lib/errors";
+import { logError } from "../../logger";
+import { emailService } from "../email/email.service";
 import { encryptText } from "../../lib/security/encryption";
 import { normalizeEmail } from "../../lib/security/normalization";
 import { generateSearchableHash } from "../../lib/security/searchableHash";
@@ -80,6 +82,19 @@ export class CredentialsService {
 
       return createdUser;
     });
+
+    // E-mail de boas-vindas: falha nunca derruba o registro (EMAIL-08).
+    try {
+      await emailService.sendWelcome({
+        email: user.email,
+        name: user.displayName ?? user.username,
+      });
+    } catch (error) {
+      logError("Falha ao disparar e-mail de boas-vindas.", {
+        userId: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
 
     return { user, session: { userId: user.id, role: user.role } };
   }
