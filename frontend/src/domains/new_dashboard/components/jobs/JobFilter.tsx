@@ -39,8 +39,8 @@ export function JobFilter({
   setMatchSort,
 }: JobFilterProps) {
   return (
-    <div className="grid gap-4 rounded-2xl border border-border bg-card p-4 md:grid-cols-[minmax(280px,1fr)_168px_168px_180px_180px_180px]">
-      <label className="relative block">
+    <div className="grid min-w-0 grid-cols-1 gap-4 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[minmax(280px,1fr)_repeat(5,minmax(0,180px))]">
+      <label className="relative block min-w-0">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           value={searchQuery}
@@ -55,7 +55,7 @@ export function JobFilter({
         onChange={(event) =>
           setFilterType(event.target.value as JobModelFilter)
         }
-        className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
+        className="h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
       >
         <option value="Todos">Modelo (Todos)</option>
         {jobModelFilterOptions
@@ -70,7 +70,7 @@ export function JobFilter({
       <select
         value={filterLevel}
         onChange={(event) => setFilterLevel(event.target.value)}
-        className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
+        className="h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
       >
         <option value="Todos">Sênioridade (Todos)</option>
         {jobLevels.map((level) => (
@@ -83,7 +83,7 @@ export function JobFilter({
         onChange={(event) =>
           setContinentFilter(event.target.value as ContinentFilter)
         }
-        className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
+        className="h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
       >
         {continentOptions.map((continent) => (
           <option key={continent} value={continent}>
@@ -97,7 +97,7 @@ export function JobFilter({
         onChange={(event) =>
           setCountryFilter(event.target.value as CountryFilter)
         }
-        className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
+        className="h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
       >
         {countryOptions.map((country) => (
           <option key={country} value={country}>
@@ -109,7 +109,7 @@ export function JobFilter({
       <select
         value={matchSort}
         onChange={(event) => setMatchSort(event.target.value as MatchSort)}
-        className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
+        className="h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm outline-none transition-colors focus:border-ring"
       >
         <option value="default">Match (padrão)</option>
         <option value="desc">Maior match</option>
