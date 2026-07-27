@@ -22,6 +22,19 @@ export default defineConfig(({ mode }) => {
   const env = loadTestEnv(mode ?? "test");
 
   return {
+    // Habilita o runtime automático de JSX (react-email templates .tsx).
+    // O backend usa rolldown-vite (transform via oxc); mantemos também a
+    // chave esbuild para compatibilidade caso o vite padrão seja usado.
+    esbuild: {
+      jsx: "automatic",
+      jsxDev: false,
+    },
+    oxc: {
+      jsx: {
+        runtime: "automatic",
+        development: false,
+      },
+    },
     test: {
       globals: true,
       environment: "node",
