@@ -33,6 +33,50 @@ describe("authService", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  describe("response parsing and URL normalization", () => {
+    it("uses the configured API URL without trailing slashes", async () => {
+      vi.stubEnv("VITE_API_BASE_URL", "https://api.example.com///");
+      fetchMock.mockResolvedValueOnce(mockResponse({ jsonData: { ok: true } }));
+
+      await expect(auth.logout()).resolves.toEqual({ ok: true });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://api.example.com/auth/logout",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    it("parses non-JSON response bodies as messages", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({
+          contentType: "text/plain",
+          textData: "Logout concluído",
+        }),
+      );
+
+      await expect(auth.logout()).resolves.toEqual({
+        message: "Logout concluído",
+      });
+    });
+
+    it("returns an empty payload for an empty response body", async () => {
+      fetchMock.mockResolvedValueOnce(
+        mockResponse({ contentType: "", textData: "" }),
+      );
+
+      await expect(auth.logout()).resolves.toEqual({});
+    });
+
+    it("returns an empty payload when response parsing fails", async () => {
+      const response = mockResponse({ contentType: "application/json" });
+      response.json.mockRejectedValueOnce(new SyntaxError("invalid JSON"));
+      fetchMock.mockResolvedValueOnce(response);
+
+      await expect(auth.logout()).resolves.toEqual({});
+    });
   });
 
   describe("login", () => {

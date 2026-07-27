@@ -105,6 +105,12 @@ describe("new_dashboard theme and toast contexts", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("renderiza toast quando recebe uma mensagem", () => {
+    render(<Toast message="Perfil atualizado" />);
+
+    expect(screen.getByText("Perfil atualizado")).toBeInTheDocument();
+  });
+
   it("lança erro quando o contexto de toast é usado fora do provider", () => {
     expect(() => render(<ToastHookConsumer />)).toThrow(
       /useToastContext must be used within ToastProvider/i,
