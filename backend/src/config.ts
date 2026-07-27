@@ -17,6 +17,11 @@ export interface AppConfig {
   timeFilter: string;
   databaseUrl: string;
   valkeyUrl: string;
+  frontendUrl: string;
+  emailApiKey: string;
+  emailFromAddress: string;
+  emailFromName: string;
+  emailQueueAttempts: number;
 }
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -65,5 +70,10 @@ export function getConfig(): AppConfig {
     timeFilter: parseTimeFilter(process.env.TIME_FILTER, "r604800"),
     databaseUrl: process.env.DATABASE_URL?.trim() ?? "",
     valkeyUrl: process.env.VALKEY_URL?.trim() ?? "",
+    frontendUrl: process.env.FRONTEND_URL?.trim() ?? "",
+    emailApiKey: process.env.EMAIL_API_KEY?.trim() ?? "",
+    emailFromAddress: process.env.EMAIL_FROM_ADDRESS?.trim() ?? "",
+    emailFromName: process.env.EMAIL_FROM_NAME?.trim() ?? "",
+    emailQueueAttempts: parseNumber(process.env.EMAIL_QUEUE_ATTEMPTS, 3),
   };
 }
