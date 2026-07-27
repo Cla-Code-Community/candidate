@@ -6,13 +6,15 @@ import { AppError } from "../../../lib/errors";
 
 type DisconnectParams = { userId: string; provider: string };
 
-export async function disconnectProvider(
+async function runDisconnect(
   { userId, provider }: DisconnectParams,
-  tx: DB = db,
+  tx: DB,
 ): Promise<void> {
-  const userAccounts = await tx.query.accounts.findMany({
-    where: (acc, { eq }) => eq(acc.userId, userId),
-  });
+  const userAccounts = await tx
+    .select()
+    .from(accounts)
+    .where(eq(accounts.userId, userId))
+    .for("update");
 
   const hasPassword = Boolean(
     await tx.query.credentials.findFirst({
@@ -35,4 +37,12 @@ export async function disconnectProvider(
   await tx
     .delete(accounts)
     .where(and(eq(accounts.userId, userId), eq(accounts.provider, provider)));
+}
+
+export async function disconnectProvider(
+  params: DisconnectParams,
+  tx?: DB,
+): Promise<void> {
+  if (tx) return runDisconnect(params, tx);
+  return db.transaction((t) => runDisconnect(params, t as unknown as DB));
 }

@@ -77,4 +77,11 @@ describe("connections routes", () => {
     expect(res.status).toBe(409);
     expect(res.body.code).toBe("CONFLICT");
   });
+
+  it("DELETE responde 400 para provider não suportado", async () => {
+    const res = await request(buildApp()).delete("/auth/connections/facebook");
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe("VALIDATION_ERROR");
+    expect(mocks.disconnectProvider).not.toHaveBeenCalled();
+  });
 });

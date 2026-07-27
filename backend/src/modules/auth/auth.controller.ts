@@ -72,7 +72,7 @@ export class AuthController {
           );
         } catch (linkError) {
           const code =
-            linkError instanceof AppError
+            linkError instanceof AppError && linkError.code === "CONFLICT"
               ? "provider_already_linked"
               : "link_failed";
           return res.redirect(`${frontendUrl}/perfil/conexoes?error=${code}`);
