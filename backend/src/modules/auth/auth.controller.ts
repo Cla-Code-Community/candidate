@@ -1,7 +1,9 @@
 import { randomBytes } from "crypto";
 import { Request, Response } from "express";
+import { AppError } from "../../lib/errors.js";
 import type { OAuthProvider } from "../types/auth.types.js";
 import { AuthCallbackParamsSchema } from "../types/auth.types.js";
+import { linkProviderToUser } from "../users/functions/linkProviderToUser.js";
 import { AuthService } from "./auth.service.js";
 
 export class AuthController {
@@ -12,6 +14,13 @@ export class AuthController {
     const state = randomBytes(16).toString("hex");
 
     (req.session as { oauth_state?: string }).oauth_state = state;
+
+    if (req.query.intent === "link" && req.session.userId) {
+      (req.session as { oauth_intent?: string }).oauth_intent = "link";
+    } else {
+      delete (req.session as { oauth_intent?: string }).oauth_intent;
+    }
+
     await req.session.save();
 
     const url = await this.authService.getAuthUrl(provider, state);
@@ -42,6 +51,33 @@ export class AuthController {
       }
 
       delete (req.session as { oauth_state?: string }).oauth_state;
+
+      const intent = (req.session as { oauth_intent?: string }).oauth_intent;
+      delete (req.session as { oauth_intent?: string }).oauth_intent;
+
+      if (intent === "link" && req.session.userId) {
+        try {
+          const profile = await this.authService.getProfileFromProvider({
+            ...params,
+            callbackUrl,
+          });
+          await linkProviderToUser({
+            userId: req.session.userId,
+            provider: params.provider,
+            profile,
+          });
+          await req.session.save();
+          return res.redirect(
+            `${frontendUrl}/perfil/conexoes?linked=${params.provider}`,
+          );
+        } catch (linkError) {
+          const code =
+            linkError instanceof AppError
+              ? "provider_already_linked"
+              : "link_failed";
+          return res.redirect(`${frontendUrl}/perfil/conexoes?error=${code}`);
+        }
+      }
 
       const result = await this.authService.handleCallback({
         ...params,
