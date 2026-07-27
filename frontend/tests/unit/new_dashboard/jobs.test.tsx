@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { AddJobModal } from "@/domains/new_dashboard/components/jobs/AddJobModal";
@@ -8,7 +8,7 @@ import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
 import { JobTab } from "@/domains/new_dashboard/components/jobs/JobTab";
 import { JobTable } from "@/domains/new_dashboard/components/jobs/JobTable";
 import { initialPreferences } from "@/domains/new_dashboard/constants";
-import type { Job } from "@/domains/new_dashboard/types";
+import type { Job, JobModelFilter } from "@/domains/new_dashboard/types";
 import type {
   ContinentFilter,
   CountryFilter,
@@ -72,8 +72,23 @@ describe("new_dashboard job components", () => {
       />,
     );
 
+    const searchInput = screen.getByPlaceholderText(
+      /buscar por cargo, empresa ou keywords/i,
+    );
+    const filterGrid = searchInput.closest("label")?.parentElement;
+
+    expect(filterGrid).toHaveClass(
+      "grid-cols-1",
+      "sm:grid-cols-2",
+      "xl:grid-cols-3",
+      "2xl:grid-cols-[minmax(280px,1fr)_repeat(5,minmax(0,180px))]",
+    );
+    screen.getAllByRole("combobox").forEach((select) => {
+      expect(select).toHaveClass("w-full", "min-w-0");
+    });
+
     fireEvent.change(
-      screen.getByPlaceholderText(/buscar por cargo, empresa ou keywords/i),
+      searchInput,
       {
         target: { value: "react" },
       },
@@ -124,6 +139,12 @@ describe("new_dashboard job components", () => {
     );
 
     expect(screen.getByText(/exibindo 1-10 de 12 vagas/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Cargo / empresa" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: /publicada em/i }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /próxima página/i }));
     expect(screen.getByText(/exibindo 11-12 de 12 vagas/i)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/vagas por página/i), {
@@ -144,8 +165,6 @@ describe("new_dashboard job components", () => {
           page: 2,
           limit: 10,
           totalPages: 3,
-          hasNext: true,
-          hasPrev: true,
         }}
         onPageChange={onPageChange}
         onPageSizeChange={vi.fn()}
@@ -166,8 +185,81 @@ describe("new_dashboard job components", () => {
     fireEvent.click(screen.getAllByRole("button", { name: /detalhes/i })[0]);
     fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
 
+    expect(screen.getByText("Hoje")).toBeInTheDocument();
     expect(onOpen).toHaveBeenCalledWith(baseJob);
     expect(onStatusChange).toHaveBeenCalledWith(baseJob.id, "saved");
+  });
+
+  it("ordena a tabela por fonte, nível e data de publicação", () => {
+    const jobs: Job[] = [
+      {
+        ...baseJob,
+        id: "linkedin-senior",
+        jobTitle: "Vaga LinkedIn",
+        source: "LinkedIn",
+        level: "Sênior",
+        posted: "10/07/2026",
+        rawPayload: { postedAt: "2026-07-10T12:00:00Z" },
+      },
+      {
+        ...baseJob,
+        id: "adzuna-junior",
+        jobTitle: "Vaga Adzuna",
+        source: "Adzuna",
+        level: "Júnior",
+        posted: "25/07/2026",
+        rawPayload: { postedAt: "2026-07-25T12:00:00Z" },
+      },
+      {
+        ...baseJob,
+        id: "greenhouse-pleno",
+        jobTitle: "Vaga Greenhouse",
+        source: "Greenhouse",
+        level: "Pleno",
+        posted: "Não informado",
+        rawPayload: {},
+      },
+    ];
+
+    render(
+      <JobTable
+        jobs={jobs}
+        onOpenJob={vi.fn()}
+        onStatusChange={vi.fn()}
+      />,
+    );
+
+    const visibleTitles = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => within(row).getAllByRole("cell")[0].textContent);
+
+    fireEvent.click(screen.getByRole("button", { name: /ordenar por fonte/i }));
+    expect(visibleTitles()).toEqual([
+      "Vaga AdzunaACME",
+      "Vaga GreenhouseACME",
+      "Vaga LinkedInACME",
+    ]);
+    expect(
+      screen.getByRole("columnheader", { name: /^fonte$/i }),
+    ).toHaveAttribute("aria-sort", "ascending");
+
+    fireEvent.click(screen.getByRole("button", { name: /ordenar por nível/i }));
+    expect(visibleTitles()).toEqual([
+      "Vaga AdzunaACME",
+      "Vaga GreenhouseACME",
+      "Vaga LinkedInACME",
+    ]);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /ordenar por data de publicação/i }),
+    );
+    expect(visibleTitles()).toEqual([
+      "Vaga AdzunaACME",
+      "Vaga LinkedInACME",
+      "Vaga GreenhouseACME",
+    ]);
   });
 
   it("mostra detalhes completos da vaga e atualiza status/notas", () => {
@@ -223,7 +315,37 @@ describe("new_dashboard job components", () => {
 
     expect(screen.getByText("LinkedIn, Gupy")).toBeInTheDocument();
     expect(screen.getByText(/seniority/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/detalhes avançados da vaga/i)).toHaveLength(2);
+    expect(screen.getByText(/detalhes avançados da vaga/i)).toBeInTheDocument();
+  });
+
+  it("formata HTML codificado e descarta conteúdo inseguro da descrição", () => {
+    const { container } = render(
+      <JobDetailModal
+        job={{
+          ...baseJob,
+          rawPayload: {
+            description:
+              "&lt;h3&gt;Sobre a vaga&lt;/h3&gt;&lt;p&gt;Crie produtos com &lt;strong&gt;React&lt;/strong&gt;.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;TypeScript&lt;/li&gt;&lt;/ul&gt;&lt;a href=&quot;https://example.com/details&quot;&gt;Saiba mais&lt;/a&gt;&lt;script&gt;alert('xss')&lt;/script&gt;",
+          },
+        }}
+        onClose={vi.fn()}
+        onStatusChange={vi.fn()}
+        onNotesChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Sobre a vaga" }),
+    ).toBeInTheDocument();
+    expect(container.querySelector("strong")).toHaveTextContent("React");
+    expect(screen.getByRole("listitem")).toHaveTextContent("TypeScript");
+    expect(screen.getByRole("link", { name: "Saiba mais" })).toHaveAttribute(
+      "href",
+      "https://example.com/details",
+    );
+    expect(container.querySelector("script")).not.toBeInTheDocument();
+    expect(screen.queryByText(/alert\('xss'\)/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/&lt;h3&gt;/i)).not.toBeInTheDocument();
   });
 
   it("valida e salva uma vaga manual nova", () => {
@@ -285,7 +407,8 @@ describe("new_dashboard job components", () => {
 
     function Harness() {
       const [searchQuery, setSearchQuery] = useState("");
-      const [filterType, setFilterType] = useState("Todos");
+      const [filterType, setFilterType] =
+        useState<JobModelFilter>("Todos");
       const [filterLevel, setFilterLevel] = useState("Todos");
       const [continentFilter, setContinentFilter] =
         useState<ContinentFilter>("Todos");

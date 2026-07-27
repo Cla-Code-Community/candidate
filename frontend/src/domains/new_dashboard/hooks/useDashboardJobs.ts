@@ -14,6 +14,10 @@ import { requestDashboardNotificationsRefresh } from "../utils/notificationEvent
 
 interface UseDashboardJobsOptions {
   onError?: (message: string) => void;
+  initialRecommendationSearch?: {
+    keywords: string[];
+    filters: SearchJobFilters;
+  } | null;
 }
 
 const TRACKED_JOBS_CACHE_PREFIX = "new-dashboard-tracked-jobs";
@@ -24,6 +28,13 @@ const DEFAULT_RECOMMENDED_PAGINATION: SearchJobsResult["pagination"] = {
   totalPages: 1,
   hasNext: false,
   hasPrev: false,
+};
+const DEFAULT_INITIAL_RECOMMENDATION_SEARCH = {
+  keywords: [],
+  filters: {},
+} satisfies {
+  keywords: string[];
+  filters: SearchJobFilters;
 };
 
 function errorMessage(error: unknown, fallback: string) {
@@ -72,7 +83,10 @@ function notifyJobEvent(job: Job, status?: JobStatus) {
 
 export function useDashboardJobs(
   user: User | null,
-  { onError }: UseDashboardJobsOptions = {},
+  {
+    onError,
+    initialRecommendationSearch = DEFAULT_INITIAL_RECOMMENDATION_SEARCH,
+  }: UseDashboardJobsOptions = {},
 ) {
   const [trackedJobs, setTrackedJobs] = useState<Job[]>([]);
   const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([]);
@@ -103,7 +117,14 @@ export function useDashboardJobs(
 
     const [savedResult, recommendedResult] = await Promise.allSettled([
       getDashboardSavedJobs(),
-      searchDashboardJobs([], {}, 1, DEFAULT_RECOMMENDED_PAGINATION.limit),
+      initialRecommendationSearch
+        ? searchDashboardJobs(
+            initialRecommendationSearch.keywords,
+            initialRecommendationSearch.filters,
+            1,
+            DEFAULT_RECOMMENDED_PAGINATION.limit,
+          )
+        : Promise.resolve(null),
     ]);
 
     const loadedTrackedJobs =
@@ -120,7 +141,7 @@ export function useDashboardJobs(
       }
     }
 
-    if (recommendedResult.status === "fulfilled") {
+    if (recommendedResult.status === "fulfilled" && recommendedResult.value) {
       const savedLinks = new Set(
         effectiveTrackedJobs.map((job) => job.jobLink),
       );
@@ -140,7 +161,7 @@ export function useDashboardJobs(
     if (errors.length > 0) onError?.(errors.join(" "));
 
     setIsLoadingJobs(false);
-  }, [onError, user]);
+  }, [initialRecommendationSearch, onError, user]);
 
   useEffect(() => {
     let isMounted = true;

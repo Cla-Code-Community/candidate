@@ -60,6 +60,7 @@ describe("new_dashboard api adapters", () => {
             keywords: ["React", "TypeScript"],
             url: "",
             description: "Detalhe",
+            postedAt: "2026-07-25T18:54:24Z",
             matchScore: 91,
             matchSource: "backend_profile",
             matchedTechnologies: ["React", "TypeScript"],
@@ -106,6 +107,7 @@ describe("new_dashboard api adapters", () => {
       company: "ACME",
       source: "LinkedIn",
       tags: ["React", "TypeScript"],
+      posted: "25/07/2026",
       rawPayload: expect.objectContaining({
         description: "Detalhe",
         matchSource: "backend_profile",
@@ -533,6 +535,7 @@ describe("new_dashboard api adapters", () => {
     );
 
     expect(recommended.jobLink).toContain("canddate.local/jobs/");
+    expect(recommended.posted).toBe("Não informado");
     expect(recommended.rawPayload).toMatchObject({
       title: "Dev",
       company: "ACME",
