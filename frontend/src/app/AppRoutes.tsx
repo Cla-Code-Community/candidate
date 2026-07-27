@@ -1,7 +1,6 @@
 import NotFound from "@/app/NotFound";
 import { useAuth } from "@/domains/auth/application/AuthContext";
 import AuthCallbackPage from "@/domains/auth/presentation/pages/AuthCallbackPage";
-import ConnectionsPage from "@/domains/auth/presentation/pages/ConnectionsPage";
 import LoginPage from "@/domains/auth/presentation/pages/LoginPage";
 import RegisterPage from "@/domains/auth/presentation/pages/RegisterPage";
 import LandingPage from "@/domains/marketing/presentation/pages/LandingPage";
@@ -61,13 +60,7 @@ export function AppRoutes() {
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route
         path="/perfil/conexoes"
-        element={
-          <ProtectedRoute>
-            <NewDashboardLayout>
-              <ConnectionsPage />
-            </NewDashboardLayout>
-          </ProtectedRoute>
-        }
+        element={<Navigate to="/perfil" replace />}
       />
       <Route path="*" element={<NotFound />} />
     </Routes>

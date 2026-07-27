@@ -37,7 +37,7 @@ beforeEach(() => {
 });
 
 describe("AuthController callback — modo vínculo", () => {
-  it("vincula e redireciona para /perfil/conexoes?linked= sem trocar sessão", async () => {
+  it("vincula e redireciona para /perfil?linked= sem trocar sessão", async () => {
     mocks.getProfileFromProvider.mockResolvedValue({ id: "prov-1" });
     mocks.linkProviderToUser.mockResolvedValue(undefined);
 
@@ -64,7 +64,7 @@ describe("AuthController callback — modo vínculo", () => {
       profile: { id: "prov-1" },
     });
     expect(res.redirect).toHaveBeenCalledWith(
-      "http://localhost:5173/perfil/conexoes?linked=google",
+      "http://localhost:5173/perfil?linked=google",
     );
     expect(mocks.handleCallback).not.toHaveBeenCalled();
   });
@@ -92,7 +92,7 @@ describe("AuthController callback — modo vínculo", () => {
     await controller.callback(req, res);
 
     expect(res.redirect).toHaveBeenCalledWith(
-      "http://localhost:5173/perfil/conexoes?error=provider_already_linked",
+      "http://localhost:5173/perfil?error=provider_already_linked",
     );
   });
 });

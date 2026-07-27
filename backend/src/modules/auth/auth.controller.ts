@@ -68,14 +68,14 @@ export class AuthController {
           });
           await req.session.save();
           return res.redirect(
-            `${frontendUrl}/perfil/conexoes?linked=${params.provider}`,
+            `${frontendUrl}/perfil?linked=${params.provider}`,
           );
         } catch (linkError) {
           const code =
             linkError instanceof AppError && linkError.code === "CONFLICT"
               ? "provider_already_linked"
               : "link_failed";
-          return res.redirect(`${frontendUrl}/perfil/conexoes?error=${code}`);
+          return res.redirect(`${frontendUrl}/perfil?error=${code}`);
         }
       }
 
