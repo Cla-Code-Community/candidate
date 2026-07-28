@@ -58,6 +58,10 @@ export function AppRoutes() {
         }
       />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route
+        path="/perfil/conexoes"
+        element={<Navigate to="/perfil" replace />}
+      />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
