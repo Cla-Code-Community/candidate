@@ -4,6 +4,9 @@ import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { FormEvent, useState } from "react";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
+import { ThemeToggle } from "@/shared/ui/theme-toggle";
+import { useTheme } from "@/shared/hooks/useTheme";
+
 import {
   getGithubAuthUrl,
   getGoogleAuthUrl,
@@ -88,7 +91,9 @@ export default function RegisterSide() {
   const [levelError, setLevelError] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
-  const [apiError, setApiError] = useState("");
+  const [apiError, setApiError] = useState("");  
+  const { resolvedTheme, toggleTheme } = useTheme();
+  
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -220,7 +225,7 @@ export default function RegisterSide() {
         <StarsBackground />
       </div>
       <div className="relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center gap-8">
-        <div className="w-full self-start">
+        <div className="w-full self-start flex justify-between items-center">
           <a
             href="/login"
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors group"
@@ -228,6 +233,8 @@ export default function RegisterSide() {
             <ArrowLeft className="h-4 w-4 transform group-hover:-translate-x-1 transition-transform" />
             Voltar para o login
           </a>
+
+          <ThemeToggle theme={resolvedTheme} onToggle={toggleTheme} />
         </div>
         <div className="text-center w-full">
           <h2 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white flex items-center justify-center gap-1 select-none">
@@ -236,15 +243,7 @@ export default function RegisterSide() {
             <span className="text-purple-500">!</span>
             <span className="text-blue-500 font-light">&gt;</span>
           </h2>
-          <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium">
-            Já tem conta?{" "}
-            <a
-              href="/login"
-              className="font-semibold bg-gradient-to-r from-blue-600 to-purple-500 bg-clip-text text-transparent dark:from-blue-400 dark:to-purple-400 underline underline-offset-2 hover:opacity-80 transition-opacity"
-            >
-              Entrar
-            </a>
-          </p>
+         
         </div>
       </div>
       <form
@@ -430,10 +429,19 @@ export default function RegisterSide() {
           disabled={isLoading}
           whileHover={{ scale: isLoading ? 1 : 1.01 }}
           whileTap={{ scale: isLoading ? 1 : 0.99 }}
-          className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-teal-600 hover:opacity-95 text-white py-3.5 px-4 rounded-xl font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-gradient-to-r from-[#004726] to-[#00663A] hover:opacity-95 text-white py-3.5 px-4 rounded-xl font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Cadastrando..." : "Cadastrar"}
         </motion.button>
+         <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium text-center">
+            Já tem conta?{" "}
+            <a
+              href="/login"
+              className="font-semibold text-[#0EBB69] underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              Entrar
+            </a>
+          </p>
       </form>
       <div className="relative z-10 w-full max-w-2xl mx-auto">
         <div className="relative mb-6">

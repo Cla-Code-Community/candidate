@@ -10,6 +10,8 @@ import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTheme } from "@/shared/hooks/useTheme";
+import { ThemeToggle } from "@/shared/ui/theme-toggle";
 
 const STATIC_STARS = Array.from({ length: 40 }).map((_, i) => {
   const random = (min: number, max: number) =>
@@ -56,6 +58,7 @@ function StarsBackground() {
 export default function RightSide() {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { resolvedTheme, toggleTheme } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -152,14 +155,16 @@ export default function RightSide() {
         <StarsBackground />
       </div>
       <div className="relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center gap-8">
-        <div className="w-full self-start">
+        <div className="w-full flex items-center justify-between">
           <a
             href="/"
-            className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors group"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-neutral-400 hover:text-[#00804A] dark:hover:text-[#00A65A] transition-colors group"
           >
             <ArrowLeft className="h-4 w-4 transform group-hover:-translate-x-1 transition-transform" />
             Voltar para a página principal
           </a>
+
+          <ThemeToggle theme={resolvedTheme} onToggle={toggleTheme} />
         </div>
         <div className="text-center w-full">
           <h2 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white flex items-center justify-center gap-1 select-none">
@@ -168,15 +173,7 @@ export default function RightSide() {
             <span className="text-purple-500">!</span>
             <span className="text-blue-500 font-light">&gt;</span>
           </h2>
-          <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium">
-            Novo por aqui?{" "}
-            <a
-              href="/register"
-              className="font-semibold bg-gradient-to-r from-blue-600 to-purple-500 bg-clip-text text-transparent dark:from-blue-400 dark:to-purple-400 underline underline-offset-2 hover:opacity-80 transition-opacity"
-            >
-              Cadastre-se
-            </a>
-          </p>
+          
         </div>
       </div>
       <form
@@ -268,7 +265,7 @@ export default function RightSide() {
           </label>
           <a
             href="#"
-            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline underline-offset-2 transition-all"
+            className="font-semibold text-[#0EBB69] hover:underline underline-offset-2 transition-all"
           >
             Esqueceu a senha?
           </a>
@@ -278,10 +275,19 @@ export default function RightSide() {
           disabled={isLoading}
           whileHover={{ scale: isLoading ? 1 : 1.01 }}
           whileTap={{ scale: isLoading ? 1 : 0.99 }}
-          className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-teal-600 hover:opacity-95 text-white py-3.5 px-4 rounded-xl font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-gradient-to-r from-[#004726] to-[#00663A] hover:opacity-95 text-white py-3.5 px-4 rounded-xl font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Entrando..." : "Entrar"}
         </motion.button>
+        <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium text-center">
+            Novo por aqui?{" "}
+            <a
+              href="/register"
+              className="font-semibold text-[#0EBB69] underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              Cadastre-se
+            </a>
+          </p>
       </form>
       <div className="relative z-10 w-full max-w-2xl mx-auto">
         <div className="relative mb-6">
