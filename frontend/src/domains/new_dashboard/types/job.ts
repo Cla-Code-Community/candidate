@@ -9,7 +9,12 @@ export const JobStatusSchema = z.enum([
 ]);
 
 export const JobTypeSchema = z.enum(["Remoto", "Híbrido", "Presencial"]);
-export const JobLevelSchema = z.enum(["Júnior", "Pleno", "Sênior"]);
+export const JobLevelSchema = z.enum([
+  "Estágio/Trainee",
+  "Júnior",
+  "Pleno",
+  "Sênior",
+]);
 
 export const JobSchema = z.object({
   id: z.string(),
@@ -47,3 +52,10 @@ export type JobType = z.infer<typeof JobTypeSchema>;
 export type JobLevel = z.infer<typeof JobLevelSchema>;
 export type Job = z.infer<typeof JobSchema>;
 export type NewJob = z.infer<typeof NewJobSchema>;
+export type MatchSort = "default" | "desc" | "asc";
+export type JobModelFilter =
+  | "Todos"
+  | JobType
+  | "RemotoHibrido"
+  | "RemotoPresencial"
+  | "HibridoPresencial";

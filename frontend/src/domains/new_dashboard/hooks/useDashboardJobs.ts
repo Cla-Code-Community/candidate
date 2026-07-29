@@ -10,9 +10,14 @@ import {
   type SearchJobsResult,
   updateDashboardSavedJob,
 } from "../infrastructure/dashboardJobsApi";
+import { requestDashboardNotificationsRefresh } from "../utils/notificationEvents";
 
 interface UseDashboardJobsOptions {
   onError?: (message: string) => void;
+  initialRecommendationSearch?: {
+    keywords: string[];
+    filters: SearchJobFilters;
+  } | null;
 }
 
 const TRACKED_JOBS_CACHE_PREFIX = "new-dashboard-tracked-jobs";
@@ -23,6 +28,13 @@ const DEFAULT_RECOMMENDED_PAGINATION: SearchJobsResult["pagination"] = {
   totalPages: 1,
   hasNext: false,
   hasPrev: false,
+};
+const DEFAULT_INITIAL_RECOMMENDATION_SEARCH = {
+  keywords: [],
+  filters: {},
+} satisfies {
+  keywords: string[];
+  filters: SearchJobFilters;
 };
 
 function errorMessage(error: unknown, fallback: string) {
@@ -49,9 +61,32 @@ function writeCachedTrackedJobs(userId: string, jobs: Job[]) {
   window.localStorage.setItem(trackedJobsCacheKey(userId), JSON.stringify(jobs));
 }
 
+function notifyJobEvent(job: Job, status?: JobStatus) {
+  const isApplied = status === "applied" || job.status === "applied";
+  const text = isApplied
+    ? `Sua candidatura para ${job.jobTitle}${
+        job.company ? ` na ${job.company}` : ""
+      } foi registrada.`
+    : `${job.jobTitle} foi adicionada às suas vagas salvas.`;
+
+  requestDashboardNotificationsRefresh({
+    channel: "notification",
+    incrementUnread: true,
+    item: {
+      id: `local:job:${job.id}:${Date.now()}`,
+      text,
+      type: isApplied ? "success" : "info",
+      date: "Agora",
+    },
+  });
+}
+
 export function useDashboardJobs(
   user: User | null,
-  { onError }: UseDashboardJobsOptions = {},
+  {
+    onError,
+    initialRecommendationSearch = DEFAULT_INITIAL_RECOMMENDATION_SEARCH,
+  }: UseDashboardJobsOptions = {},
 ) {
   const [trackedJobs, setTrackedJobs] = useState<Job[]>([]);
   const [recommendedJobs, setRecommendedJobs] = useState<Job[]>([]);
@@ -82,7 +117,14 @@ export function useDashboardJobs(
 
     const [savedResult, recommendedResult] = await Promise.allSettled([
       getDashboardSavedJobs(),
-      searchDashboardJobs([], {}, 1, DEFAULT_RECOMMENDED_PAGINATION.limit),
+      initialRecommendationSearch
+        ? searchDashboardJobs(
+            initialRecommendationSearch.keywords,
+            initialRecommendationSearch.filters,
+            1,
+            DEFAULT_RECOMMENDED_PAGINATION.limit,
+          )
+        : Promise.resolve(null),
     ]);
 
     const loadedTrackedJobs =
@@ -99,7 +141,7 @@ export function useDashboardJobs(
       }
     }
 
-    if (recommendedResult.status === "fulfilled") {
+    if (recommendedResult.status === "fulfilled" && recommendedResult.value) {
       const savedLinks = new Set(
         effectiveTrackedJobs.map((job) => job.jobLink),
       );
@@ -111,7 +153,7 @@ export function useDashboardJobs(
 
     const errors: string[] = [];
     if (savedResult.status === "rejected") {
-      errors.push("Não foi possível carregar suas candidaturas salvas.");
+      errors.push("Não foi possível carregar suas vagas salvas.");
     }
     if (recommendedResult.status === "rejected") {
       errors.push("Não foi possível atualizar as vagas recomendadas.");
@@ -119,7 +161,7 @@ export function useDashboardJobs(
     if (errors.length > 0) onError?.(errors.join(" "));
 
     setIsLoadingJobs(false);
-  }, [onError, user]);
+  }, [initialRecommendationSearch, onError, user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -192,6 +234,7 @@ export function useDashboardJobs(
           writeCachedTrackedJobs(user.id, next);
           return next;
         });
+        notifyJobEvent(savedJob);
         return savedJob;
       } catch (error) {
         if (isApiError(error) && error.status === 409) {
@@ -224,6 +267,7 @@ export function useDashboardJobs(
             writeCachedTrackedJobs(user.id, next);
             return next;
           });
+          notifyJobEvent(updated, status);
           return updated;
         }
 
@@ -262,10 +306,11 @@ export function useDashboardJobs(
           writeCachedTrackedJobs(user.id, next);
           return next;
         });
+        notifyJobEvent(savedJob, status);
         return savedJob;
       } catch (error) {
         onError?.(
-          errorMessage(error, "Não foi possível atualizar a candidatura."),
+          errorMessage(error, "Não foi possível atualizar a vaga."),
         );
         throw error;
       }

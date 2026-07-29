@@ -12,8 +12,9 @@
   ],
   "scripts": {
     "prepare": "husky",
-    "setup:dev": "npm ci && npm run prepare",
-    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\" \"npm run dev --workspace=front_admin\"",
+    "setup:dev": "npm install && npm run prepare",
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\"",
+    "dev:admin": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\" \"npm run dev --workspace=front_admin\"",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:backend": "npm run dev --workspace=backend",
     "dev:front_admin": "npm run dev --workspace=front_admin",

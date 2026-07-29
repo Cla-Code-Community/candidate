@@ -43,6 +43,7 @@ function baseUser(overrides: Partial<User> = {}): User {
     cpfHash: null,
     technologies: null,
     technologiesEncrypted: null,
+    technologyExperiencesEncrypted: null,
     level: null,
     levelEncrypted: null,
     role: "user",
@@ -73,6 +74,7 @@ describe("users.mapper", () => {
       phone: "+5534999999999",
       cpf: "123.456.789-01",
       technologies: ["TypeScript", "Node.js"],
+      technologyExperiences: [{ name: "TypeScript", years: 4 }],
       level: "pleno",
     });
 
@@ -97,6 +99,9 @@ describe("users.mapper", () => {
     expect(values.cpfEncrypted).toMatch(/^v1:mapper-test:/);
     expect(values.cpfHash).toHaveLength(64);
     expect(values.technologiesEncrypted).toMatch(/^v1:mapper-test:/);
+    expect(values.technologyExperiencesEncrypted).toMatch(
+      /^v1:mapper-test:/,
+    );
     expect(values.levelEncrypted).toMatch(/^v1:mapper-test:/);
   });
 
@@ -111,6 +116,7 @@ describe("users.mapper", () => {
       phone: "+5511999999999",
       cpf: "987.654.321-00",
       technologies: ["Go"],
+      technologyExperiences: [{ name: "Go", years: 2 }],
       level: "senior",
     });
 
@@ -132,6 +138,9 @@ describe("users.mapper", () => {
     expect(values.cpfEncrypted).toMatch(/^v1:mapper-test:/);
     expect(values.cpfHash).toHaveLength(64);
     expect(values.technologiesEncrypted).toMatch(/^v1:mapper-test:/);
+    expect(values.technologyExperiencesEncrypted).toMatch(
+      /^v1:mapper-test:/,
+    );
     expect(values.levelEncrypted).toMatch(/^v1:mapper-test:/);
 
     expect(toUserUpdateValues({ username: "grace" })).toEqual({
@@ -152,6 +161,9 @@ describe("users.mapper", () => {
         phoneEncrypted: encryptText("+5534999999999"),
         cpfEncrypted: encryptText("12345678901"),
         technologiesEncrypted: encryptText(JSON.stringify(["TypeScript"])),
+        technologyExperiencesEncrypted: encryptText(
+          JSON.stringify([{ name: "TypeScript", years: 4 }]),
+        ),
         levelEncrypted: encryptText("pleno"),
       }),
     );
@@ -165,6 +177,7 @@ describe("users.mapper", () => {
       phone: "+5534999999999",
       cpf: "12345678901",
       technologies: ["TypeScript"],
+      technologyExperiences: [{ name: "TypeScript", years: 4 }],
       level: "pleno",
     });
   });
@@ -236,6 +249,9 @@ describe("users.mapper", () => {
       cpfEncrypted: null,
       cpfHash: null,
       technologiesEncrypted: expect.stringMatching(/^v1:mapper-test:/),
+      technologyExperiencesEncrypted: expect.stringMatching(
+        /^v1:mapper-test:/,
+      ),
       levelEncrypted: null,
     });
 
@@ -244,6 +260,7 @@ describe("users.mapper", () => {
         phone: null,
         cpf: null,
         technologies: null,
+        technologyExperiences: null,
         level: null,
       }),
     ).toMatchObject({
@@ -254,6 +271,7 @@ describe("users.mapper", () => {
       cpfHash: null,
       technologies: null,
       technologiesEncrypted: null,
+      technologyExperiencesEncrypted: null,
       level: null,
       levelEncrypted: null,
     });

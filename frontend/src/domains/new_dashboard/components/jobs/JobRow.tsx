@@ -23,7 +23,16 @@ function normalizeSource(source: string) {
   return match?.[1] ?? (source.trim() || "Não informada");
 }
 
+function matchedTechnologies(job: Job) {
+  const values = job.rawPayload?.matchedTechnologies;
+  return Array.isArray(values)
+    ? values.filter((value): value is string => typeof value === "string")
+    : [];
+}
+
 export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
+  const matched = matchedTechnologies(job);
+
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/45">
       <td className="min-w-[300px] px-6 py-5 align-middle">
@@ -54,8 +63,18 @@ export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
       <td className="px-4 py-5 align-middle text-sm text-muted-foreground">
         {job.level}
       </td>
+      <td className="whitespace-nowrap px-4 py-5 align-middle text-sm text-muted-foreground">
+        {job.posted}
+      </td>
       <td className="px-4 py-5 align-middle">
-        <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-700">
+        <span
+          className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-700"
+          title={
+            matched.length > 0
+              ? `Tecnologias em comum: ${matched.join(", ")}`
+              : "Sem tecnologias do perfil identificadas no texto da vaga"
+          }
+        >
           {job.matchScore}%
         </span>
       </td>
@@ -69,11 +88,11 @@ export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
         </button>
         <button
           type="button"
-          onClick={() => onStatusChange(job.id, "applied")}
+          onClick={() => onStatusChange(job.id, "saved")}
           className="rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground hover:bg-primary/90"
-          title={`Status atual: ${jobStatuses[job.status]}`}
+          title={`Salvar vaga. Status atual: ${jobStatuses[job.status]}`}
         >
-          Aplicar
+          Salvar
         </button>
       </td>
     </tr>

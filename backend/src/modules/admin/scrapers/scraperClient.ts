@@ -44,8 +44,9 @@ export const scraperClient = {
     return request<ScraperStatus>("/admin/scrape/status");
   },
 
-  getJobs(): Promise<GetJobsResult> {
-    return request<GetJobsResult>("/admin/jobs");
+  getJobs(limit?: number): Promise<GetJobsResult> {
+    const suffix = limit && limit > 0 ? `?limit=${limit}` : "";
+    return request<GetJobsResult>(`/admin/jobs${suffix}`);
   },
 
   getJobsCount(): Promise<JobsCountResult> {

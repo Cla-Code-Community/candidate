@@ -90,7 +90,7 @@ Arquivo: `scraper-go/openapi.yaml` (no repositório)
 
 ---
 
-O scraper é um serviço que consulta múltiplas fontes de vagas (LinkedIn, Adzuna, Greenhouse, TheMuse, Lever, Jooble, etc.), agrega os resultados, remove duplicatas e persiste/retorna as vagas via cache (Redis / Valkey). Ele foi projetado para ser usado internamente pelo backend Node.js, que delega buscas ao serviço Go.
+O scraper é um serviço HTTP em Go que consulta múltiplas fontes de vagas (LinkedIn, Adzuna, Greenhouse, TheMuse, Lever, Jooble, etc.), agrega os resultados, remove duplicatas e persiste/retorna as vagas via cache e índice Redis/Valkey. Ele foi projetado para ser usado internamente pelo backend Node.js, que delega buscas ao serviço Go.
 
 Componentes principais:
 
@@ -102,6 +102,8 @@ Componentes principais:
 - `internal/dedup` — regras para deduplicação/merge de vagas.
 - `internal/keywords` — carregamento e persistência de keywords (configuração).
 - `internal/inflight` — deduplicador de requisições concorrentes (singleflight).
+- `internal/cronjob` — scheduler de scraping em background e execução manual.
+- `internal/metrics` — métricas Prometheus por fonte/execução.
 
 ## Como executar
 
@@ -124,17 +126,21 @@ go run ./cmd/server
 
 Docker: há um `Dockerfile` em `scraper-go/`. No Docker Compose, configure `VALKEY_URL=redis://valkey:6379/0` no `.env` da raiz para que o scraper acesse o Valkey pelo nome do serviço na rede Docker.
 
+No Compose da raiz, o serviço escuta em http://localhost:8081.
+
 ## Endpoints HTTP
 
 O serviço expõe endpoints HTTP (implementação em `cmd/server` e arquivos associados). Principais rotas:
 
 - POST `/scrape` — body JSON com `ScrapeRequest` para disparar uma busca em todas as fontes configuradas. Retorna `ScrapeResponse` com `jobs`, `total`, `cachedAt` e `fromCache`.
 - GET `/health` — verifica se o scraper está online e qual cache está em uso.
+- GET `/metrics` — métricas Prometheus.
 - GET `/api/keywords` — retorna as keywords atualmente carregadas.
 - POST `/api/keywords` — atualiza/persiste as keywords (aceita `keywords: string[]`).
+- POST `/admin/scrape` — dispara uma execução manual em background; retorna 409 se já houver execução em andamento.
 - GET `/admin/scrape/status` — informa se existe uma execução em andamento.
 - GET `/admin/jobs/count` — retorna a quantidade de vagas persistidas no Valkey.
-- GET `/admin/jobs` — lista as vagas persistidas no Valkey.
+- GET `/admin/jobs` — lista uma amostra das vagas persistidas no Valkey; aceita `limit`.
 
 Exemplo de `ScrapeRequest` (JSON):
 
@@ -178,7 +184,7 @@ Exemplo de `ScrapeResponse` (JSON):
 }
 ```
 
-> Observação: os nomes dos endpoints e o prefixo podem variar conforme a implementação local; verifique `cmd/server` para confirmar a porta e rotas ativadas.
+> Observação: os endpoints acima refletem a implementação atual em `scraper-go/cmd/server`.
 
 ## Pipeline de scraping
 
@@ -243,7 +249,7 @@ Boas práticas nos adaptadores:
 
 - Projetado para rodar frequentemente; use caching e indexação para reduzir chamadas repetidas.
 - Monitorar erros 429 e ajustar `WaitBetweenSearchesMs` / semáforos por adaptador.
-- Verifique logs estruturados (slog JSON) para métricas de sucesso/falhas por adaptador.
+- Verifique logs estruturados (slog JSON) e `/metrics` para métricas de sucesso/falhas por adaptador.
 
 ---
 

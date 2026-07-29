@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNotifications } from "../../../components/notifications/useNotifications";
+import { ApiError } from "../../../lib/api/client";
 import { scrapersApi } from "../../../lib/api/scrapers.api";
 import type {
   Scraper as BackendScraper,
@@ -180,6 +181,7 @@ export function useScrapers() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [isClearingJobsCache, setIsClearingJobsCache] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const addLog = useCallback((text: string) => {
@@ -308,7 +310,18 @@ export function useScrapers() {
         description: result.message || "A execução dos scrapers foi solicitada.",
       });
       await refresh({ includeJobs: true });
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        addLog("Scraper ja esta em execucao.");
+        notify({
+          tone: "warning",
+          title: "Scraper já em execução",
+          description: "A execução atual ainda não terminou.",
+        });
+        await refresh({ includeJobs: true });
+        return;
+      }
+
       setError("Nao foi possivel iniciar os scrapers.");
       addLog("Falha ao solicitar execucao dos scrapers.");
       notify({
@@ -331,6 +344,33 @@ export function useScrapers() {
     });
   };
 
+  const clearJobsCache = async () => {
+    setIsClearingJobsCache(true);
+    try {
+      const result = await scrapersApi.clearJobsCache();
+      setJobs([]);
+      setIndexedJobs(0);
+      addLog(`Cache de vagas limpo no Valkey: ${result.deleted} chaves removidas.`);
+      notify({
+        tone: "success",
+        title: "Cache de vagas limpo",
+        description: `${result.deleted} chaves de vagas foram removidas do Valkey.`,
+      });
+      await refresh({ includeJobs: true });
+    } catch {
+      setError("Nao foi possivel limpar o cache de vagas.");
+      addLog("Falha ao limpar cache de vagas no Valkey.");
+      notify({
+        tone: "error",
+        title: "Erro ao limpar cache",
+        description:
+          "A API administrativa não conseguiu limpar as vagas do Valkey.",
+      });
+    } finally {
+      setIsClearingJobsCache(false);
+    }
+  };
+
   const reloadJobs = async () => {
     await refresh({ includeJobs: true });
     addLog("Lista de vagas e adapters recarregada a partir do backend.");
@@ -347,11 +387,13 @@ export function useScrapers() {
     isLoading,
     isRefreshing,
     isStarting,
+    isClearingJobsCache,
     error,
     refresh: reloadJobs,
     toggleScraper,
     startAll,
     pauseAll,
+    clearJobsCache,
     clearLogs,
     refreshIntervalMs: REFRESH_INTERVAL_MS,
   };

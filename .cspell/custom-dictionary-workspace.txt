@@ -1,9 +1,11 @@
 Abaixo
+aberta
 abertas
 abordagem
 aborta
 abra
 abre
+abreviações
 Abrir
 absoluta
 Absolutas
@@ -22,6 +24,7 @@ acesso
 acessos
 achar
 acidental
+aciona
 acompanhamento
 acompanhar
 acompanhe
@@ -62,6 +65,7 @@ ajustar
 Ajustes
 AKVGSK
 aleatório
+alegre
 além
 Alemanha
 alemania
@@ -100,8 +104,11 @@ andybalholm
 anexar
 Ângela
 angelacao
+anos
+Anos
 Anotações
 anteriores
+antiga
 antigas
 antigo
 antigos
@@ -123,6 +130,7 @@ aplicar
 aplicável
 apontando
 aponte
+aprendiz
 Apresentação
 apresentável
 apresentou
@@ -140,6 +148,7 @@ asar
 Assinaturas
 assíncrona
 assíncrono
+assistente
 associados
 ataque
 ataques
@@ -195,6 +204,7 @@ básica
 Básicas
 bater
 Beene
+belo
 Benefícios
 benetesla
 Benevanio
@@ -232,6 +242,7 @@ cadastrar
 Cadastro
 cadvisor
 caixa
+calcula
 calculável
 Camada
 camadas
@@ -241,6 +252,7 @@ Cancela
 cancelado
 cancelamento
 Cand
+canddate
 CANDIDATADAS
 Candidatar
 candidatura
@@ -259,9 +271,11 @@ carreira
 cascadia
 casos
 catálogo
+catarina
 CAUSA
 causar
 causava
+ceara
 Centraliza
 centralizado
 Centralizamos
@@ -289,6 +303,7 @@ Ciclos
 Círculo
 cirúrgica
 clampeia
+classifica
 clicar
 clientes
 cmdmeta
@@ -353,12 +368,14 @@ configuradas
 configurado
 configurados
 Configurar
+confirmada
 conflita
 conflitam
 conflito
 conhece
 conhecer
 conhecidas
+conhecido
 conjunto
 Conseguir
 considere
@@ -389,8 +406,11 @@ controla
 Controle
 Controles
 conversão
+conversar
 Converte
 convites
+cooperado
+cooperativa
 coreia
 coroutinelib
 corpo
@@ -428,6 +448,7 @@ currículo
 curta
 customuser
 daqui
+datas
 datname
 davecgh
 debuglib
@@ -486,6 +507,7 @@ destruir
 detalhada
 detalhadas
 detalhado
+Detalhe
 detecção
 detecta
 detectadas
@@ -525,6 +547,7 @@ disponível
 disso
 distinguir
 distribui
+distrito
 diversas
 documentação
 documentadas
@@ -546,7 +569,9 @@ ecossistema
 edita
 editadas
 editados
+efeito
 efetivamente
+efetivo
 eficiência
 egito
 elas
@@ -616,6 +641,7 @@ españa
 espanha
 Espanha
 especiais
+especialista
 específica
 especificação
 especificadas
@@ -634,6 +660,7 @@ esqueci
 essa
 estados
 Estados
+estagiario
 estágio
 estar
 Estas
@@ -725,6 +752,7 @@ falhar
 falhas
 falhe
 falhou
+falso
 falsos
 falta
 fazem
@@ -741,6 +769,7 @@ FINALIZADO
 fintech
 flexibilidade
 flexíveis
+florianopolis
 fluído
 flutuação
 fluxo
@@ -760,7 +789,9 @@ fornecidos
 fpconv
 frança
 França
+freela
 frequentemente
+frequentes
 fulano
 Fulano
 funciona
@@ -807,12 +838,15 @@ habilitado
 habilitar
 hashedpassword
 híbrid
+híbridas
+Híbridas
 híbrido
 Hierarquia
 hintrc
 Histórico
 hoje
 holanda
+horizonte
 hotjar
 hscan
 HSTS
@@ -880,6 +914,7 @@ individuais
 individualmente
 inesperado
 inexistente
+inferência
 inferidos
 infinito
 inflar
@@ -959,6 +994,7 @@ isolar
 isso
 iterações
 janela
+joana
 joaosilva
 jobsglobal
 jobsglobalscraper
@@ -966,7 +1002,10 @@ jobstore
 jooble
 Jooble
 julho
+juridica
 KHTML
+kimi
+Kimi
 klarna
 Krsj
 kvstore
@@ -994,6 +1033,7 @@ linha
 linhas
 linit
 listagem
+listas
 loadlib
 localidade
 localiza
@@ -1027,6 +1067,7 @@ marca
 marcado
 marcar
 margem
+mariaclara
 marrocos
 mastigada
 mathlib
@@ -1049,8 +1090,10 @@ memória
 menos
 mensagem
 mensagens
+mensais
 mensuráveis
 mentores
+Mentorias
 mescladas
 mesma
 mesmas
@@ -1091,6 +1134,7 @@ monitorado
 Monitorar
 montá
 montar
+moonshotai
 Mostrando
 Mostrar
 motivo
@@ -1098,6 +1142,7 @@ movimente
 muda
 mudam
 mude
+mudou
 múltiplas
 múltiplos
 mundiais
@@ -1127,6 +1172,7 @@ normalizado
 normalizados
 normalizar
 Notas
+notificação
 Notificações
 notificou
 novamente
@@ -1149,6 +1195,7 @@ observáveis
 obtém
 obter
 ocasionais
+ocorre
 omitido
 onde
 Opção
@@ -1165,6 +1212,7 @@ oportunidade
 oportunidades
 optar
 ordem
+ordenação
 Orfaos
 órfãos
 organicamente
@@ -1226,6 +1274,7 @@ perfeitamente
 perfis
 performático
 pergunta
+perguntas
 periodo
 permanecem
 permanente
@@ -1245,6 +1294,7 @@ persistir
 pesquisa
 pesquisadas
 Pesquisem
+pessoa
 Pessoas
 piechart
 pior
@@ -1254,6 +1304,7 @@ plataformas
 plugar
 pmezard
 pôde
+Podemos
 poderem
 poderia
 poderosa
@@ -1271,12 +1322,14 @@ portas
 portfólio
 posicionamento
 posições
+positivo
 positivos
 possível
 possivelmente
 Possuam
 possui
 possuir
+poucas
 pouco
 prática
 práticas
@@ -1298,6 +1351,7 @@ prefixo
 Prefixo
 prefs
 preparar
+presenciais
 presencial
 presente
 presentes
@@ -1383,11 +1437,15 @@ recentemente
 recoloca
 Recomenda
 Recomendações
+recomendada
 recomendadas
 recomendado
 recomendados
+reconcilia
 reconecta
+reconhece
 recorre
+recrutador
 Recrutadores
 recrutamento
 recupera
@@ -1404,6 +1462,7 @@ referência
 registrado
 registro
 registros
+regra
 regras
 Regressão
 reindexação
@@ -1516,6 +1575,7 @@ seguro
 seguros
 sejam
 SELECIONADA
+selecionar
 seletivos
 seletor
 Selo
@@ -1558,6 +1618,7 @@ sinal
 sincronização
 Sincronizado
 Sincronizar
+síncrono
 Singapura
 singleflight
 SISMEMBER

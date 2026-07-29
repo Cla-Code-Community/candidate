@@ -52,7 +52,8 @@ describe("UsersService", () => {
 
       const result = await service.getUserById("user-1");
 
-      expect(result).toEqual(mockUser);
+      expect(result).toMatchObject(mockUser);
+      expect(result).toHaveProperty("technologyExperiences");
       expect(tx.query.users.findFirst).toHaveBeenCalledOnce();
     });
 

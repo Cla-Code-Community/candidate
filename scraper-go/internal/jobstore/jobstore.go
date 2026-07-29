@@ -121,6 +121,63 @@ func (s *Store) GetAll(ctx context.Context) ([]models.Job, error) {
 	return jobs, nil
 }
 
+// GetSample retorna uma amostra limitada de vagas do índice global.
+// Também remove IDs órfãos encontrados durante a leitura.
+func (s *Store) GetSample(ctx context.Context, limit int) ([]models.Job, error) {
+	if limit <= 0 {
+		return s.GetAll(ctx)
+	}
+
+	ids := make([]string, 0, limit)
+	var cursor uint64
+
+	for {
+		batch, nextCursor, err := s.rdb.SScan(ctx, indexKey, cursor, "*", int64(limit)).Result()
+		if err != nil {
+			return nil, fmt.Errorf("jobstore.GetSample: SScan: %w", err)
+		}
+
+		remaining := limit - len(ids)
+		if len(batch) > remaining {
+			batch = batch[:remaining]
+		}
+		ids = append(ids, batch...)
+
+		cursor = nextCursor
+		if cursor == 0 || len(ids) >= limit {
+			break
+		}
+	}
+
+	if len(ids) == 0 {
+		return []models.Job{}, nil
+	}
+
+	jobs := make([]models.Job, 0, len(ids))
+
+	for _, id := range ids {
+		raw, err := s.rdb.Get(ctx, jobKeyPrefix+id).Result()
+		if err == redis.Nil {
+			s.rdb.SRem(ctx, indexKey, id)
+			continue
+		}
+		if err != nil {
+			slog.Warn("jobstore.GetSample: erro ao buscar vaga", "id", id, "error", err)
+			continue
+		}
+
+		var job models.Job
+		if err := json.Unmarshal([]byte(raw), &job); err != nil {
+			slog.Warn("jobstore.GetSample: erro ao deserializar", "id", id, "error", err)
+			continue
+		}
+
+		jobs = append(jobs, job)
+	}
+
+	return jobs, nil
+}
+
 // Count retorna o total de vagas no índice.
 func (s *Store) Count(ctx context.Context) (int64, error) {
 	n, err := s.rdb.SCard(ctx, indexKey).Result()

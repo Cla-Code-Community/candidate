@@ -1,22 +1,23 @@
-# Frontend Architecture
+# Arquitetura do Frontend
 
-The frontend is organized around domain boundaries instead of technical file types.
+O frontend é organizado por domínios de negócio, não por tipos técnicos de arquivo.
 
-## Layers
+## Camadas
 
-- `src/app`: application composition, providers, routing, and app-level pages.
-- `src/domains/<domain>/domain`: business types and pure rules without React or HTTP.
-- `src/domains/<domain>/application`: React hooks and use-cases that orchestrate domain rules.
-- `src/domains/<domain>/infrastructure`: API gateways and transport-specific code.
-- `src/domains/<domain>/presentation`: pages and components owned by that domain.
-- `src/shared`: reusable UI primitives, assets, hooks, and technical utilities.
+- `src/app`: composição da aplicação, providers, rotas e páginas de nível global.
+- `src/domains/<domain>/domain`: tipos de negócio e regras puras, sem React ou HTTP.
+- `src/domains/<domain>/application`: hooks React e casos de uso que orquestram regras de domínio.
+- `src/domains/<domain>/infrastructure`: gateways de API e código específico de transporte.
+- `src/domains/<domain>/presentation`: páginas e componentes pertencentes ao domínio.
+- `src/shared`: primitivas de UI, assets, hooks e utilitários técnicos reutilizáveis.
 
-## Domains
+## Domínios
 
-- `auth`: session state, credentials/OAuth API access, login/register/callback screens.
-- `jobs`: job entities, filtering/deduplication/pagination rules, scraper/job API access, dashboard UI.
-- `marketing`: public landing page sections.
+- `auth`: estado de sessão, acesso à API de credenciais/OAuth e telas de login, registro e callback.
+- `jobs`: entidades de vagas, filtros, deduplicação, paginação, acesso à API de vagas/scraper e UI de vagas.
+- `marketing`: seções da landing page pública.
+- `new_dashboard`: nova estrutura de painel do frontend. Contribuidores que procuram a experiência atual de dashboard devem começar por aqui.
 
-## Import policy
+## Política de imports
 
-Code should import from `@/app`, `@/domains`, or `@/shared`. Legacy technical folders such as `src/components`, `src/pages`, `src/hooks`, `src/services`, `src/context`, `src/lib`, and `src/types` were removed to keep a single domain-oriented structure.
+O código deve importar a partir de `@/app`, `@/domains` ou `@/shared`. Pastas técnicas antigas como `src/components`, `src/pages`, `src/hooks`, `src/services`, `src/context`, `src/lib` e `src/types` foram removidas para manter uma estrutura única orientada por domínio.

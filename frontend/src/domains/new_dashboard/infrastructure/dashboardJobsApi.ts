@@ -1,6 +1,13 @@
 import { api } from "@/shared/lib/apiClient";
 import { z } from "zod";
-import type { Job, JobLevel, JobStatus, JobType, NewJob } from "../types";
+import type {
+  Job,
+  JobLevel,
+  JobStatus,
+  JobType,
+  MatchSort,
+  NewJob,
+} from "../types";
 
 const ApiSearchJobSchema = z
   .object({
@@ -13,7 +20,11 @@ const ApiSearchJobSchema = z
     location: z.string().nullable().optional(),
     modality: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
+    postedAt: z.string().nullable().optional(),
     url: z.string().nullable().optional(),
+    matchScore: z.number().int().min(0).max(100).nullable().optional(),
+    matchSource: z.string().nullable().optional(),
+    matchedTechnologies: z.array(z.string()).nullable().optional(),
   })
   .passthrough();
 
@@ -50,7 +61,12 @@ type SearchJobsResponse = z.infer<typeof SearchJobsResponseSchema>;
 export type SearchJobFilters = {
   level?: string;
   location?: string;
+  continent?: string;
+  country?: string;
   type?: string;
+  model?: string;
+  contract?: string;
+  matchSort?: Exclude<MatchSort, "default">;
 };
 
 export type SearchJobsResult = {
@@ -101,12 +117,50 @@ function inferTypeFromText(value: string): JobType {
   return "Presencial";
 }
 
+function containsTokenOrPhrase(text: string, needle: string) {
+  if (needle.includes(" ")) return text.includes(needle);
+  return ` ${text} `.includes(` ${needle} `);
+}
+
+function containsAny(text: string, needles: string[]) {
+  return needles.some((needle) => containsTokenOrPhrase(text, needle));
+}
+
 function inferLevel(title: string): JobLevel {
-  const normalized = title.toLowerCase();
-  if (normalized.includes("sênior") || normalized.includes("senior")) {
+  const normalized = normalizeComparable(title).replace(/[^\p{L}\p{N}]+/gu, " ");
+
+  if (
+    containsAny(normalized, [
+      "estagio",
+      "estagiario",
+      "intern",
+      "internship",
+      "trainee",
+      "aprendiz",
+    ])
+  ) {
+    return "Estágio/Trainee";
+  }
+  if (
+    containsAny(normalized, [
+      "senior",
+      "sr",
+      "especialista",
+      "lead",
+      "principal",
+      "staff",
+    ])
+  ) {
     return "Sênior";
   }
-  if (normalized.includes("júnior") || normalized.includes("junior")) {
+  if (
+    containsAny(normalized, [
+      "junior",
+      "jr",
+      "entry level",
+      "assistente",
+    ])
+  ) {
     return "Júnior";
   }
   return "Pleno";
@@ -118,6 +172,27 @@ function stableMatchScore(value: string) {
     0,
   );
   return 70 + (hash % 26);
+}
+
+function formatPublicationDate(value: string | null | undefined) {
+  const rawDate = value?.trim();
+  if (!rawDate) return "Não informado";
+
+  const isoDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(rawDate);
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    return `${day}/${month}/${year}`;
+  }
+
+  const parsedDate = new Date(rawDate);
+  if (Number.isNaN(parsedDate.getTime())) return "Não informado";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(parsedDate);
 }
 
 function compactTags(values: Array<string | null | undefined>) {
@@ -167,9 +242,12 @@ export function toRecommendedJob(job: ApiSearchJob, index: number): Job {
         .join(" "),
     ),
     level: inferLevel(title),
-    matchScore: stableMatchScore(`${title}:${job.company ?? ""}`),
+    matchScore:
+      typeof job.matchScore === "number"
+        ? job.matchScore
+        : stableMatchScore(`${title}:${job.company ?? ""}`),
     tags: tags.length > 0 ? tags : ["Geral"],
-    posted: "Encontrada recentemente",
+    posted: formatPublicationDate(job.postedAt),
     status: "saved",
     jobLink,
     source:
@@ -193,9 +271,7 @@ export function toDashboardSavedJob(job: ApiSavedJob): Job {
     level: inferLevel(title),
     matchScore: stableMatchScore(`${title}:${job.company ?? ""}`),
     tags: job.keyword?.trim() ? [job.keyword.trim()] : ["Geral"],
-    posted: job.createdAt
-      ? new Date(job.createdAt).toLocaleDateString("pt-BR")
-      : "Salva recentemente",
+    posted: "Não informado",
     status: job.status,
     jobLink: job.jobLink,
     source: job.source?.trim() || "Manual",
@@ -236,7 +312,12 @@ export async function searchDashboardJobs(
         : {}),
       ...(filters.level ? { level: filters.level } : {}),
       ...(filters.location ? { location: filters.location } : {}),
+      ...(filters.continent ? { continent: filters.continent } : {}),
+      ...(filters.country ? { country: filters.country } : {}),
       ...(filters.type ? { type: filters.type } : {}),
+      ...(filters.model ? { model: filters.model } : {}),
+      ...(filters.contract ? { contract: filters.contract } : {}),
+      ...(filters.matchSort ? { matchSort: filters.matchSort } : {}),
       page,
       limit,
     },

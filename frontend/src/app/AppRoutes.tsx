@@ -34,7 +34,14 @@ export function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route
+        path="/"
+        element={
+          <PublicRoute>
+            <LandingPage />
+          </PublicRoute>
+        }
+      />
       <Route path="/home" element={dashboardElement} />
       <Route path="/dashboard" element={dashboardElement} />
       <Route path="/vagas" element={dashboardElement} />
@@ -58,6 +65,10 @@ export function AppRoutes() {
         }
       />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route
+        path="/perfil/conexoes"
+        element={<Navigate to="/perfil" replace />}
+      />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

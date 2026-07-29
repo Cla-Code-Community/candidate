@@ -1,11 +1,19 @@
 import { Search } from "lucide-react";
-import { useMemo } from "react";
-import type { Job, JobStatus, SearchPreferences } from "../../types";
+import type {
+  Job,
+  JobModelFilter,
+  JobStatus,
+  MatchSort,
+  SearchPreferences,
+} from "../../types";
 import {
-  matchesLocationFilters,
   type ContinentFilter,
   type CountryFilter,
 } from "../../utils/locationFilters";
+import {
+  getModelFilterFromJobTypes,
+  jobModelFilterOptions,
+} from "../../utils/jobModelFilters";
 import { JobFilter } from "./JobFilter";
 import { JobTable } from "./JobTable";
 
@@ -13,15 +21,18 @@ interface JobTabProps {
   jobs: Job[];
   searchQuery: string;
   setSearchQuery: (value: string) => void;
-  filterType: string;
-  setFilterType: (value: string) => void;
+  filterType: JobModelFilter;
+  setFilterType: (value: JobModelFilter) => void;
   filterLevel: string;
   setFilterLevel: (value: string) => void;
   continentFilter: ContinentFilter;
   setContinentFilter: (value: ContinentFilter) => void;
   countryFilter: CountryFilter;
   setCountryFilter: (value: CountryFilter) => void;
+  matchSort: MatchSort;
+  setMatchSort: (value: MatchSort) => void;
   searchPreferences?: SearchPreferences;
+  showPreferenceNotice?: boolean;
   isSearching?: boolean;
   pagination?: {
     total: number;
@@ -48,7 +59,10 @@ export function JobTab({
   setContinentFilter,
   countryFilter,
   setCountryFilter,
+  matchSort,
+  setMatchSort,
   searchPreferences,
+  showPreferenceNotice = false,
   isSearching = false,
   pagination,
   onSearchJobs,
@@ -57,42 +71,12 @@ export function JobTab({
   onOpenJob,
   onStatusChange,
 }: JobTabProps) {
-  const filteredJobs = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase();
-
-    return jobs.filter((job) => {
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        job.jobTitle.toLowerCase().includes(normalizedSearch) ||
-        job.company.toLowerCase().includes(normalizedSearch) ||
-        job.tags.some((tag) => tag.toLowerCase().includes(normalizedSearch));
-      const matchesType = filterType === "Todos" || job.type === filterType;
-      const matchesLevel = filterLevel === "Todos" || job.level === filterLevel;
-      const matchesRemotePreference =
-        !searchPreferences?.remoteOnly || job.type === "Remoto";
-      const matchesLocation = matchesLocationFilters(
-        job,
-        continentFilter,
-        countryFilter,
-      );
-
-      return (
-        matchesSearch &&
-        matchesType &&
-        matchesLevel &&
-        matchesRemotePreference &&
-        matchesLocation
-      );
-    });
-  }, [
-    continentFilter,
-    countryFilter,
-    filterLevel,
-    filterType,
-    jobs,
-    searchPreferences?.remoteOnly,
-    searchQuery,
-  ]);
+  const preferredModelFilter = searchPreferences
+    ? getModelFilterFromJobTypes(searchPreferences.jobTypes)
+    : "Todos";
+  const preferredModelLabel = jobModelFilterOptions.find(
+    (option) => option.value === preferredModelFilter,
+  )?.label;
 
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-6 py-8 lg:px-8">
@@ -128,15 +112,21 @@ export function JobTab({
         setContinentFilter={setContinentFilter}
         countryFilter={countryFilter}
         setCountryFilter={setCountryFilter}
+        matchSort={matchSort}
+        setMatchSort={setMatchSort}
       />
 
-      <p className="text-sm font-semibold text-emerald-600">
-        • Filtro de busca ativo: Apenas oportunidades remotas habilitado nas
-        preferências.
-      </p>
+      {showPreferenceNotice &&
+        preferredModelFilter !== "Todos" &&
+        preferredModelLabel && (
+        <p className="text-sm font-semibold text-emerald-600">
+          • Preferência ativa: {preferredModelLabel.toLowerCase()} como padrão
+          nesta busca.
+        </p>
+      )}
 
       <JobTable
-        jobs={filteredJobs}
+        jobs={jobs}
         pagination={pagination}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}

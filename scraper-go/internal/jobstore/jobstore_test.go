@@ -177,3 +177,22 @@ func TestGetAll_LimpaIDsOrfaos(t *testing.T) {
 	countDepois, _ := store.Count(ctx)
 	assert.Equal(t, int64(0), countDepois)
 }
+
+func TestGetSample_RespeitaLimite(t *testing.T) {
+	store, _ := newTestStore(t)
+	ctx := context.Background()
+
+	jobs := []models.Job{
+		{Title: "Dev Go", Company: "Acme", Location: "Brasil"},
+		{Title: "Dev Rust", Company: "Globex", Location: "Brasil"},
+		{Title: "Dev Python", Company: "Initech", Location: "Brasil"},
+	}
+
+	_, err := store.SaveBatch(ctx, jobs)
+	require.NoError(t, err)
+
+	sample, err := store.GetSample(ctx, 2)
+	require.NoError(t, err)
+
+	assert.Len(t, sample, 2)
+}

@@ -1,75 +1,107 @@
-# React + TypeScript + Vite
+# Front Admin
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Painel administrativo do <Cand!date!>, separado da experiência principal para reduzir atrito no onboarding de contribuidores.
 
-Currently, two official plugins are available:
+Use este workspace quando a tarefa envolver operação da plataforma, gestão de usuários, permissões, scrapers, auditoria, observabilidade ou configurações administrativas.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+- React 19
+- TypeScript
+- Vite 8
+- Tailwind CSS 4
+- Lucide React
+- Zod
+- Vitest + Testing Library
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Como executar
 
-## Expanding the ESLint configuration
+Na raiz do monorepo, instale as dependências:
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Para subir frontend, backend e painel administrativo juntos:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```bash
+npm run dev:admin
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+Para executar apenas o painel:
 
+```bash
+npm run dev --workspace=front_admin
+```
+
+Quando executado junto com o frontend principal, use a porta http://localhost:5174 para o admin.
+
+## Variáveis de ambiente
+
+O workspace ainda não possui `front_admin/.env.example` versionado.
+
+Para desenvolvimento local, crie `front_admin/.env` quando precisar configurar explicitamente a API:
+
+```bash
+VITE_API_URL=http://localhost:3001
+```
+
+O backend precisa permitir a origem do admin em `CORS_ALLOWED_ORIGINS`, por exemplo:
+
+```bash
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+```
+
+## Organização
+
+- `src/app`: providers, rotas, layout principal, páginas de erro e proteção de rotas.
+- `src/app/layouts/MainLayout`: sidebar, header, busca, filtros de tempo, menu de usuário e notificações.
+- `src/modules/auth`: login administrativo e estado de autenticação.
+- `src/modules/dashboard`: visão geral de métricas, serviços e scrapers.
+- `src/modules/users`: listagem, edição, bloqueio e ações administrativas de usuários.
+- `src/modules/permissions`: regras e matriz de permissões.
+- `src/modules/scrapers`: status, execução e console de eventos dos scrapers.
+- `src/modules/observability`: painéis, métricas e uso de infraestrutura.
+- `src/modules/audit`: logs de auditoria.
+- `src/modules/settings`: configurações administrativas.
+- `src/lib/api`: clientes HTTP e contratos das rotas admin.
+- `src/lib/theme`: tokens, cores e tema.
+- `src/components`: providers, UI compartilhada, tema, notificações e estados comuns.
+
+## Rotas principais
+
+- `/login`: autenticação do painel.
+- `/`: dashboard administrativo.
+- `/users`: gestão de usuários.
+- `/permissions`: permissões.
+- `/scrapers`: operação de scrapers.
+- `/observability`: saúde da plataforma.
+- `/audit`: auditoria.
+- `/settings`: configurações.
+
+## Comandos
+
+```bash
+npm run dev --workspace=front_admin
+npm run build --workspace=front_admin
+npm run lint --workspace=front_admin
+npm run test --workspace=front_admin
+npm run test:coverage --workspace=front_admin
+npm run preview --workspace=front_admin
+```
+
+## Testes
+
+Os testes ficam em `front_admin/tests` e cobrem rotas, layout, módulos administrativos, schemas, API clients, hooks e componentes compartilhados.
+
+Para rodar somente os testes do admin:
+
+```bash
+npm run test --workspace=front_admin
+```
+
+Para cobertura:
+
+```bash
+npm run test:coverage --workspace=front_admin
 ```

@@ -24,11 +24,21 @@ export const updateProfileSchema = z
       .regex(/^\d{3}\.?\d{3}\.?\d{3}-?\d{2}$/, "CPF inválido")
       .nullable(),
     technologies: z.array(z.string().min(1)).max(30),
+    technologyExperiences: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(60),
+          years: z.number().min(0).max(50),
+        }),
+      )
+      .max(30),
     level: z.string().max(50).nullable(),
   })
   .partial();
 
 // ── Preferences ───────────────────────────────────────────────────────────────
+
+const jobTypePreferenceSchema = z.enum(["Remoto", "Híbrido", "Presencial"]);
 
 export const updatePreferencesSchema = z
   .object({
@@ -36,8 +46,26 @@ export const updatePreferencesSchema = z
     searchLocation: z.string().min(1).max(100).nullable(),
     searchLanguage: z.string().length(2).nullable(),
     remoteOnly: z.boolean(),
-    jobTypes: z.array(z.string().min(1)).max(10),
+    jobTypes: z.array(jobTypePreferenceSchema).max(3),
     emailNotifications: z.boolean(),
+    careerChecklist: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          title: z.string().min(1).max(120),
+          month: z.string().regex(/^\d{4}-\d{2}$/),
+          items: z
+            .array(
+              z.object({
+                id: z.string().min(1),
+                label: z.string().min(1).max(200),
+                checked: z.boolean(),
+              }),
+            )
+            .max(100),
+        }),
+      )
+      .max(36),
   })
   .partial();
 

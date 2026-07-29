@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationProvider } from "../../../../src/components/notifications/NotificationProvider";
+import { ApiError } from "../../../../src/lib/api/client";
 import { scrapersApi } from "../../../../src/lib/api/scrapers.api";
 import { useScrapers } from "../../../../src/modules/scrapers/hooks/useScrapers";
 
@@ -11,6 +12,7 @@ vi.mock("../../../../src/lib/api/scrapers.api", () => ({
     jobsCount: vi.fn(),
     jobs: vi.fn(),
     trigger: vi.fn(),
+    clearJobsCache: vi.fn(),
   },
 }));
 
@@ -75,6 +77,11 @@ describe("useScrapers", () => {
       ok: true,
       message: "Execução iniciada",
     });
+    vi.mocked(scrapersApi.clearJobsCache).mockResolvedValue({
+      ok: true,
+      deleted: 4,
+      patterns: ["scraper:job:*", "scraper:jobs:*"],
+    });
   });
 
   it("loads scrapers, jobs and derived adapter overview", async () => {
@@ -113,6 +120,18 @@ describe("useScrapers", () => {
     expect(result.current.logs[0].text).toBe("Execução iniciada");
   });
 
+  it("clears jobs cache and refreshes data", async () => {
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.clearJobsCache();
+    });
+
+    expect(scrapersApi.clearJobsCache).toHaveBeenCalledTimes(1);
+    expect(result.current.logs[0].text).toContain("Cache de vagas limpo");
+  });
+
   it("handles list and trigger failures", async () => {
     vi.mocked(scrapersApi.list).mockRejectedValueOnce(new Error("fail"));
 
@@ -126,6 +145,35 @@ describe("useScrapers", () => {
     });
 
     expect(result.current.error).toBe("Nao foi possivel iniciar os scrapers.");
+  });
+
+  it("handles already running scraper trigger as warning", async () => {
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    vi.mocked(scrapersApi.trigger).mockRejectedValueOnce(
+      new ApiError(409, { ok: false, message: "scraper já está em execução" }),
+    );
+
+    await act(async () => {
+      await result.current.startAll();
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.logs[0].text).toContain("Scraper ja esta em execucao");
+  });
+
+  it("handles cache clearing failures", async () => {
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    vi.mocked(scrapersApi.clearJobsCache).mockRejectedValueOnce(new Error("fail"));
+
+    await act(async () => {
+      await result.current.clearJobsCache();
+    });
+
+    expect(result.current.error).toBe("Nao foi possivel limpar o cache de vagas.");
   });
 
   it("logs running state changes and job loading failures", async () => {

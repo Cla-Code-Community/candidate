@@ -12,7 +12,11 @@ function protectTechnologies(value: string[] | null | undefined) {
   return value ? protectNullableText(JSON.stringify(value)) : null;
 }
 
-function parseTechnologies(value: string | null | undefined) {
+function protectJson(value: unknown[] | null | undefined) {
+  return value ? protectNullableText(JSON.stringify(value)) : null;
+}
+
+function parseEncryptedArray(value: string | null | undefined) {
   if (!value) return null;
 
   try {
@@ -41,6 +45,9 @@ export function toUserCreateValues(profile: CreateUserParams): Partial<NewUser> 
     ...protectCpf(profile.cpf),
     technologies: null,
     technologiesEncrypted: protectTechnologies(profile.technologies ?? []),
+    technologyExperiencesEncrypted: protectJson(
+      profile.technologyExperiences ?? [],
+    ),
     level: null,
     levelEncrypted: protectNullableText(profile.level),
   };
@@ -84,6 +91,13 @@ export function toUserUpdateValues(data: UpdateProfileData): Partial<User> {
     values.technologiesEncrypted = protectTechnologies(data.technologies);
   }
 
+  if ("technologyExperiences" in data) {
+    values.technologyExperiencesEncrypted = protectJson(
+      data.technologyExperiences,
+    );
+    delete (values as Record<string, unknown>).technologyExperiences;
+  }
+
   if ("level" in data) {
     values.level = null;
     values.levelEncrypted = protectNullableText(data.level);
@@ -92,7 +106,9 @@ export function toUserUpdateValues(data: UpdateProfileData): Partial<User> {
   return values;
 }
 
-export function toPublicUser(user: User): User {
+export function toPublicUser(
+  user: User,
+): User & { technologyExperiences?: unknown[] | null } {
   return {
     ...user,
     email: user.emailEncrypted ? decryptText(user.emailEncrypted) : user.email,
@@ -111,7 +127,10 @@ export function toPublicUser(user: User): User {
     phone: user.phoneEncrypted ? decryptText(user.phoneEncrypted) : user.phone,
     cpf: user.cpfEncrypted ? decryptText(user.cpfEncrypted) : user.cpf,
     technologies:
-      parseTechnologies(user.technologiesEncrypted) ?? user.technologies,
+      parseEncryptedArray(user.technologiesEncrypted) ?? user.technologies,
+    technologyExperiences: parseEncryptedArray(
+      user.technologyExperiencesEncrypted,
+    ),
     level: user.levelEncrypted ? decryptText(user.levelEncrypted) : user.level,
   };
 }

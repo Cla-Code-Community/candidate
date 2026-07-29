@@ -1,5 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const drizzleMocks = vi.hoisted(() => ({
+  and: vi.fn(),
+  eq: vi.fn(),
+}));
+
+vi.mock("drizzle-orm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("drizzle-orm")>();
+  return {
+    ...actual,
+    and: drizzleMocks.and,
+    eq: drizzleMocks.eq,
+  };
+});
+
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const mockJob = {
@@ -42,6 +56,11 @@ describe("SavedJobsService", () => {
   beforeEach(() => {
     tx = makeMockTx();
     service = new SavedJobsService(tx as any);
+    drizzleMocks.and.mockImplementation((...conditions) => conditions);
+    drizzleMocks.eq.mockImplementation((column, value) => ({
+      column,
+      value,
+    }));
   });
 
   // ── getAll ─────────────────────────────────────────────────────────────────
@@ -76,6 +95,19 @@ describe("SavedJobsService", () => {
       expect(result).toEqual(mockJob);
     });
 
+    it("monta filtro com jobId e userId para impedir leitura cross-user", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
+
+      await service.getById("user-1", "job-1");
+
+      const where = tx.query.savedJobs.findFirst.mock.calls[0][0].where;
+      const table = { userId: "savedJobs.userId", id: "savedJobs.id" };
+      expect(where(table, drizzleMocks)).toEqual([
+        { column: "savedJobs.userId", value: "user-1" },
+        { column: "savedJobs.id", value: "job-1" },
+      ]);
+    });
+
     it("retorna undefined quando vaga não existe", async () => {
       tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
 
@@ -95,17 +127,36 @@ describe("SavedJobsService", () => {
     };
 
     it("cria e retorna a vaga quando não existe duplicata", async () => {
-      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
-      tx.insert.mockReturnValue({
-        values: vi.fn().mockReturnValue({
-          returning: vi.fn().mockResolvedValue([{ ...mockJob, ...newJobData }]),
-        }),
+      const createdJob = { ...mockJob, ...newJobData };
+      const savedJobValues = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([createdJob]),
       });
+      const notificationValues = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: "notification-1" }]),
+      });
+
+      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
+      tx.insert
+        .mockReturnValueOnce({ values: savedJobValues })
+        .mockReturnValueOnce({ values: notificationValues });
 
       const result = await service.create("user-1", newJobData);
 
       expect(result).toMatchObject(newJobData);
-      expect(tx.insert).toHaveBeenCalledOnce();
+      expect(tx.insert).toHaveBeenCalledTimes(2);
+      expect(savedJobValues).toHaveBeenCalledWith({
+        ...newJobData,
+        userId: "user-1",
+      });
+      expect(notificationValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "user-1",
+          channel: "notification",
+          type: "job_saved",
+          entityType: "job",
+          entityId: createdJob.id,
+        }),
+      );
     });
 
     it("lança CONFLICT quando jobLink já existe para o usuário", async () => {
@@ -118,12 +169,39 @@ describe("SavedJobsService", () => {
 
       expect(tx.insert).not.toHaveBeenCalled();
     });
+
+    it("verifica duplicidade por jobLink apenas dentro do mesmo usuário", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
+      tx.insert.mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ ...mockJob, ...newJobData }]),
+        }),
+      });
+      tx.insert.mockReturnValueOnce({
+        values: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: "notification-1" }]),
+        }),
+      });
+
+      await service.create("user-1", newJobData);
+
+      const where = tx.query.savedJobs.findFirst.mock.calls[0][0].where;
+      const table = {
+        userId: "savedJobs.userId",
+        jobLink: "savedJobs.jobLink",
+      };
+      expect(where(table, drizzleMocks)).toEqual([
+        { column: "savedJobs.userId", value: "user-1" },
+        { column: "savedJobs.jobLink", value: newJobData.jobLink },
+      ]);
+    });
   });
 
   // ── update ─────────────────────────────────────────────────────────────────
 
   describe("update", () => {
     it("atualiza e retorna a vaga", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
       tx.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -172,6 +250,7 @@ describe("SavedJobsService", () => {
           returning: vi.fn().mockResolvedValue([mockJob]),
         }),
       });
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
       tx.update.mockReturnValue({ set: setMock });
 
       await service.update("user-1", "job-1", { jobTitle: "X" });
@@ -179,6 +258,61 @@ describe("SavedJobsService", () => {
       const setArg = setMock.mock.calls[0][0];
       expect(setArg).toHaveProperty("updatedAt");
       expect(setArg.updatedAt).toBeInstanceOf(Date);
+    });
+
+    it("atualiza usando jobId e userId para impedir alteração cross-user", async () => {
+      const whereMock = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([mockJob]),
+      });
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
+      tx.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({ where: whereMock }),
+      });
+
+      await service.update("user-1", "job-1", { jobTitle: "X" });
+
+      expect(whereMock).toHaveBeenCalledWith([
+        { column: expect.anything(), value: "job-1" },
+        { column: expect.anything(), value: "user-1" },
+      ]);
+    });
+
+    it("cria notificação quando o status da vaga muda", async () => {
+      const previousJob = { ...mockJob, status: "saved" };
+      const updatedJob = { ...mockJob, status: "applied" };
+      const notificationValues = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: "notification-1" }]),
+      });
+
+      tx.query.savedJobs.findFirst.mockResolvedValue(previousJob);
+      tx.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([updatedJob]),
+          }),
+        }),
+      });
+      tx.insert.mockReturnValueOnce({ values: notificationValues });
+
+      const result = await service.update("user-1", "job-1", {
+        status: "applied",
+      });
+
+      expect(result.status).toBe("applied");
+      expect(tx.insert).toHaveBeenCalledOnce();
+      expect(notificationValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "user-1",
+          channel: "notification",
+          type: "job_applied",
+          entityType: "job",
+          entityId: updatedJob.id,
+          metadata: expect.objectContaining({
+            previousStatus: "saved",
+            status: "applied",
+          }),
+        }),
+      );
     });
   });
 
@@ -192,6 +326,18 @@ describe("SavedJobsService", () => {
 
       await expect(service.delete("user-1", "job-1")).resolves.toBeUndefined();
       expect(tx.delete).toHaveBeenCalledOnce();
+    });
+
+    it("deleta usando jobId e userId para impedir remoção cross-user", async () => {
+      const whereMock = vi.fn().mockResolvedValue(undefined);
+      tx.delete.mockReturnValue({ where: whereMock });
+
+      await service.delete("user-1", "job-1");
+
+      expect(whereMock).toHaveBeenCalledWith([
+        { column: expect.anything(), value: "job-1" },
+        { column: expect.anything(), value: "user-1" },
+      ]);
     });
   });
 });

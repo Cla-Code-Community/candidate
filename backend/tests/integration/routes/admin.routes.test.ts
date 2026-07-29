@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn((_req, res) => res.json({ data: [], total: 0 })),
   permissionsRules: vi.fn((_req, res) => res.json({ rules: [] })),
   permissionsUpdateRules: vi.fn((_req, res) => res.json({ ok: true })),
+  cacheClearJobs: vi.fn(),
 }));
 
 vi.mock("../../../src/routes/admin.context", () => ({
@@ -95,6 +96,15 @@ vi.mock("../../../src/modules/admin/permissions/permissions.service", () => ({
   },
 }));
 
+vi.mock("../../../src/lib/cache", () => ({
+  cacheAbsoluteSMembers: vi.fn(),
+  cacheClearJobs: mocks.cacheClearJobs,
+  cacheGetJobsByIds: vi.fn(),
+  cacheSearchJobIds: vi.fn(),
+  cacheSearchKeywords: vi.fn(),
+  getCache: vi.fn(),
+}));
+
 import { getIronSession } from "iron-session";
 import { createJobsApiApp } from "../../../src/app";
 
@@ -112,6 +122,10 @@ describe("Integration - Admin Routes", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.cacheClearJobs.mockResolvedValue({
+      deleted: 4,
+      patterns: ["scraper:job:*", "scraper:jobs:*"],
+    });
     vi.mocked(getIronSession).mockResolvedValue(session("support") as any);
     app = createJobsApiApp();
   });
@@ -168,6 +182,27 @@ describe("Integration - Admin Routes", () => {
     expect(mocks.userById).toHaveBeenCalled();
     expect(mocks.changeRole).toHaveBeenCalled();
     expect(mocks.deleteUser).toHaveBeenCalled();
+  });
+
+  it("super_admin limpa cache de vagas do Valkey", async () => {
+    vi.mocked(getIronSession).mockResolvedValue(session("super_admin") as any);
+
+    const res = await request(app).delete("/admin/jobs/cache").expect(200);
+
+    expect(mocks.cacheClearJobs).toHaveBeenCalled();
+    expect(res.body).toEqual({
+      ok: true,
+      deleted: 4,
+      patterns: ["scraper:job:*", "scraper:jobs:*"],
+    });
+  });
+
+  it("admin não limpa cache de vagas do Valkey", async () => {
+    vi.mocked(getIronSession).mockResolvedValue(session("admin") as any);
+
+    await request(app).delete("/admin/jobs/cache").expect(403);
+
+    expect(mocks.cacheClearJobs).not.toHaveBeenCalled();
   });
 
   it("usuário comum não acessa rotas administrativas", async () => {

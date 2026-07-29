@@ -46,6 +46,8 @@ describe("ScraperGrid", () => {
       />,
     );
 
+    expect(screen.getByRole("button", { name: "Em execução" })).toBeDisabled();
+
     fireEvent.click(screen.getByRole("button", { name: "Desativar" }));
     fireEvent.click(screen.getByRole("button", { name: "Ativar" }));
 

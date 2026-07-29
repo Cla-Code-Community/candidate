@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DashboardTab } from "@/domains/new_dashboard/components/dashboard/DashboardTab";
 import { KanbanBoard } from "@/domains/new_dashboard/components/dashboard/KanbanBoard";
 import { CandidateLogo } from "@/domains/new_dashboard/components/shared/CandidateLogo";
 import { Header } from "@/domains/new_dashboard/components/layout/Header";
+import { MobileTabBar } from "@/domains/new_dashboard/components/layout/MobileTabBar";
 import { Sidebar } from "@/domains/new_dashboard/components/layout/Sidebar";
 import { ThemeToggle } from "@/domains/new_dashboard/components/layout/ThemeToggle";
 import type { Job } from "@/domains/new_dashboard/types";
@@ -18,6 +19,16 @@ vi.mock("@/domains/auth/application/AuthContext", () => ({
 
 vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => mockUseTheme(),
+}));
+
+vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+  getDashboardNotificationFeed: vi.fn().mockResolvedValue({
+    messages: [],
+    notifications: [],
+    unreadCount: 0,
+  }),
+  markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
+  clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderWithRouter(ui: React.ReactElement, pathname = "/dashboard") {
@@ -67,7 +78,18 @@ describe("new_dashboard dashboard and layout components", () => {
           baseJob,
           { ...baseJob, id: "job-2", status: "interviewing", jobTitle: "Backend" },
         ]}
-        technologies={["React", "TypeScript", "Node.js"]}
+        technologies={[
+          { name: "React", years: 5 },
+          { name: "TypeScript", years: 4 },
+          { name: "Node.js", years: 2 },
+          { name: "Express", years: 3.5 },
+          { name: "Docker", years: 3.5 },
+          { name: "Postgres", years: 4 },
+          { name: "Drizzle", years: 1 },
+          { name: "PHP", years: 3 },
+          { name: "Laravel", years: 3 },
+          { name: "Linux", years: 15 },
+        ]}
         onOpenJob={vi.fn()}
         onStatusChange={vi.fn()}
         onAddJob={vi.fn()}
@@ -80,6 +102,8 @@ describe("new_dashboard dashboard and layout components", () => {
     expect(screen.getByText(/vagas monitoradas \(2\)/i)).toBeInTheDocument();
     expect(screen.getByText("React")).toBeInTheDocument();
     expect(screen.getByText("TypeScript")).toBeInTheDocument();
+    expect(screen.getByText("Laravel")).toBeInTheDocument();
+    expect(screen.getByText("Linux")).toBeInTheDocument();
   });
 
   it("permite arrastar uma vaga entre colunas no kanban", () => {
@@ -130,7 +154,7 @@ describe("new_dashboard dashboard and layout components", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: /métricas & candidaturas/i }),
+      screen.getByRole("heading", { name: /métricas & vagas/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/maria clara/i)).toBeInTheDocument();
     expect(screen.getByAltText(/avatar de maria clara/i)).toBeInTheDocument();
@@ -153,5 +177,21 @@ describe("new_dashboard dashboard and layout components", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /sair/i }));
     expect(logout).toHaveBeenCalledTimes(1);
+  });
+
+  it("renderiza a navegação mobile e destaca a aba ativa", () => {
+    renderWithRouter(<MobileTabBar />, "/vagas");
+
+    const navigation = screen.getByRole("navigation", {
+      name: /navegação principal mobile/i,
+    });
+    const activeLink = within(navigation).getByRole("link", { name: /vagas/i });
+
+    expect(within(navigation).getAllByRole("link")).toHaveLength(4);
+    expect(activeLink).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getByRole("link", { name: /início/i })).toHaveAttribute(
+      "href",
+      "/home",
+    );
   });
 });

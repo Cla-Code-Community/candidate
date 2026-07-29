@@ -57,7 +57,9 @@ export class ScrapersController {
 
   async listJobs(req: Request, res: Response): Promise<void> {
     try {
-      const result = await this.scrapersService.getJobs();
+      const rawLimit = Number(req.query?.limit);
+      const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : undefined;
+      const result = await this.scrapersService.getJobs(limit);
 
       this.auditService.fromRequest(req, "scrapers.read", {
         type: "scrapers",

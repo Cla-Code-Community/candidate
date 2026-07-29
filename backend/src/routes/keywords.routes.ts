@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { eq } from "drizzle-orm";
 import { db } from "../db/client";
 import { keywords } from "../db/schema";
+import { ownedBy } from "../lib/authorization/ownership";
 import { getCache } from "../lib/cache";
 import { publish } from "../lib/kwsync";
 
@@ -25,7 +25,7 @@ keywordsRoutes.get("/", async (req, res) => {
     const rows = await db
       .select({ keyword: keywords.keyword, source: keywords.source })
       .from(keywords)
-      .where(eq(keywords.userId, userId))
+      .where(ownedBy(userId, keywords.userId))
       .orderBy(keywords.createdAt);
 
     return res.json({ ok: true, keywords: rows });

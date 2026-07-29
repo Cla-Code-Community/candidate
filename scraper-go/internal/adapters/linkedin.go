@@ -121,13 +121,88 @@ func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, re
 	return jobs, nil
 }
 
-func normalizeLinkedInJob(keyword string, job models.Job) models.Job {
+func normalizeLinkedInLocation(location string, req models.ScrapeRequest) string {
+	location = strings.TrimSpace(location)
+	searchLocation := strings.TrimSpace(req.SearchLocation)
+	if searchLocation == "" {
+		return location
+	}
+
+	normalizedLocation := strings.ToLower(location)
+	normalizedSearchLocation := strings.ToLower(searchLocation)
+	if normalizedLocation == "" {
+		return searchLocation
+	}
+	if strings.Contains(normalizedLocation, normalizedSearchLocation) {
+		return location
+	}
+	if linkedInLocationHasKnownCountry(location) {
+		return location
+	}
+
+	return location + ", " + searchLocation
+}
+
+func linkedInLocationHasKnownCountry(location string) bool {
+	normalized := normalizeLinkedInComparable(location)
+	knownMarkers := []string{
+		"estados unidos",
+		"united states",
+		"usa",
+		"eua",
+		"florida",
+		"miami",
+		"new york",
+		"california",
+		"texas",
+		"boston",
+		"seattle",
+		"chicago",
+		"atlanta",
+		"denver",
+		"portugal",
+		"lisboa",
+		"porto",
+		"canada",
+		"toronto",
+		"vancouver",
+		"reino unido",
+		"united kingdom",
+		"london",
+		"france",
+		"paris",
+		"germany",
+		"berlin",
+	}
+
+	for _, marker := range knownMarkers {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func normalizeLinkedInComparable(value string) string {
+	replacer := strings.NewReplacer(
+		"á", "a", "à", "a", "ã", "a", "â", "a",
+		"é", "e", "ê", "e",
+		"í", "i",
+		"ó", "o", "ô", "o", "õ", "o",
+		"ú", "u",
+		"ç", "c",
+	)
+	return replacer.Replace(strings.ToLower(strings.TrimSpace(value)))
+}
+
+func normalizeLinkedInJob(keyword string, req models.ScrapeRequest, job models.Job) models.Job {
 	u := dedup.NormalizeURL(strings.TrimSpace(job.URL))
 
 	normalized := models.Job{
 		Title:    strings.TrimSpace(job.Title),
 		Company:  strings.TrimSpace(job.Company),
-		Location: strings.TrimSpace(job.Location),
+		Location: normalizeLinkedInLocation(job.Location, req),
 		URL:      u,
 		Source:   "LinkedIn",
 		Sources:  []string{"LinkedIn"},
@@ -212,7 +287,7 @@ func (a *LinkedInAdapter) Search(ctx context.Context, keyword string, req models
 		}
 
 		for _, job := range jobs {
-			allJobs = append(allJobs, normalizeLinkedInJob(keyword, job))
+			allJobs = append(allJobs, normalizeLinkedInJob(keyword, req, job))
 		}
 
 		if pageIndex < maxPages-1 {

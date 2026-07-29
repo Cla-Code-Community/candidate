@@ -7,8 +7,10 @@ import {
   Link2,
   RefreshCw,
   ServerCog,
+  Trash2,
 } from "lucide-react";
 import { formatNumber } from "../../utils/formatNumber";
+import { useAuth } from "../auth/hooks/useAuth";
 import { EventConsole } from "./components/EventConsole/EventConsole";
 import { ScraperGrid } from "./components/ScraperGrid/ScraperGrid";
 import { useScrapers } from "./hooks/useScrapers";
@@ -233,6 +235,7 @@ function JobsPanel({ jobs }: { jobs: ScraperJobPreview[] }) {
 }
 
 export function ScrapersPage() {
+  const { isLoggedIn } = useAuth();
   const {
     scrapers,
     adapterStats,
@@ -242,14 +245,17 @@ export function ScrapersPage() {
     isLoading,
     isRefreshing,
     isStarting,
+    isClearingJobsCache,
     error,
     refresh,
     toggleScraper,
     startAll,
     pauseAll,
+    clearJobsCache,
     clearLogs,
     refreshIntervalMs,
   } = useScrapers();
+  const canClearJobsCache = isLoggedIn?.role === "super_admin";
 
   return (
     <div className="space-y-6">
@@ -271,18 +277,41 @@ export function ScrapersPage() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            disabled={isRefreshing}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 transition-colors hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-blue-500/50 dark:hover:text-blue-300"
-          >
-            <RefreshCw
-              size={14}
-              className={isRefreshing ? "animate-spin" : undefined}
-            />
-            Recarregar dados
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => {
+                if (canClearJobsCache) void clearJobsCache();
+              }}
+              disabled={!canClearJobsCache || isClearingJobsCache}
+              title={
+                canClearJobsCache
+                  ? "Remove vagas e índices do Valkey"
+                  : "Disponível apenas para super admin"
+              }
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 px-3 text-xs font-bold text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-500/30 dark:text-rose-300 dark:hover:border-rose-500/60 dark:hover:bg-rose-500/10"
+            >
+              <Trash2
+                size={14}
+                className={isClearingJobsCache ? "animate-pulse" : undefined}
+              />
+              {isClearingJobsCache
+                ? "Limpando cache..."
+                : "Limpar cache de vagas"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void refresh()}
+              disabled={isRefreshing}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 text-xs font-bold text-slate-700 transition-colors hover:border-blue-300 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:text-slate-200 dark:hover:border-blue-500/50 dark:hover:text-blue-300"
+            >
+              <RefreshCw
+                size={14}
+                className={isRefreshing ? "animate-spin" : undefined}
+              />
+              Recarregar dados
+            </button>
+          </div>
         </div>
       </section>
 

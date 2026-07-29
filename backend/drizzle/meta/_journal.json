@@ -71,6 +71,20 @@
       "when": 1784121210863,
       "tag": "0009_encrypt_remaining_profile_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1784207610863,
+      "tag": "0010_profile_skill_experience_and_career_checklist",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1784294010863,
+      "tag": "0011_user_notifications",
+      "breakpoints": true
     }
   ]
 }

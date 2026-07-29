@@ -167,6 +167,136 @@ func TestIndexJobsInValkey_SubTermosIndexadosIndividualmente(t *testing.T) {
 	assert.NotEmpty(t, jsMembers, "sub-termo 'js' deve ter índice próprio")
 }
 
+func TestIndexJobsInValkey_NormalizaAliasesDeTecnologia(t *testing.T) {
+	rdb, _ := newTestRedis(t)
+	ctx := context.Background()
+
+	jobs := []models.Job{
+		{
+			Title:       "Node.js Developer",
+			Company:     "Acme",
+			Location:    "Brasil",
+			Description: "backend com node js",
+		},
+	}
+
+	pipeline.IndexJobsInValkey(ctx, rdb, jobs, []string{"Node.js Developer"})
+	expectedID := jobstore.StableID(&jobs[0])
+
+	keys := []string{
+		"scraper:jobs:keyword:node.js developer",
+		"scraper:jobs:keyword:node js developer",
+		"scraper:jobs:keyword:nodejs",
+		"scraper:jobs:keyword:node",
+	}
+
+	for _, key := range keys {
+		members, err := rdb.SMembers(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Contains(t, members, expectedID, "alias de tecnologia %s deve conter a vaga", key)
+	}
+}
+
+func TestIndexJobsInValkey_IndicesEstruturados(t *testing.T) {
+	rdb, _ := newTestRedis(t)
+	ctx := context.Background()
+
+	jobs := []models.Job{
+		{
+			Title:       "Desenvolvedor Node.js Júnior PJ",
+			Company:     "Acme",
+			Location:    "São Paulo, SP, Brasil - Híbrido",
+			Modality:    "Hybrid",
+			Description: "Contrato PJ para atuar em modelo híbrido",
+		},
+	}
+
+	pipeline.IndexJobsInValkey(ctx, rdb, jobs, []string{"node"})
+	expectedID := jobstore.StableID(&jobs[0])
+
+	keys := []string{
+		"scraper:jobs:level:junior",
+		"scraper:jobs:model:hibrido",
+		"scraper:jobs:contract:pj",
+		"scraper:jobs:continent:america do sul",
+		"scraper:jobs:country:brasil",
+		"scraper:jobs:location:brasil",
+		"scraper:jobs:state:sp",
+		"scraper:jobs:city:sao paulo",
+	}
+
+	for _, key := range keys {
+		members, err := rdb.SMembers(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Contains(t, members, expectedID, "índice estruturado %s deve conter a vaga", key)
+	}
+}
+
+func TestIndexJobsInValkey_DetectaBrasilPorEstadoECidade(t *testing.T) {
+	rdb, _ := newTestRedis(t)
+	ctx := context.Background()
+
+	jobs := []models.Job{
+		{
+			Title:       "Junior/midlevel Java Developer - Remote Work",
+			Company:     "BairesDev",
+			Location:    "Joinville, Santa Catarina",
+			Description: "vaga remota para java",
+		},
+	}
+
+	pipeline.IndexJobsInValkey(ctx, rdb, jobs, []string{"java"})
+	expectedID := jobstore.StableID(&jobs[0])
+
+	keys := []string{
+		"scraper:jobs:country:brasil",
+		"scraper:jobs:location:brasil",
+		"scraper:jobs:continent:america do sul",
+		"scraper:jobs:state:sc",
+		"scraper:jobs:city:joinville",
+	}
+
+	for _, key := range keys {
+		members, err := rdb.SMembers(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Contains(t, members, expectedID, "índice %s deve conter a vaga", key)
+	}
+}
+
+func TestIndexJobsInValkey_ClassificacaoIgnoraKeywordDaBusca(t *testing.T) {
+	rdb, _ := newTestRedis(t)
+	ctx := context.Background()
+
+	jobs := []models.Job{
+		{
+			Title:    "Software Engineer",
+			Company:  "Acme",
+			Location: "São Paulo, Brasil",
+			Keyword:  "Remote Junior Developer",
+			Keywords: []string{"Remote Junior Developer"},
+		},
+	}
+
+	pipeline.IndexJobsInValkey(ctx, rdb, jobs, []string{"Remote Junior Developer"})
+	expectedID := jobstore.StableID(&jobs[0])
+
+	plenoMembers, err := rdb.SMembers(ctx, "scraper:jobs:level:pleno").Result()
+	require.NoError(t, err)
+	assert.Contains(t, plenoMembers, expectedID)
+
+	juniorMembers, err := rdb.SMembers(ctx, "scraper:jobs:level:junior").Result()
+	require.NoError(t, err)
+	assert.NotContains(t, juniorMembers, expectedID)
+
+	presencialMembers, err := rdb.SMembers(ctx, "scraper:jobs:model:presencial").Result()
+	require.NoError(t, err)
+	assert.Contains(t, presencialMembers, expectedID)
+
+	remoteMembers, err := rdb.SMembers(ctx, "scraper:jobs:model:remoto").Result()
+	require.NoError(t, err)
+	assert.NotContains(t, remoteMembers, expectedID)
+}
+
 // TestIndexJobsInValkey_VagasSemIDIgnoradas garante robustez:
 // vagas sem título, empresa e URL não devem causar panic nem entrar no índice.
 func TestIndexJobsInValkey_VagasSemIDIgnoradas(t *testing.T) {

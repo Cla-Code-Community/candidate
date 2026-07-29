@@ -170,6 +170,7 @@ describe("useDashboardJobs", () => {
   });
 
   it("adiciona vaga salva, trata conflito e atualiza status/notas", async () => {
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
     dashboardApiMock.getDashboardSavedJobs.mockResolvedValue([trackedJob]);
     dashboardApiMock.searchDashboardJobs.mockResolvedValue({
       jobs: [recommendedJob],
@@ -245,7 +246,25 @@ describe("useDashboardJobs", () => {
       { status: "applied" },
     );
     expect(dashboardApiMock.createDashboardSavedJob).toHaveBeenCalled();
+    const notificationEvents = dispatchSpy.mock.calls
+      .map(([event]) => event)
+      .filter((event) => event.type === "dashboard:notifications-refresh");
+    expect(notificationEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          detail: expect.objectContaining({
+            channel: "notification",
+            incrementUnread: true,
+            item: expect.objectContaining({
+              text: expect.stringContaining("Sua candidatura para"),
+              type: "success",
+            }),
+          }),
+        }),
+      ]),
+    );
     expect(result.current.trackedJobs[0].notes).toBe("nota atualizada");
+    dispatchSpy.mockRestore();
   });
 
   it("limpa estado quando não há usuário", async () => {

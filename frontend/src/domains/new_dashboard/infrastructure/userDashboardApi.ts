@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { api } from "@/shared/lib/apiClient";
-import type { SearchPreferences, UserProfile } from "../types";
+import type { JobType, SearchPreferences, UserProfile } from "../types";
 import { initialPreferences, initialUser } from "../constants";
 
 const ApiUserProfileSchema = z.object({
@@ -13,6 +13,10 @@ const ApiUserProfileSchema = z.object({
   avatarUrl: z.string().url().nullable().optional(),
   phone: z.string().nullable().optional(),
   technologies: z.array(z.string()).nullable().optional(),
+  technologyExperiences: z
+    .array(z.object({ name: z.string(), years: z.number() }))
+    .nullable()
+    .optional(),
   level: z.string().nullable().optional(),
 });
 
@@ -23,12 +27,46 @@ const ApiSearchPreferencesSchema = z.object({
   searchLocation: z.string().nullable().optional(),
   searchLanguage: z.string().nullable().optional(),
   remoteOnly: z.boolean().nullable().optional(),
-  jobTypes: z.array(z.string()).nullable().optional(),
+  jobTypes: z
+    .array(z.enum(["Remoto", "Híbrido", "Presencial"]))
+    .nullable()
+    .optional(),
   emailNotifications: z.boolean().nullable().optional(),
+  careerChecklist: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        month: z.string(),
+        items: z.array(
+          z.object({
+            id: z.string(),
+            label: z.string(),
+            checked: z.boolean(),
+          }),
+        ),
+      }),
+    )
+    .nullable()
+    .optional(),
 });
 
 type ApiUserProfile = z.infer<typeof ApiUserProfileSchema>;
 type ApiSearchPreferences = z.infer<typeof ApiSearchPreferencesSchema>;
+
+function normalizePreferenceJobTypes(
+  jobTypes: JobType[] | null | undefined,
+  remoteOnly: boolean | null | undefined,
+) {
+  if (jobTypes && jobTypes.length > 0) {
+    return [...new Set(jobTypes)];
+  }
+
+  if (remoteOnly === true) return ["Remoto"];
+  if (remoteOnly === false) return [];
+
+  return initialPreferences.jobTypes;
+}
 
 function fallbackNameParts(displayName: string) {
   const [firstName = initialUser.firstName, ...rest] = displayName.split(" ");
@@ -39,6 +77,25 @@ function fallbackNameParts(displayName: string) {
   };
 }
 
+function fallbackTechnologyExperiences(
+  technologies: string[],
+  experiences: ApiUserProfile["technologyExperiences"],
+) {
+  const experienceMap = new Map(
+    (experiences ?? [])
+      .filter((item) => item.name.trim())
+      .map((item) => [item.name.trim().toLowerCase(), item]),
+  );
+
+  return technologies.map((technology) => {
+    const existing = experienceMap.get(technology.trim().toLowerCase());
+    return {
+      name: technology,
+      years: existing?.years ?? 1,
+    };
+  });
+}
+
 export function toUserProfile(data: unknown): UserProfile {
   const profile = ApiUserProfileSchema.parse(data);
   const displayName =
@@ -47,6 +104,11 @@ export function toUserProfile(data: unknown): UserProfile {
     profile.email?.split("@")[0] ||
     initialUser.displayName;
   const nameParts = fallbackNameParts(displayName);
+
+  const technologies =
+    profile.technologies && profile.technologies.length > 0
+      ? profile.technologies
+      : initialUser.technologies;
 
   return {
     firstName: profile.firstName?.trim() || nameParts.firstName,
@@ -60,15 +122,20 @@ export function toUserProfile(data: unknown): UserProfile {
     avatarUrl: profile.avatarUrl?.trim() || initialUser.avatarUrl,
     phone: profile.phone?.trim() || initialUser.phone,
     level: profile.level?.trim() || initialUser.level,
-    technologies:
-      profile.technologies && profile.technologies.length > 0
-        ? profile.technologies
-        : initialUser.technologies,
+    technologies,
+    technologyExperiences: fallbackTechnologyExperiences(
+      technologies,
+      profile.technologyExperiences,
+    ),
   };
 }
 
 export function toSearchPreferences(data: unknown): SearchPreferences {
   const preferences = ApiSearchPreferencesSchema.parse(data);
+  const jobTypes = normalizePreferenceJobTypes(
+    preferences.jobTypes,
+    preferences.remoteOnly,
+  );
 
   return {
     keywords:
@@ -77,9 +144,14 @@ export function toSearchPreferences(data: unknown): SearchPreferences {
         : initialPreferences.keywords,
     searchLocation:
       preferences.searchLocation?.trim() || initialPreferences.searchLocation,
-    remoteOnly: preferences.remoteOnly ?? initialPreferences.remoteOnly,
+    remoteOnly:
+      preferences.remoteOnly ??
+      (jobTypes.length === 1 && jobTypes[0] === "Remoto"),
+    jobTypes,
     emailNotifications:
       preferences.emailNotifications ?? initialPreferences.emailNotifications,
+    careerChecklist:
+      preferences.careerChecklist ?? initialPreferences.careerChecklist,
   };
 }
 
@@ -92,6 +164,7 @@ function toProfilePayload(profile: UserProfile) {
     username: profile.username,
     phone: profile.phone || null,
     technologies: profile.technologies,
+    technologyExperiences: profile.technologyExperiences,
     level: profile.level || null,
   };
 }
@@ -101,7 +174,9 @@ function toPreferencesPayload(preferences: SearchPreferences) {
     keywords: preferences.keywords,
     searchLocation: preferences.searchLocation || null,
     remoteOnly: preferences.remoteOnly,
+    jobTypes: preferences.jobTypes,
     emailNotifications: preferences.emailNotifications,
+    careerChecklist: preferences.careerChecklist,
   };
 }
 

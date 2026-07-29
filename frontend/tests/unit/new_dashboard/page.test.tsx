@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
@@ -37,6 +37,16 @@ vi.mock("@/domains/new_dashboard/hooks/useUserDashboardData", () => ({
 
 vi.mock("@/domains/new_dashboard/hooks/useDashboardJobs", () => ({
   useDashboardJobs: () => mockUseDashboardJobs(),
+}));
+
+vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+  getDashboardNotificationFeed: vi.fn().mockResolvedValue({
+    messages: [],
+    notifications: [],
+    unreadCount: 0,
+  }),
+  markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
+  clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderPage(pathname: string) {
@@ -121,13 +131,19 @@ describe("NewDashboardPage", () => {
         phone: "(11) 99999-9999",
         level: "Pleno",
         technologies: ["React", "TypeScript"],
+        technologyExperiences: [
+          { name: "React", years: 5 },
+          { name: "TypeScript", years: 4 },
+        ],
       },
       setUserProfile: vi.fn(),
       searchPreferences: {
         keywords: ["React"],
         searchLocation: "Brasil",
         remoteOnly: false,
+        jobTypes: [],
         emailNotifications: true,
+        careerChecklist: [],
       },
       setSearchPreferences: vi.fn(),
       isLoadingUserData: false,
@@ -148,10 +164,10 @@ describe("NewDashboardPage", () => {
       screen.getByRole("heading", { name: /que bom te ver de volta/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/frontend developer/i)).toBeInTheDocument();
-    expect(screen.getByText(/candidaturas recentes/i)).toBeInTheDocument();
+    expect(screen.getByText(/vagas salvas recentes/i)).toBeInTheDocument();
   });
 
-  it("renderiza o dashboard de candidaturas", () => {
+  it("renderiza o dashboard de vagas", () => {
     renderPage("/dashboard");
 
     expect(screen.getByRole("heading", { name: /gerenciar vagas/i })).toBeInTheDocument();
@@ -197,6 +213,70 @@ describe("NewDashboardPage", () => {
     expect(screen.getByRole("button", { name: /buscar vagas/i })).toBeInTheDocument();
   });
 
+  it("usa apenas vagas remotas como padrão quando a preferência está ativa", async () => {
+    mockUseUserDashboardData.mockReturnValue({
+      ...mockUseUserDashboardData(),
+      searchPreferences: {
+        keywords: ["React"],
+        searchLocation: "Brasil",
+        remoteOnly: true,
+        jobTypes: ["Remoto"],
+        emailNotifications: true,
+        careerChecklist: [],
+      },
+    });
+    dashboardJobsState.recommendedJobs = [
+      {
+        id: "remote-job",
+        jobTitle: "Remote Node",
+        company: "Globex",
+        location: "Global",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Sênior",
+        matchScore: 91,
+        tags: ["Node.js"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/remote",
+        source: "Gupy",
+        notes: "",
+      },
+      {
+        id: "onsite-job",
+        jobTitle: "Onsite Node",
+        company: "ACME",
+        location: "São Paulo",
+        salary: "A combinar",
+        type: "Presencial",
+        level: "Sênior",
+        matchScore: 88,
+        tags: ["Node.js"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/onsite",
+        source: "LinkedIn",
+        notes: "",
+      },
+    ];
+
+    renderPage("/vagas");
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue("Somente remotas")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/preferência ativa/i)).toBeInTheDocument();
+    expect(screen.getByText("Remote Node")).toBeInTheDocument();
+    expect(screen.queryByText("Onsite Node")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByDisplayValue("Match (padrão)"), {
+      target: { value: "desc" },
+    });
+
+    expect(screen.queryByText(/preferência ativa/i)).not.toBeInTheDocument();
+  });
+
   it("aciona a busca e paginação de vagas", () => {
     renderPage("/vagas");
 
@@ -206,17 +286,153 @@ describe("NewDashboardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
     fireEvent.click(screen.getByRole("button", { name: /próxima página/i }));
 
-    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalled();
-    expect(dashboardJobsState.changeRecommendationsPage).toHaveBeenCalled();
+    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
+      ["node.js"],
+      {},
+      2,
+      50,
+    );
+    expect(dashboardJobsState.changeRecommendationsPage).not.toHaveBeenCalled();
   });
 
-  it("usa as keywords preferidas quando a busca está vazia", () => {
+  it("mantém a ordenação por match ao trocar de página", () => {
+    renderPage("/vagas");
+
+    fireEvent.change(screen.getByDisplayValue("Match (padrão)"), {
+      target: { value: "desc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /próxima página/i }));
+
+    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
+      [],
+      { matchSort: "desc" },
+      2,
+      50,
+    );
+  });
+
+  it("mantém a ordem recebida do backend ao selecionar match", () => {
+    dashboardJobsState.recommendedJobs = [
+      {
+        id: "job-low",
+        jobTitle: "Vaga menor match",
+        company: "ACME",
+        location: "Brasil",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Pleno",
+        matchScore: 45,
+        tags: ["React"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/low",
+        source: "LinkedIn",
+        notes: "",
+        rawPayload: { matchSource: "backend_profile" },
+      },
+      {
+        id: "job-high",
+        jobTitle: "Vaga maior match",
+        company: "Globex",
+        location: "Brasil",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Pleno",
+        matchScore: 98,
+        tags: ["React"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/high",
+        source: "Gupy",
+        notes: "",
+        rawPayload: { matchSource: "backend_profile" },
+      },
+    ];
+
+    renderPage("/vagas");
+
+    fireEvent.change(screen.getByDisplayValue("Match (padrão)"), {
+      target: { value: "desc" },
+    });
+
+    const rows = screen.getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("Vaga menor match");
+    expect(rows[1]).toHaveTextContent("Vaga maior match");
+  });
+
+  it("calcula o match das vagas com base nas tecnologias do perfil", () => {
+    dashboardJobsState.recommendedJobs = [
+      {
+        id: "job-match",
+        jobTitle: "Frontend React Developer",
+        company: "ACME",
+        location: "Brasil",
+        salary: "A combinar",
+        type: "Remoto",
+        level: "Pleno",
+        matchScore: 70,
+        tags: ["React"],
+        posted: "Hoje",
+        status: "saved",
+        jobLink: "https://example.com/match",
+        source: "LinkedIn",
+        notes: "",
+        rawPayload: {
+          description: "Aplicação com React, TypeScript e design system.",
+        },
+      },
+    ];
+
+    renderPage("/vagas");
+
+    expect(screen.getByText("98%")).toBeInTheDocument();
+    expect(screen.getByText("98%")).toHaveAttribute(
+      "title",
+      "Tecnologias em comum: React, TypeScript",
+    );
+  });
+
+  it("envia filtros estruturados de localização para recomendações", () => {
+    renderPage("/vagas");
+
+    const [
+      typeSelect,
+      levelSelect,
+      continentSelect,
+      countrySelect,
+      matchSortSelect,
+    ] =
+      screen.getAllByRole("combobox");
+
+    fireEvent.change(typeSelect, { target: { value: "Híbrido" } });
+    fireEvent.change(levelSelect, { target: { value: "Sênior" } });
+    fireEvent.change(continentSelect, { target: { value: "América do Sul" } });
+    fireEvent.change(countrySelect, { target: { value: "Brasil" } });
+    fireEvent.change(matchSortSelect, { target: { value: "desc" } });
+    fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
+
+    expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
+      [],
+      {
+        type: "Híbrido",
+        model: "Híbrido",
+        level: "Sênior",
+        continent: "América do Sul",
+        country: "Brasil",
+        location: "Brasil",
+        matchSort: "desc",
+      },
+      1,
+    );
+  });
+
+  it("busca sem keywords quando o campo de busca está vazio", () => {
     renderPage("/vagas");
 
     fireEvent.click(screen.getByRole("button", { name: /buscar vagas/i }));
 
     expect(dashboardJobsState.refreshRecommendations).toHaveBeenCalledWith(
-      ["React"],
+      [],
       {},
       1,
     );
