@@ -115,6 +115,7 @@ export function JobsFiltersCard({
               <Input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
+                maxLength={100}
                 className="h-14 w-full rounded-2xl border border-slate-300 bg-white pl-11 pr-14 text-base text-slate-900 placeholder:text-slate-500 focus-visible:ring-[#14AE5C]/40 dark:border-[#35506f] dark:bg-[#091224] dark:text-slate-100 dark:placeholder:text-slate-400"
                 placeholder="Buscar por título, empresa, local ou link"
               />
@@ -183,11 +184,12 @@ export function JobsFiltersCard({
                 selectedFilters.map((filter) => (
                   <Badge
                     key={filter}
-                    className="gap-1.5 rounded-full border border-[#14AE5C]/30 bg-[#14AE5C]/12 px-2 py-1 text-xs font-semibold text-[#0c6b35] dark:text-[#8df0af]"
+                    title={filter}
+                    className="max-w-full gap-1.5 rounded-full border border-[#14AE5C]/30 bg-[#14AE5C]/12 px-2 py-1 text-xs font-semibold text-[#0c6b35] dark:text-[#8df0af]"
                   >
                     <FiCheck className="h-3 w-3" />
                     <FiTag className="h-3 w-3" />
-                    <span>{filter}</span>
+                    <span className="max-w-48 truncate">{filter}</span>
                     <button
                       type="button"
                       aria-label={`Remover filtro ${filter}`}
