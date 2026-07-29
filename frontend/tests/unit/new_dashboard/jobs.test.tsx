@@ -77,6 +77,7 @@ describe("new_dashboard job components", () => {
     );
     const filterGrid = searchInput.closest("label")?.parentElement;
 
+    expect(searchInput).toHaveAttribute("maxlength", "100");
     expect(filterGrid).toHaveClass(
       "grid-cols-1",
       "sm:grid-cols-2",
@@ -87,12 +88,9 @@ describe("new_dashboard job components", () => {
       expect(select).toHaveClass("w-full", "min-w-0");
     });
 
-    fireEvent.change(
-      searchInput,
-      {
-        target: { value: "react" },
-      },
-    );
+    fireEvent.change(searchInput, {
+      target: { value: "react" },
+    });
     fireEvent.change(screen.getAllByRole("combobox")[0], {
       target: { value: "Remoto" },
     });
@@ -119,11 +117,7 @@ describe("new_dashboard job components", () => {
 
   it("renderiza a tabela vazia e paginação local e remota", () => {
     const localRender = render(
-      <JobTable
-        jobs={[]}
-        onOpenJob={vi.fn()}
-        onStatusChange={vi.fn()}
-      />,
+      <JobTable jobs={[]} onOpenJob={vi.fn()} onStatusChange={vi.fn()} />,
     );
 
     expect(screen.getByText(/nenhuma vaga encontrada/i)).toBeInTheDocument();
@@ -180,7 +174,9 @@ describe("new_dashboard job components", () => {
     const onOpen = vi.fn();
     const onStatusChange = vi.fn();
 
-    render(<JobRow job={baseJob} onOpen={onOpen} onStatusChange={onStatusChange} />);
+    render(
+      <JobRow job={baseJob} onOpen={onOpen} onStatusChange={onStatusChange} />,
+    );
 
     fireEvent.click(screen.getAllByRole("button", { name: /detalhes/i })[0]);
     fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
@@ -222,11 +218,7 @@ describe("new_dashboard job components", () => {
     ];
 
     render(
-      <JobTable
-        jobs={jobs}
-        onOpenJob={vi.fn()}
-        onStatusChange={vi.fn()}
-      />,
+      <JobTable jobs={jobs} onOpenJob={vi.fn()} onStatusChange={vi.fn()} />,
     );
 
     const visibleTitles = () =>
@@ -371,9 +363,12 @@ describe("new_dashboard job components", () => {
     fireEvent.change(screen.getByPlaceholderText(/r\$ 8.000 - r\$ 10.000/i), {
       target: { value: "€ 4.000" },
     });
-    fireEvent.change(screen.getByPlaceholderText(/react, typescript, node.js/i), {
-      target: { value: "NestJS, PostgreSQL" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText(/react, typescript, node.js/i),
+      {
+        target: { value: "NestJS, PostgreSQL" },
+      },
+    );
     fireEvent.change(screen.getByPlaceholderText(/linkedin, gupy/i), {
       target: { value: "Gupy" },
     });
@@ -407,8 +402,7 @@ describe("new_dashboard job components", () => {
 
     function Harness() {
       const [searchQuery, setSearchQuery] = useState("");
-      const [filterType, setFilterType] =
-        useState<JobModelFilter>("Todos");
+      const [filterType, setFilterType] = useState<JobModelFilter>("Todos");
       const [filterLevel, setFilterLevel] = useState("Todos");
       const [continentFilter, setContinentFilter] =
         useState<ContinentFilter>("Todos");

@@ -45,6 +45,7 @@ export function JobFilter({
         <input
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
+          maxLength={100}
           placeholder="Buscar por cargo, empresa ou keywords..."
           className="h-11 w-full rounded-lg border border-input bg-background pl-10 pr-3 text-sm outline-none transition-colors focus:border-ring"
         />
