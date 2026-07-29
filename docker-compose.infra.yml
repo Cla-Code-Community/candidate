@@ -8,8 +8,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     networks:
       - vagas-net
     restart: unless-stopped
@@ -24,8 +22,6 @@ services:
     container_name: vagas-valkey
     volumes:
       - valkey_data:/data
-    ports:
-      - "6379:6379"
     networks:
       - vagas-net
     restart: unless-stopped
