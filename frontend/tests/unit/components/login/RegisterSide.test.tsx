@@ -19,7 +19,7 @@ function fillRequiredRegisterFields() {
     target: { value: "+5534999999999" },
   });
   fireEvent.change(screen.getByLabelText(/senha/i), {
-    target: { value: "123456" },
+    target: { value: "12345678" },
   });
   fireEvent.change(screen.getByLabelText(/nível de experiência/i), {
     target: { value: "pleno" },
@@ -40,18 +40,27 @@ vi.mock("@unpic/react", () => ({
 vi.mock("framer-motion", () => ({
   motion: {
     div: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    button: ({ children, ...props }: any) => (
+      <button {...props}>{children}</button>
+    ),
   },
 }));
 
 vi.mock("react-phone-number-input", () => ({
-  default: ({ value, onChange, placeholder, disabled }: any) => (
+  default: ({
+    value,
+    onChange,
+    placeholder,
+    disabled,
+    numberInputProps,
+  }: any) => (
     <input
       type="tel"
       value={value || ""}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       disabled={disabled}
+      {...numberInputProps}
     />
   ),
 }));
@@ -94,24 +103,71 @@ describe("RegisterSide", () => {
     expect(screen.getByLabelText(/senha/i)).toHaveAttribute("type", "text");
   });
 
+  it("limita os campos de cadastro conforme as regras da API", () => {
+    render(<RegisterSide />);
+
+    expect(screen.getByLabelText(/nome/i)).toHaveAttribute("maxlength", "100");
+    expect(screen.getByLabelText(/email/i)).toHaveAttribute("maxlength", "254");
+    expect(screen.getByPlaceholderText(/\(34\)/i)).toHaveAttribute(
+      "maxlength",
+      "16",
+    );
+    expect(screen.getByLabelText(/senha/i)).toHaveAttribute("maxlength", "128");
+    expect(screen.getByLabelText(/cpf/i)).toHaveAttribute("maxlength", "14");
+  });
+
+  it("exige senha com pelo menos oito caracteres", async () => {
+    render(<RegisterSide />);
+    fillRequiredRegisterFields();
+    fireEvent.change(screen.getByLabelText(/senha/i), {
+      target: { value: "1234567" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
+
+    expect(
+      await screen.findByText(/pelo menos 8 caracteres/i),
+    ).toBeInTheDocument();
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
+
   it("mostra erros obrigatórios ao submeter vazio", async () => {
     render(<RegisterSide />);
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
-    expect(await screen.findByText(/campo de nome é obrigatório/i)).toBeInTheDocument();
-    expect(await screen.findByText(/campo de e-mail é obrigatório/i)).toBeInTheDocument();
-    expect(await screen.findByText(/campo de telefone é obrigatório/i)).toBeInTheDocument();
-    expect(await screen.findByText(/campo de senha é obrigatório/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/campo de nome é obrigatório/i),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/campo de e-mail é obrigatório/i),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/campo de telefone é obrigatório/i),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/campo de senha é obrigatório/i),
+    ).toBeInTheDocument();
     expect(await screen.findByText(/selecione seu nível/i)).toBeInTheDocument();
   });
 
   it("valida CPF inválido quando preenchido", async () => {
     render(<RegisterSide />);
-    fireEvent.change(screen.getByLabelText(/nome/i), { target: { value: "Usuário" } });
-    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "teste@email.com" } });
-    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), { target: { value: "+5534999999999" } });
-    fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
-    fireEvent.change(screen.getByLabelText(/nível de experiência/i), { target: { value: "pleno" } });
-    fireEvent.change(screen.getByLabelText(/cpf/i), { target: { value: "123" } });
+    fireEvent.change(screen.getByLabelText(/nome/i), {
+      target: { value: "Usuário" },
+    });
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: "teste@email.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), {
+      target: { value: "+5534999999999" },
+    });
+    fireEvent.change(screen.getByLabelText(/senha/i), {
+      target: { value: "12345678" },
+    });
+    fireEvent.change(screen.getByLabelText(/nível de experiência/i), {
+      target: { value: "pleno" },
+    });
+    fireEvent.change(screen.getByLabelText(/cpf/i), {
+      target: { value: "123" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     expect(await screen.findByText(/cpf inválido/i)).toBeInTheDocument();
   });
@@ -124,7 +180,7 @@ describe("RegisterSide", () => {
     await waitFor(() => {
       expect(mockRegister).toHaveBeenCalledWith({
         email: "bene@teste.com",
-        password: "123456",
+        password: "12345678",
         name: "Bene",
         phone: "+5534999999999",
         cpf: undefined,
@@ -138,12 +194,14 @@ describe("RegisterSide", () => {
     mockRegister.mockResolvedValueOnce({ message: "Usuário criado" });
     render(<RegisterSide />);
     fillRequiredRegisterFields();
-    fireEvent.change(screen.getByLabelText(/cpf/i), { target: { value: "12345678901" } });
+    fireEvent.change(screen.getByLabelText(/cpf/i), {
+      target: { value: "12345678901" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     await waitFor(() => {
       expect(mockRegister).toHaveBeenCalledWith({
         email: "bene@teste.com",
-        password: "123456",
+        password: "12345678",
         name: "Bene",
         phone: "+5534999999999",
         cpf: "123.456.789-01",
@@ -165,7 +223,9 @@ describe("RegisterSide", () => {
     render(<RegisterSide />);
     fillRequiredRegisterFields();
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
-    expect(await screen.findByRole("button", { name: /cadastrando\.\.\./i })).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: /cadastrando\.\.\./i }),
+    ).toBeDisabled();
   });
 
   it("formata CPF corretamente", () => {
@@ -188,7 +248,7 @@ describe("RegisterSide", () => {
     fireEvent.change(nomeInput, { target: { value: "Bene" } });
     fireEvent.change(emailInput, { target: { value: "bene@teste.com" } });
     fireEvent.change(telefoneInput, { target: { value: "+5534999999999" } });
-    fireEvent.change(passwordInput, { target: { value: "123456" } });
+    fireEvent.change(passwordInput, { target: { value: "12345678" } });
     fireEvent.change(levelInput, { target: { value: "pleno" } });
     fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
     await waitFor(() => {
@@ -202,30 +262,36 @@ describe("RegisterSide", () => {
 
   it("redireciona para GitHub OAuth ao clicar no botao GitHub", async () => {
     mockGetGithubAuthUrl.mockResolvedValueOnce(
-      "https://github.com/login/oauth/authorize?state=abc"
+      "https://github.com/login/oauth/authorize?state=abc",
     );
 
     render(<RegisterSide />);
 
     const buttons = screen.getAllByRole("button");
-    const githubButton = buttons.find(btn => btn.querySelector('svg.fill-gray-900'));
+    const githubButton = buttons.find((btn) =>
+      btn.querySelector("svg.fill-gray-900"),
+    );
     fireEvent.click(githubButton!);
 
     await waitFor(() => {
       expect(mockGetGithubAuthUrl).toHaveBeenCalled();
       expect(window.location.href).toBe(
-        "https://github.com/login/oauth/authorize?state=abc"
+        "https://github.com/login/oauth/authorize?state=abc",
       );
     });
   });
 
   it("exibe erro quando GitHub OAuth falha", async () => {
-    mockGetGithubAuthUrl.mockRejectedValueOnce(new Error("Github indisponível"));
+    mockGetGithubAuthUrl.mockRejectedValueOnce(
+      new Error("Github indisponível"),
+    );
 
     render(<RegisterSide />);
 
     const buttons = screen.getAllByRole("button");
-    const githubButton = buttons.find(btn => btn.querySelector('svg.fill-gray-900'));
+    const githubButton = buttons.find((btn) =>
+      btn.querySelector("svg.fill-gray-900"),
+    );
     fireEvent.click(githubButton!);
 
     expect(await screen.findByText(/Github indisponível/i)).toBeInTheDocument();
@@ -233,7 +299,7 @@ describe("RegisterSide", () => {
 
   it("redireciona para LinkedIn OAuth ao clicar no botao LinkedIn", async () => {
     mockGetLinkedinAuthUrl.mockResolvedValueOnce(
-      "https://www.linkedin.com/oauth/v2/authorization?state=abc"
+      "https://www.linkedin.com/oauth/v2/authorization?state=abc",
     );
 
     render(<RegisterSide />);
@@ -244,7 +310,7 @@ describe("RegisterSide", () => {
     await waitFor(() => {
       expect(mockGetLinkedinAuthUrl).toHaveBeenCalled();
       expect(window.location.href).toBe(
-        "https://www.linkedin.com/oauth/v2/authorization?state=abc"
+        "https://www.linkedin.com/oauth/v2/authorization?state=abc",
       );
     });
   });
