@@ -201,6 +201,22 @@ describe("TeamSection", () => {
     expect(screen.getByText("@hltav")).toBeInTheDocument();
   });
 
+  it("padroniza função e quantidade de commits em todos os cards", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    } as any);
+
+    render(<TeamSection />);
+
+    expect(
+      await screen.findByText("Founder & Backend Dev"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("188 commits")).toBeInTheDocument();
+    expect(screen.getByText("QA")).toBeInTheDocument();
+    expect(screen.queryByText("0 commits")).not.toBeInTheDocument();
+  });
+
   it("nao atualiza contributors quando lista vazia", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,

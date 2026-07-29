@@ -10,24 +10,40 @@ interface Contributor {
   id: number;
   login: string;
   name?: string;
+  role?: string;
   avatar_url: string;
   html_url: string;
   contributions: number;
   type: string;
 }
 
-const CONTRIBUTOR_NAMES: Record<string, string> = {
-  benevanio: "Benevanio",
-  pedrolucas1337: "Pedro Lucas",
-  thalitat: "Thalita",
-  jeremiassnts: "Jeremias Santos",
+const CONTRIBUTOR_DETAILS: Record<
+  string,
+  Pick<Contributor, "name" | "role">
+> = {
+  benevanio: {
+    name: "Benevanio",
+    role: "Founder & Backend Dev",
+  },
+  pedrolucas1337: {
+    name: "Pedro Lucas",
+    role: "QA",
+  },
+  thalitat: {
+    name: "Thalita",
+    role: "UX/UI Designer",
+  },
+  jeremiassnts: {
+    name: "Jeremias Santos",
+    role: "Engenheiro de Software Sênior",
+  },
 };
 
 const INITIAL_TEAM: Contributor[] = [
   {
     id: 1,
     login: "Benevanio",
-    name: CONTRIBUTOR_NAMES.benevanio,
+    ...CONTRIBUTOR_DETAILS.benevanio,
     avatar_url: "https://github.com/Benevanio.png",
     html_url: "https://github.com/Benevanio",
     contributions: 188,
@@ -36,7 +52,7 @@ const INITIAL_TEAM: Contributor[] = [
   {
     id: 104951475,
     login: "PedroLucas1337",
-    name: CONTRIBUTOR_NAMES.pedrolucas1337,
+    ...CONTRIBUTOR_DETAILS.pedrolucas1337,
     avatar_url: "https://github.com/PedroLucas1337.png",
     html_url: "https://github.com/PedroLucas1337",
     contributions: 0,
@@ -45,7 +61,7 @@ const INITIAL_TEAM: Contributor[] = [
   {
     id: 110640572,
     login: "thalitat",
-    name: CONTRIBUTOR_NAMES.thalitat,
+    ...CONTRIBUTOR_DETAILS.thalitat,
     avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4",
     html_url: "https://github.com/thalitat",
     contributions: 0,
@@ -54,7 +70,7 @@ const INITIAL_TEAM: Contributor[] = [
   {
     id: 999999998,
     login: "jeremiassnts",
-    name: CONTRIBUTOR_NAMES.jeremiassnts,
+    ...CONTRIBUTOR_DETAILS.jeremiassnts,
     avatar_url: "https://github.com/jeremiassnts.png",
     html_url: "https://github.com/jeremiassnts",
     contributions: 0,
@@ -85,12 +101,12 @@ export default function TeamSection() {
           .filter((user) => user.type === "User")
           .map((user) => {
             const login = user.login.toLowerCase();
-            const name = CONTRIBUTOR_NAMES[login];
+            const details = CONTRIBUTOR_DETAILS[login];
 
             if (login === "pedrolucas1337") {
               return {
                 ...user,
-                name,
+                ...details,
                 avatar_url: "https://github.com/PedroLucas1337.png",
               };
             }
@@ -98,7 +114,7 @@ export default function TeamSection() {
             if (login === "thalitat") {
               return {
                 ...user,
-                name,
+                ...details,
                 avatar_url:
                   "https://avatars.githubusercontent.com/u/110640572?v=4",
               };
@@ -107,19 +123,19 @@ export default function TeamSection() {
             if (login === "jeremiassnts") {
               return {
                 ...user,
-                name,
+                ...details,
                 avatar_url: "https://github.com/jeremiassnts.png",
               };
             }
 
-            return { ...user, ...(name ? { name } : {}) };
+            return { ...user, ...details };
           });
 
         const fixedMembers: Contributor[] = [
           {
             id: 104951475,
             login: "PedroLucas1337",
-            name: CONTRIBUTOR_NAMES.pedrolucas1337,
+            ...CONTRIBUTOR_DETAILS.pedrolucas1337,
             avatar_url: "https://github.com/PedroLucas1337.png",
             html_url: "https://github.com/PedroLucas1337",
             contributions: 0,
@@ -128,7 +144,7 @@ export default function TeamSection() {
           {
             id: 110640572,
             login: "thalitat",
-            name: CONTRIBUTOR_NAMES.thalitat,
+            ...CONTRIBUTOR_DETAILS.thalitat,
             avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4",
             html_url: "https://github.com/thalitat",
             contributions: 0,
@@ -137,7 +153,7 @@ export default function TeamSection() {
           {
             id: 999999998,
             login: "jeremiassnts",
-            name: CONTRIBUTOR_NAMES.jeremiassnts,
+            ...CONTRIBUTOR_DETAILS.jeremiassnts,
             avatar_url: "https://github.com/jeremiassnts.png",
             html_url: "https://github.com/jeremiassnts",
             contributions: 0,
@@ -155,7 +171,7 @@ export default function TeamSection() {
           }
         });
 
-        const merged = [...INITIAL_TEAM, ...realUsers];
+        const merged = [...realUsers, ...INITIAL_TEAM];
 
         const unique = merged.filter(
           (user, index, self) =>
@@ -269,17 +285,17 @@ export default function TeamSection() {
                     <p className="mb-2 max-w-full truncate text-xs text-gray-500 dark:text-zinc-400">
                       @{user.login}
                     </p>
-                    <p className="mb-4 text-xs font-medium text-gray-400 dark:text-zinc-500">
-                      {user.login.toLowerCase() === "benevanio"
-                        ? "Founder & Backend Dev"
-                        : user.login.toLowerCase() === "pedrolucas1337"
-                          ? "QA"
-                          : user.login.toLowerCase() === "thalitat"
-                            ? "UX/UI Designer"
-                            : user.login.toLowerCase() === "jeremiassnts"
-                              ? "Engenheiro de Software Senior"
-                              : `${user.contributions} ${user.contributions === 1 ? "commit" : "commits"}`}
+                    <p className="text-xs font-medium text-gray-500 dark:text-zinc-400">
+                      {user.role || "Contribuidor(a) open source"}
                     </p>
+                    <div className="mb-4 min-h-4 text-xs font-medium text-gray-400 dark:text-zinc-500">
+                      {user.contributions > 0 ? (
+                        <>
+                          {user.contributions}{" "}
+                          {user.contributions === 1 ? "commit" : "commits"}
+                        </>
+                      ) : null}
+                    </div>
                   </div>
 
                   <a
