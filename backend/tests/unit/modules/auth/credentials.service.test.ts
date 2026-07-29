@@ -101,17 +101,19 @@ describe("CredentialsService", () => {
       };
     });
     mocks.insertReturning.mockResolvedValue([mockUser]);
-    mocks.transaction.mockImplementation(async (callback) => callback({
-      insert: vi.fn(() => ({
-        values: mocks.insertValues.mockImplementation(() => ({
-          returning: mocks.insertReturning,
+    mocks.transaction.mockImplementation(async (callback) =>
+      callback({
+        insert: vi.fn(() => ({
+          values: mocks.insertValues.mockImplementation(() => ({
+            returning: mocks.insertReturning,
+          })),
         })),
-      })),
-      query: {
-        credentials: { findFirst: mocks.credentialsFindFirst },
-        users: { findFirst: mocks.usersFindFirst },
-      },
-    }));
+        query: {
+          credentials: { findFirst: mocks.credentialsFindFirst },
+          users: { findFirst: mocks.usersFindFirst },
+        },
+      }),
+    );
 
     // Define retornos seguros e limpos para evitar falhas colaterais
     mocks.credentialsFindFirst.mockResolvedValue(null);
@@ -175,6 +177,18 @@ describe("CredentialsService", () => {
     it("lança erro de validação para senha vazia (Zod)", async () => {
       await expect(
         service.register({ email: "ok@example.com", password: "" }),
+      ).rejects.toThrow();
+    });
+
+    it.each([
+      ["nome", { name: "a".repeat(101) }],
+      ["email", { email: `${"a".repeat(250)}@x.com` }],
+      ["telefone", { phone: "1".repeat(16) }],
+      ["senha", { password: "a".repeat(129) }],
+      ["CPF", { cpf: "1".repeat(12) }],
+    ])("rejeita %s acima do limite permitido", async (_field, override) => {
+      await expect(
+        service.register({ ...registerInput, ...override }),
       ).rejects.toThrow();
     });
 

@@ -30,6 +30,14 @@ const LEVEL_OPTIONS = [
   { value: "senior", label: "Sênior" },
 ];
 
+const REGISTER_LIMITS = {
+  name: 100,
+  email: 254,
+  phoneDigits: 15,
+  password: 128,
+  cpf: 14,
+} as const;
+
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -163,8 +171,8 @@ export default function RegisterSide() {
     if (!password) {
       setPasswordError("O campo de senha é obrigatório.");
       isValid = false;
-    } else if (password.length < 6) {
-      setPasswordError("A senha precisa conter pelo menos 6 caracteres.");
+    } else if (password.length < 8) {
+      setPasswordError("A senha precisa conter pelo menos 8 caracteres.");
       isValid = false;
     }
 
@@ -196,7 +204,9 @@ export default function RegisterSide() {
         window.location.href = "/login?registered=true";
       } catch (error: unknown) {
         console.error("Erro no cadastro:", error);
-        setApiError(getErrorMessage(error, "Erro ao cadastrar. Tente novamente."));
+        setApiError(
+          getErrorMessage(error, "Erro ao cadastrar. Tente novamente."),
+        );
       } finally {
         setIsLoading(false);
       }
@@ -260,6 +270,7 @@ export default function RegisterSide() {
             type="text"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
+            maxLength={REGISTER_LIMITS.name}
             placeholder="benevanio"
             disabled={isLoading}
             className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${nomeError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -282,6 +293,7 @@ export default function RegisterSide() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            maxLength={REGISTER_LIMITS.email}
             placeholder="benevanio@dev.com.br"
             disabled={isLoading}
             className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${emailError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -303,7 +315,15 @@ export default function RegisterSide() {
               international
               defaultCountry="BR"
               value={telefone}
-              onChange={setTelefone}
+              onChange={(value) => {
+                if (
+                  !value ||
+                  value.replace(/\D/g, "").length <= REGISTER_LIMITS.phoneDigits
+                ) {
+                  setTelefone(value);
+                }
+              }}
+              numberInputProps={{ maxLength: REGISTER_LIMITS.phoneDigits + 1 }}
               disabled={isLoading}
               className="w-full px-4 py-3.5 text-gray-900 dark:text-white bg-transparent focus:outline-none phone-input-custom"
               placeholder="(34) 23456-7890"
@@ -328,6 +348,7 @@ export default function RegisterSide() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              maxLength={REGISTER_LIMITS.password}
               placeholder="Ex: ••••••••••••"
               disabled={isLoading}
               className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${passwordError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -366,6 +387,7 @@ export default function RegisterSide() {
             type="text"
             value={cpf}
             onChange={(e) => setCpf(formatCpf(e.target.value))}
+            maxLength={REGISTER_LIMITS.cpf}
             placeholder="091.000.000-00"
             disabled={isLoading}
             className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${cpfError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}

@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("swiper/react", () => ({
   Swiper: ({ children }: any) => <div data-testid="swiper">{children}</div>,
-  SwiperSlide: ({ children }: any) => <div data-testid="swiper-slide">{children}</div>,
+  SwiperSlide: ({ children }: any) => (
+    <div data-testid="swiper-slide">{children}</div>
+  ),
 }));
 
 vi.mock("swiper/modules", () => ({
@@ -51,8 +53,8 @@ describe("TeamSection", () => {
     expect(screen.queryByText("bot-user")).not.toBeInTheDocument();
 
     // membros fixos
-    expect(screen.getByText("PedroLucas1337")).toBeInTheDocument();
-    expect(screen.getByText("thalitat")).toBeInTheDocument();
+    expect(screen.getByText("@PedroLucas1337")).toBeInTheDocument();
+    expect(screen.getByText("@thalitat")).toBeInTheDocument();
 
     expect(screen.getByText("QA")).toBeInTheDocument();
     expect(screen.getByText("UX/UI Designer")).toBeInTheDocument();
@@ -105,7 +107,7 @@ describe("TeamSection", () => {
       const pedroImg = screen.getByAltText("PedroLucas1337");
       expect(pedroImg).toHaveAttribute(
         "src",
-        "https://github.com/PedroLucas1337.png"
+        "https://github.com/PedroLucas1337.png",
       );
     });
   });
@@ -120,8 +122,8 @@ describe("TeamSection", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Benevanio")).toBeInTheDocument();
-      expect(screen.getByText("PedroLucas1337")).toBeInTheDocument();
-      expect(screen.getByText("thalitat")).toBeInTheDocument();
+      expect(screen.getByText("@PedroLucas1337")).toBeInTheDocument();
+      expect(screen.getByText("@thalitat")).toBeInTheDocument();
     });
   });
 
@@ -169,6 +171,52 @@ describe("TeamSection", () => {
     });
   });
 
+  it("exibe nome e username obtidos do perfil do GitHub", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      if (String(url).includes("/contributors")) {
+        return {
+          ok: true,
+          json: async () => [
+            {
+              id: 6,
+              login: "hltav",
+              avatar_url: "https://github.com/hltav.png",
+              html_url: "https://github.com/hltav",
+              contributions: 3,
+              type: "User",
+            },
+          ],
+        } as any;
+      }
+
+      return {
+        ok: true,
+        json: async () => ({ name: "Henrique Tavarez" }),
+      } as any;
+    });
+
+    render(<TeamSection />);
+
+    expect(await screen.findByText("Henrique Tavarez")).toBeInTheDocument();
+    expect(screen.getByText("@hltav")).toBeInTheDocument();
+  });
+
+  it("padroniza função e quantidade de commits em todos os cards", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    } as any);
+
+    render(<TeamSection />);
+
+    expect(
+      await screen.findByText("Founder & Backend Dev"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("188 commits")).toBeInTheDocument();
+    expect(screen.getByText("QA")).toBeInTheDocument();
+    expect(screen.queryByText("0 commits")).not.toBeInTheDocument();
+  });
+
   it("nao atualiza contributors quando lista vazia", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
@@ -179,8 +227,8 @@ describe("TeamSection", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Benevanio")).toBeInTheDocument();
-      expect(screen.getByText("PedroLucas1337")).toBeInTheDocument();
-      expect(screen.getByText("thalitat")).toBeInTheDocument();
+      expect(screen.getByText("@PedroLucas1337")).toBeInTheDocument();
+      expect(screen.getByText("@thalitat")).toBeInTheDocument();
     });
   });
 });
