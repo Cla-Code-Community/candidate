@@ -20,9 +20,9 @@ export default function LeftSide() {
           Conectando talentos <br />
           às melhores oportunidades
         </h1>
-        <p className="text-sm xl:text-base font-medium text-[#004726] dark:text-neutral-400 max-w-lg">
+        <p className="text-lg xl:text-xl font-semibold text-[#004726] dark:text-neutral-400 max-w-lg">
           Centralizamos oportunidades para ajudar profissionais de tecnologia a
-          encontrarem sua próxima vaga global.
+          encontrarem sua próxima vaga.
         </p>
       </div>
 

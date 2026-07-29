@@ -173,15 +173,7 @@ export default function RightSide() {
             <span className="text-purple-500">!</span>
             <span className="text-blue-500 font-light">&gt;</span>
           </h2>
-          <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium">
-            Novo por aqui?{" "}
-            <a
-              href="/register"
-              className="font-semibold bg-gradient-to-r from-blue-600 to-purple-500 bg-clip-text text-transparent dark:from-blue-400 dark:to-purple-400 underline underline-offset-2 hover:opacity-80 transition-opacity"
-            >
-              Cadastre-se
-            </a>
-          </p>
+          
         </div>
       </div>
       <form
@@ -287,6 +279,15 @@ export default function RightSide() {
         >
           {isLoading ? "Entrando..." : "Entrar"}
         </motion.button>
+        <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium text-center">
+            Novo por aqui?{" "}
+            <a
+              href="/register"
+              className="font-semibold text-[#0EBB69] underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              Cadastre-se
+            </a>
+          </p>
       </form>
       <div className="relative z-10 w-full max-w-2xl mx-auto">
         <div className="relative mb-6">
