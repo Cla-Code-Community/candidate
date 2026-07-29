@@ -73,6 +73,19 @@ describe("AppRoutes", () => {
     expect(screen.getByText("Landing route")).toBeInTheDocument();
   });
 
+  it("redireciona usuário autenticado da rota inicial para home", () => {
+    authState.value = {
+      user: { id: "1", email: "otavio@example.com" },
+      isLoading: false,
+    };
+
+    renderRoute("/");
+
+    expect(screen.getByText("Dashboard shell")).toBeInTheDocument();
+    expect(screen.getByText("New dashboard route")).toBeInTheDocument();
+    expect(screen.queryByText("Landing route")).not.toBeInTheDocument();
+  });
+
   it("mostra loading em rota protegida enquanto a sessão está carregando", () => {
     authState.value = {
       user: null,
