@@ -1,53 +1,65 @@
-import { useEffect, useState } from 'react';
-import { Autoplay, Pagination } from 'swiper/modules';
-import { Swiper, SwiperSlide } from 'swiper/react';
+import { useEffect, useState } from "react";
+import { Autoplay, Pagination } from "swiper/modules";
+import { Swiper, SwiperSlide } from "swiper/react";
 
-import { Github } from 'lucide-react';
-import 'swiper/css';
-import 'swiper/css/pagination';
+import { Github } from "lucide-react";
+import "swiper/css";
+import "swiper/css/pagination";
 
 interface Contributor {
   id: number;
   login: string;
+  name?: string;
   avatar_url: string;
   html_url: string;
   contributions: number;
   type: string;
 }
 
+const CONTRIBUTOR_NAMES: Record<string, string> = {
+  benevanio: "Benevanio",
+  pedrolucas1337: "Pedro Lucas",
+  thalitat: "Thalita",
+  jeremiassnts: "Jeremias Santos",
+};
+
 const INITIAL_TEAM: Contributor[] = [
   {
     id: 1,
     login: "Benevanio",
+    name: CONTRIBUTOR_NAMES.benevanio,
     avatar_url: "https://github.com/Benevanio.png",
     html_url: "https://github.com/Benevanio",
     contributions: 188,
-    type: "User"
+    type: "User",
   },
   {
     id: 104951475,
     login: "PedroLucas1337",
+    name: CONTRIBUTOR_NAMES.pedrolucas1337,
     avatar_url: "https://github.com/PedroLucas1337.png",
     html_url: "https://github.com/PedroLucas1337",
     contributions: 0,
-    type: "User"
+    type: "User",
   },
   {
     id: 110640572,
     login: "thalitat",
+    name: CONTRIBUTOR_NAMES.thalitat,
     avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4",
     html_url: "https://github.com/thalitat",
     contributions: 0,
-    type: "User"
+    type: "User",
   },
   {
     id: 999999998,
     login: "jeremiassnts",
+    name: CONTRIBUTOR_NAMES.jeremiassnts,
     avatar_url: "https://github.com/jeremiassnts.png",
     html_url: "https://github.com/jeremiassnts",
     contributions: 0,
-    type: "User"
-  }
+    type: "User",
+  },
 ];
 
 export default function TeamSection() {
@@ -59,75 +71,83 @@ export default function TeamSection() {
   useEffect(() => {
     fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contributors`, {
       headers: {
-        Accept: 'application/vnd.github.v3+json',
-      }
+        Accept: "application/vnd.github.v3+json",
+      },
     })
       .then((res) => {
         if (!res.ok) throw new Error(`Erro HTTP: ${res.status}`);
         return res.json();
       })
-      .then((data: unknown) => {
+      .then(async (data: unknown) => {
         if (!Array.isArray(data)) return;
 
         const realUsers = (data as Contributor[])
-          .filter(user => user.type === 'User')
-          .map(user => {
+          .filter((user) => user.type === "User")
+          .map((user) => {
             const login = user.login.toLowerCase();
+            const name = CONTRIBUTOR_NAMES[login];
 
             if (login === "pedrolucas1337") {
               return {
                 ...user,
-                avatar_url: "https://github.com/PedroLucas1337.png"
+                name,
+                avatar_url: "https://github.com/PedroLucas1337.png",
               };
             }
 
             if (login === "thalitat") {
               return {
                 ...user,
-                avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4"
+                name,
+                avatar_url:
+                  "https://avatars.githubusercontent.com/u/110640572?v=4",
               };
             }
 
             if (login === "jeremiassnts") {
               return {
                 ...user,
-                avatar_url: "https://github.com/jeremiassnts.png"
+                name,
+                avatar_url: "https://github.com/jeremiassnts.png",
               };
             }
 
-            return user;
+            return { ...user, ...(name ? { name } : {}) };
           });
 
         const fixedMembers: Contributor[] = [
           {
             id: 104951475,
             login: "PedroLucas1337",
+            name: CONTRIBUTOR_NAMES.pedrolucas1337,
             avatar_url: "https://github.com/PedroLucas1337.png",
             html_url: "https://github.com/PedroLucas1337",
             contributions: 0,
-            type: "User"
+            type: "User",
           },
           {
             id: 110640572,
             login: "thalitat",
+            name: CONTRIBUTOR_NAMES.thalitat,
             avatar_url: "https://avatars.githubusercontent.com/u/110640572?v=4",
             html_url: "https://github.com/thalitat",
             contributions: 0,
-            type: "User"
+            type: "User",
           },
           {
             id: 999999998,
             login: "jeremiassnts",
+            name: CONTRIBUTOR_NAMES.jeremiassnts,
             avatar_url: "https://github.com/jeremiassnts.png",
             html_url: "https://github.com/jeremiassnts",
             contributions: 0,
-            type: "User"
-          }
+            type: "User",
+          },
         ];
 
-        fixedMembers.forEach(member => {
+        fixedMembers.forEach((member) => {
           const exists = realUsers.some(
-            user => user.login.toLowerCase() === member.login.toLowerCase()
+            (user) => user.login.toLowerCase() === member.login.toLowerCase(),
           );
 
           if (!exists) {
@@ -139,17 +159,51 @@ export default function TeamSection() {
 
         const unique = merged.filter(
           (user, index, self) =>
-            index === self.findIndex(
-              u => u.login.toLowerCase() === user.login.toLowerCase()
-            )
+            index ===
+            self.findIndex(
+              (u) => u.login.toLowerCase() === user.login.toLowerCase(),
+            ),
         );
 
-        setContributors(unique);
+        const contributorsWithNames = await Promise.all(
+          unique.map(async (user) => {
+            if (user.name) {
+              return user;
+            }
+
+            try {
+              const response = await fetch(
+                `https://api.github.com/users/${user.login}`,
+                {
+                  headers: {
+                    Accept: "application/vnd.github.v3+json",
+                  },
+                },
+              );
+
+              if (!response.ok) {
+                return user;
+              }
+
+              const profile = (await response.json()) as { name?: unknown };
+              const name =
+                typeof profile.name === "string" && profile.name.trim()
+                  ? profile.name.trim()
+                  : user.login;
+
+              return { ...user, name };
+            } catch {
+              return user;
+            }
+          }),
+        );
+
+        setContributors(contributorsWithNames);
       })
       .catch((err) => {
         console.warn(
           "GitHub API offline ou limitada. Mantendo lista local:",
-          err.message
+          err.message,
         );
       });
   }, []);
@@ -201,7 +255,6 @@ export default function TeamSection() {
             {contributors.map((user) => (
               <SwiperSlide key={user.id} className="h-full inline-block">
                 <div className="flex flex-col items-center p-6 border border-gray-100 dark:border-zinc-800/80 rounded-2xl text-center bg-white dark:bg-zinc-900/40 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300 min-h-[260px] h-full justify-between">
-                  
                   <div className="flex flex-col items-center w-full">
                     <img
                       src={user.avatar_url}
@@ -210,19 +263,22 @@ export default function TeamSection() {
                     />
 
                     <h4 className="font-semibold text-lg text-gray-900 dark:text-zinc-100 mb-1 truncate w-full">
-                      {user.login}
+                      {user.name || user.login}
                     </h4>
 
-                    <p className="text-xs font-medium text-gray-400 dark:text-zinc-500 mb-4">
+                    <p className="mb-2 max-w-full truncate text-xs text-gray-500 dark:text-zinc-400">
+                      @{user.login}
+                    </p>
+                    <p className="mb-4 text-xs font-medium text-gray-400 dark:text-zinc-500">
                       {user.login.toLowerCase() === "benevanio"
                         ? "Founder & Backend Dev"
                         : user.login.toLowerCase() === "pedrolucas1337"
-                        ? "QA"
-                        : user.login.toLowerCase() === "thalitat"
-                        ? "UX/UI Designer"
-                        : user.login.toLowerCase() === "jeremiassnts"
-                        ? "Engenheiro de Software Senior"
-                        : `${user.contributions} ${user.contributions === 1 ? 'commit' : 'commits'}`}
+                          ? "QA"
+                          : user.login.toLowerCase() === "thalitat"
+                            ? "UX/UI Designer"
+                            : user.login.toLowerCase() === "jeremiassnts"
+                              ? "Engenheiro de Software Senior"
+                              : `${user.contributions} ${user.contributions === 1 ? "commit" : "commits"}`}
                     </p>
                   </div>
 
