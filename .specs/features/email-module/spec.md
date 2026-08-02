@@ -11,7 +11,7 @@ A plataforma passou a ter domínio próprio e precisa enviar e-mails transaciona
 - [ ] Expor uma **API interna única** de envio de e-mail, consumível por qualquer módulo do backend.
 - [ ] Enviar de forma **assíncrona e resiliente** (fila com retry), sem que a falha de e-mail derrube o request que o originou.
 - [ ] Separar **lógica de envio** (provider) de **templates** (react-email), ambos versionados no projeto.
-- [ ] Entregar o fluxo funcional de **boas-vindas** (no registro) como primeiro consumidor real.
+- [ ] Entregar o fluxo funcional de **boas-vindas** como primeiro consumidor real, disparado tanto no **registro por e-mail/senha** quanto no **primeiro login social** (Google, GitHub, LinkedIn) — apenas para contas recém-criadas.
 - [ ] Deixar o provedor **trocável** via configuração, sem alterar código chamador.
 - [ ] Documentar o uso do módulo no repositório.
 
@@ -64,19 +64,21 @@ A plataforma passou a ter domínio próprio e precisa enviar e-mails transaciona
 
 ---
 
-### P1: E-mail de boas-vindas no registro ⭐ MVP
+### P1: E-mail de boas-vindas no registro e no primeiro login social ⭐ MVP
 
-**User Story**: Como novo usuário, quero receber um e-mail de boas-vindas ao me registrar, para confirmar que minha conta foi criada.
+**User Story**: Como novo usuário, quero receber um e-mail de boas-vindas quando minha conta é criada — seja por cadastro com e-mail/senha ou pelo primeiro login social (Google, GitHub, LinkedIn) —, para confirmar que minha conta foi criada.
 
-**Why P1**: Critério de aceite explícito da task (template funcional de boas-vindas) e primeiro consumidor real da API interna.
+**Why P1**: Critério de aceite explícito da task (template funcional de boas-vindas) e primeiro consumidor real da API interna. Como a maioria dos cadastros ocorre via login social, o gatilho precisa cobrir esse caminho além do registro por credenciais.
 
 **Acceptance Criteria**:
-1. WHEN um usuário completa o registro com sucesso THEN o sistema SHALL enfileirar um e-mail de boas-vindas para o endereço do usuário.
-2. WHEN o e-mail de boas-vindas é renderizado THEN ele SHALL conter o nome do usuário e o HTML do template de boas-vindas.
-3. WHEN o e-mail de boas-vindas é renderizado THEN ele SHALL incluir um botão "Acessar plataforma" cujo link aponta para `FRONTEND_URL` (env já existente, reusada).
-4. WHEN o enfileiramento do e-mail de boas-vindas falha THEN o registro do usuário SHALL concluir normalmente mesmo assim (falha de e-mail é logada, não propagada).
+1. WHEN um usuário completa o registro por e-mail/senha com sucesso THEN o sistema SHALL enfileirar um e-mail de boas-vindas para o endereço do usuário.
+2. WHEN um usuário faz login social (Google, GitHub ou LinkedIn) E uma conta é criada pela primeira vez THEN o sistema SHALL enfileirar um e-mail de boas-vindas para o endereço do usuário.
+3. WHEN um usuário faz login social E a conta já existe (relogin, ou vínculo de um novo provider a um usuário que já se cadastrou antes) THEN o sistema SHALL NÃO enfileirar e-mail de boas-vindas.
+4. WHEN o e-mail de boas-vindas é renderizado THEN ele SHALL conter o nome do usuário e o HTML do template de boas-vindas.
+5. WHEN o e-mail de boas-vindas é renderizado THEN ele SHALL incluir um botão "Acessar plataforma" cujo link aponta para `FRONTEND_URL` (env já existente, reusada).
+6. WHEN o enfileiramento do e-mail de boas-vindas falha THEN o fluxo de origem (registro OU login social) SHALL concluir normalmente mesmo assim (falha de e-mail é logada, não propagada).
 
-**Independent Test**: Executar `AuthService.register` com fila mockada e asseverar que um job "welcome" foi enfileirado com o `to`/nome corretos; forçar erro no enqueue e asseverar que o registro ainda retorna sucesso.
+**Independent Test**: (a) Executar `CredentialsService.register` com fila mockada e asseverar que um job "welcome" foi enfileirado com o `to`/nome corretos. (b) Executar `AuthService.handleCallback` para um perfil OAuth sem usuário correspondente e asseverar que boas-vindas é enfileirado; repetir para um usuário já existente (achado por provider ou por e-mail) e asseverar que **não** é enfileirado. (c) Em ambos os fluxos, forçar erro no envio e asseverar que a operação de origem ainda conclui com sucesso.
 
 ---
 
@@ -85,6 +87,8 @@ A plataforma passou a ter domínio próprio e precisa enviar e-mails transaciona
 - WHEN as variáveis de ambiente de e-mail (ex: `EMAIL_API_KEY`) estão ausentes THEN o sistema SHALL logar aviso e tratar o envio como no-op, sem derrubar o boot da API.
 - WHEN o Valkey está indisponível no momento do enqueue THEN o `emailService.send` SHALL logar erro e não propagar exceção que quebre o fluxo de negócio chamador.
 - WHEN dois registros do mesmo usuário disparam boas-vindas THEN cada envio é um job independente (sem dedup no MVP — aceitável).
+- WHEN um usuário que já se cadastrou por e-mail/senha faz login social pela primeira vez THEN o provider é vinculado à conta existente e boas-vindas NÃO é reenviado (usuário não é considerado novo).
+- WHEN um usuário faz relogin social (conta já vinculada ao provider) THEN nenhum e-mail de boas-vindas é enfileirado.
 - WHEN o template referenciado não existe no registry de templates THEN o enqueue SHALL falhar com erro de validação (não gerar job órfão).
 
 ---
@@ -98,15 +102,17 @@ A plataforma passou a ter domínio próprio e precisa enviar e-mails transaciona
 | EMAIL-03 | P1 API interna — retry com backoff + log no fracasso | Design | Pending |
 | EMAIL-04 | P1 API interna — provider trocável via interface | Design | Pending |
 | EMAIL-05 | P1 API interna — validação de `to`/`template` no enqueue | Design | Pending |
-| EMAIL-06 | P1 Boas-vindas — enfileira no registro | Design | Pending |
+| EMAIL-06 | P1 Boas-vindas — enfileira no registro por e-mail/senha | Design | Pending |
 | EMAIL-07 | P1 Boas-vindas — template com nome/HTML | Design | Pending |
-| EMAIL-08 | P1 Boas-vindas — falha não quebra registro | Design | Pending |
+| EMAIL-08 | P1 Boas-vindas — falha não quebra fluxo de origem | Design | Pending |
 | EMAIL-09 | Edge — env ausente vira no-op sem quebrar boot | Design | Pending |
 | EMAIL-10 | Edge — Valkey down no enqueue não propaga | Design | Pending |
 | EMAIL-11 | Doc — documentação de uso no repositório | Design | Pending |
+| EMAIL-12 | P1 Boas-vindas — enfileira no primeiro login social (Google/GitHub/LinkedIn, usuário novo) | Design | Pending |
+| EMAIL-13 | P1 Boas-vindas — não reenvia em relogin/vínculo de provider a usuário existente | Design | Pending |
 
 **ID format:** `EMAIL-NN` · **Status:** Pending → In Design → In Tasks → Implementing → Verified
-**Coverage:** 11 total, 0 mapeados a tasks (Tasks ainda não iniciada).
+**Coverage:** 13 total, 0 mapeados a tasks (Tasks ainda não iniciada).
 
 ---
 

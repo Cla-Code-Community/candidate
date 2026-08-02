@@ -40,14 +40,16 @@ graph TD
 | Valkey URL | `process.env.VALKEY_URL` (usado em `src/lib/cache.ts`) | Reusar a mesma instância Valkey p/ a conexão ioredis do BullMQ. |
 | Registro de rotas / boot | `src/app.ts`, `src/server.ts` | Iniciar/parar worker no lifecycle do servidor. |
 | Padrão de teste | `tests/unit/modules/*`, `tests/integration/*` | Vitest + mocks (hoisted), threshold 80%. |
-| Fluxo de registro | `src/modules/auth/**` (`AuthService.register`) | Ponto de gatilho do e-mail de boas-vindas. |
+| Fluxo de registro | `src/modules/auth/**` (`CredentialsService.register`) | Gatilho de boas-vindas no cadastro por e-mail/senha. |
+| Fluxo de login social | `src/modules/auth/auth.service.ts` (`handleCallback`) + `src/modules/users/functions/findOrCreateUser.ts` | Gatilho de boas-vindas no primeiro login social; `findOrCreateUser` retorna `isNewUser` para disparar só em conta recém-criada. |
 
 ### Integration Points
 
 | System | Integration Method |
 | --- | --- |
 | Valkey | Nova conexão `ioredis` (BullMQ exige) ao mesmo `VALKEY_URL`, prefixo de chaves próprio (`bull:email`). Não interfere no `node-redis` do cache. |
-| Auth (registro) | `AuthService.register` chama `emailService.sendWelcome(...)` dentro de try/catch que só loga. |
+| Auth (registro) | `CredentialsService.register` chama `emailService.sendWelcome(...)` dentro de try/catch que só loga. |
+| Auth (login social) | `AuthService.handleCallback` chama `emailService.sendWelcome(...)` dentro de try/catch (só loga) quando `findOrCreateUser` retorna `isNewUser: true`. |
 | Resend | HTTP via SDK `resend` usando `EMAIL_API_KEY`. |
 
 ---
