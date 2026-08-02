@@ -394,13 +394,6 @@ export function Header({
               </button>
               <button
                 type="button"
-                onClick={() => setShowUserMenu(false)}
-                className="block w-full px-4 py-3 text-left hover:bg-muted"
-              >
-                Segurança
-              </button>
-              <button
-                type="button"
                 onClick={() => {
                   setShowUserMenu(false);
                   navigate("/ajuda");

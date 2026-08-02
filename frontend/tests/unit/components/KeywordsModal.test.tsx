@@ -27,7 +27,9 @@ describe("KeywordsModal", () => {
   it("adiciona uma nova keyword localmente", async () => {
     render(<KeywordsModal onClose={vi.fn()} />);
 
-    await waitFor(() => expect(screen.queryByText(/carregando/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/carregando/i)).not.toBeInTheDocument(),
+    );
 
     const input = screen.getByPlaceholderText(/nova keyword/i);
     const addButton = screen.getByRole("button", { name: /adicionar/i });
@@ -39,17 +41,29 @@ describe("KeywordsModal", () => {
     expect(input).toHaveValue("");
   });
 
+  it("limita novas keywords e preserva o texto completo no title", async () => {
+    mocks.fetchKeywordsMock.mockResolvedValueOnce(["a".repeat(100)]);
+    render(<KeywordsModal onClose={vi.fn()} />);
+
+    const input = screen.getByPlaceholderText(/nova keyword/i);
+    expect(input).toHaveAttribute("maxlength", "100");
+
+    const keyword = await screen.findByText("a".repeat(100));
+    expect(keyword).toHaveClass("truncate");
+    expect(keyword.closest("[title]")).toHaveAttribute(
+      "title",
+      "a".repeat(100),
+    );
+  });
+
   it("remove uma keyword localmente", async () => {
     render(<KeywordsModal onClose={vi.fn()} />);
 
     await waitFor(() => expect(screen.getByText("react")).toBeInTheDocument());
 
-    const reactBadge = screen.getByText("react");
-    const removeButton = reactBadge.querySelector("button");
-    
-    if (removeButton) {
-      fireEvent.click(removeButton);
-    }
+    fireEvent.click(
+      screen.getByRole("button", { name: /remover keyword react/i }),
+    );
 
     expect(screen.queryByText("react")).not.toBeInTheDocument();
   });
@@ -60,7 +74,9 @@ describe("KeywordsModal", () => {
 
     await waitFor(() => expect(screen.getByText("react")).toBeInTheDocument());
 
-    const saveButton = screen.getByRole("button", { name: /salvar alterações/i });
+    const saveButton = screen.getByRole("button", {
+      name: /salvar alterações/i,
+    });
     fireEvent.click(saveButton);
 
     await waitFor(() => {
@@ -73,7 +89,9 @@ describe("KeywordsModal", () => {
     const onClose = vi.fn();
     render(<KeywordsModal onClose={onClose} />);
 
-    await waitFor(() => expect(screen.queryByText(/carregando/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/carregando/i)).not.toBeInTheDocument(),
+    );
 
     const cancelButton = screen.getByRole("button", { name: /cancelar/i });
     fireEvent.click(cancelButton);

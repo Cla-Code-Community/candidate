@@ -6,6 +6,7 @@ import { Header } from "@/domains/new_dashboard/components/layout/Header";
 import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
 import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
 import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
+import { MentoringTab } from "@/domains/new_dashboard/components/mentoring/MentoringTab";
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
 import { Modal } from "@/domains/new_dashboard/components/shared/Modal";
 import {
@@ -234,6 +235,27 @@ describe("new_dashboard branch coverage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("abre, confirma e fecha os detalhes de uma mentoria", () => {
+    render(<MentoringTab />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Ver Mais" })[0]);
+
+    expect(
+      screen.getByRole("heading", { name: "Julio Silva", level: 2 }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/participação confirmada/i)).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /confirmar participação/i }),
+    );
+    expect(screen.getByText(/participação confirmada/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    expect(
+      screen.queryByRole("heading", { name: "Julio Silva", level: 2 }),
+    ).not.toBeInTheDocument();
   });
 
   it("usa origem sistema como fallback no detalhe da mensagem", () => {

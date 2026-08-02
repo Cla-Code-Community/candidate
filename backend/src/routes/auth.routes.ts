@@ -4,9 +4,11 @@ import {
     authAccountRateLimiter,
     authIpRateLimiter,
 } from "../middleware/rateLimit";
+import { requireAuth } from "../middleware/requireAuth";
 import { validate } from "../middleware/validate";
 import { AuthController } from "../modules/auth/auth.controller";
 import { AuthService } from "../modules/auth/auth.service";
+import { ConnectionsController } from "../modules/auth/connections.controller";
 import { CredentialsController } from "../modules/auth/credentials.controller";
 import { CredentialsService } from "../modules/auth/credentials.service";
 import { OAuthProviderSchema } from "../modules/types/auth.types";
@@ -21,6 +23,7 @@ const authService = new AuthService();
 const authController = new AuthController(authService);
 const credentialsService = new CredentialsService();
 const credentialsController = new CredentialsController(credentialsService);
+const connectionsController = new ConnectionsController();
 
 const providerParamsSchema = z.object({
   provider: OAuthProviderSchema,
@@ -36,6 +39,14 @@ router.get(
 );
 router.get("/:provider/callback", (req, res, next) => {
   authController.callback(req, res).catch(next);
+});
+
+// Connections (usuário logado)
+router.get("/connections", requireAuth, (req, res, next) => {
+  connectionsController.list(req, res).catch(next);
+});
+router.delete("/connections/:provider", requireAuth, (req, res, next) => {
+  connectionsController.disconnect(req, res).catch(next);
 });
 
 // Credentials
