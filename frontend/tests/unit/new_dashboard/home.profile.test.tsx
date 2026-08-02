@@ -3,17 +3,26 @@ import { HomeTab } from "@/domains/new_dashboard/components/home/HomeTab";
 import { PreferencesForm } from "@/domains/new_dashboard/components/profile/PreferencesForm";
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
 import {
-  initialPreferences,
-  initialUser,
+    initialPreferences,
+    initialUser,
 } from "@/domains/new_dashboard/constants";
 import type {
-  SearchPreferences,
-  UserProfile,
+    SearchPreferences,
+    UserProfile,
 } from "@/domains/new_dashboard/types";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+function getCurrentMonthLabel() {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [year, monthNumber] = currentMonth.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, monthNumber - 1, 1));
+}
 
 function renderWithProfileState(
   ui: (props: {
@@ -132,6 +141,7 @@ describe("new_dashboard home and profile components", () => {
 
   it("permite criar lista, adicionar item, marcar e excluir no CareerChecklist", () => {
     render(<CareerChecklist />);
+    const currentMonthLabel = getCurrentMonthLabel();
 
     fireEvent.change(screen.getByPlaceholderText(/nome da nova lista/i), {
       target: { value: "Metas" },
@@ -140,7 +150,7 @@ describe("new_dashboard home and profile components", () => {
 
     expect(screen.getByRole("button", { name: /metas/i })).toBeInTheDocument();
     expect(
-      screen.getByText("julho de 2026", { selector: "span" }),
+      screen.getByText(currentMonthLabel, { selector: "span" }),
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText(/novo item do checklist/i), {
