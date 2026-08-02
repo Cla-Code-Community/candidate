@@ -1,11 +1,9 @@
+import { useTheme } from "@/shared/hooks/useTheme";
+import { ThemeToggle } from "@/shared/ui/theme-toggle";
 import { Image } from "@unpic/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { FormEvent, useState } from "react";
-import PhoneInput from "react-phone-number-input";
-import "react-phone-number-input/style.css";
-import { ThemeToggle } from "@/shared/ui/theme-toggle";
-import { useTheme } from "@/shared/hooks/useTheme";
 
 import {
   getGithubAuthUrl,
@@ -36,10 +34,135 @@ const LEVEL_OPTIONS = [
 const REGISTER_LIMITS = {
   name: 100,
   email: 254,
-  phoneDigits: 15,
+  phoneDigitsWithCountryCode: 13,
+  phoneDigitsMobileWithoutCountryCode: 11,
+  phoneDigitsLandlineWithoutCountryCode: 10,
+  phoneInput: 19,
   password: 128,
   cpf: 14,
 } as const;
+
+const PHONE_ALLOWED_CHARS_REGEX = /^[0-9+()\s-]*$/;
+const BRAZIL_MOBILE_PHONE_REGEX = /^(?:\+55)?[1-9]{2}9\d{8}$/;
+const BRAZIL_LANDLINE_PHONE_REGEX = /^(?:\+55)?[1-9]{2}[2-8]\d{7}$/;
+
+function formatBrazilianPhoneFromDigits(digits: string) {
+  const ddd = digits.slice(0, 2);
+  const subscriber = digits.slice(2);
+
+  if (digits.length <= 2) return `(${ddd}`;
+
+  const isMobile = digits.length === 11 || subscriber.startsWith("9");
+  if (isMobile) {
+    if (subscriber.length <= 5) return `(${ddd}) ${subscriber}`;
+    return `(${ddd}) ${subscriber.slice(0, 5)}-${subscriber.slice(5, 9)}`;
+  }
+
+  if (subscriber.length <= 4) return `(${ddd}) ${subscriber}`;
+  return `(${ddd}) ${subscriber.slice(0, 4)}-${subscriber.slice(4, 8)}`;
+}
+
+function normalizePhoneInput(rawValue: string) {
+  const trimmed = rawValue.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  const hasExplicitPlus = trimmed.startsWith("+");
+
+  if (hasExplicitPlus && !digits.startsWith("55")) {
+    return {
+      masked: `+${digits.slice(0, REGISTER_LIMITS.phoneDigitsWithCountryCode)}`,
+    };
+  }
+
+  const inferredCountryCode =
+    hasExplicitPlus || (digits.startsWith("55") && digits.length > 11);
+
+  let nationalDigits = inferredCountryCode ? digits.slice(2) : digits;
+  const defaultMaxDigits =
+    nationalDigits[2] === "9"
+      ? REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode
+      : REGISTER_LIMITS.phoneDigitsLandlineWithoutCountryCode;
+
+  const maxNationalDigits = Math.min(
+    defaultMaxDigits,
+    REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode,
+  );
+
+  nationalDigits = nationalDigits.slice(0, maxNationalDigits);
+  const maskedNational = nationalDigits
+    ? formatBrazilianPhoneFromDigits(nationalDigits)
+    : "";
+
+  return {
+    masked: inferredCountryCode
+      ? `+55${maskedNational ? ` ${maskedNational}` : ""}`
+      : maskedNational,
+  };
+}
+
+function sanitizePhoneForValidation(value: string) {
+  const trimmed = value.trim();
+  const plusCount = (trimmed.match(/\+/g) || []).length;
+
+  if (!PHONE_ALLOWED_CHARS_REGEX.test(trimmed)) {
+    return { valid: false as const };
+  }
+
+  if (plusCount > 1 || (plusCount === 1 && !trimmed.startsWith("+"))) {
+    return { valid: false as const };
+  }
+
+  const compact = trimmed.replace(/[\s()-]/g, "");
+  if (/[^\d+]/.test(compact)) {
+    return { valid: false as const };
+  }
+
+  const hasCountryCode = compact.startsWith("+");
+  if (hasCountryCode && !compact.startsWith("+55")) {
+    return { valid: false as const };
+  }
+
+  if (hasCountryCode && !/^\+55\d+$/.test(compact)) {
+    return { valid: false as const };
+  }
+
+  const digitsOnly = compact.replace(/\D/g, "");
+  const nationalDigits = hasCountryCode ? digitsOnly.slice(2) : digitsOnly;
+  const isMobileLength =
+    nationalDigits.length === REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode;
+  const isLandlineLength =
+    nationalDigits.length ===
+    REGISTER_LIMITS.phoneDigitsLandlineWithoutCountryCode;
+
+  if (!isMobileLength && !isLandlineLength) {
+    return { valid: false as const };
+  }
+
+  if (
+    hasCountryCode &&
+    digitsOnly.length !== REGISTER_LIMITS.phoneDigitsWithCountryCode &&
+    digitsOnly.length !== REGISTER_LIMITS.phoneDigitsWithCountryCode - 1
+  ) {
+    return { valid: false as const };
+  }
+
+  const ddd = nationalDigits.slice(0, 2);
+  if (!/^[1-9]{2}$/.test(ddd)) {
+    return { valid: false as const };
+  }
+
+  const candidate = hasCountryCode ? `+55${nationalDigits}` : nationalDigits;
+  const isValidMobile = BRAZIL_MOBILE_PHONE_REGEX.test(candidate);
+  const isValidLandline = BRAZIL_LANDLINE_PHONE_REGEX.test(candidate);
+
+  if (!isValidMobile && !isValidLandline) {
+    return { valid: false as const };
+  }
+
+  return {
+    valid: true as const,
+    payload: hasCountryCode ? `+55${nationalDigits}` : nationalDigits,
+  };
+}
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -131,6 +254,34 @@ export default function RegisterSide() {
 
   const handleRevealPassword = () => setShowPassword((prev) => !prev);
 
+  const handlePhoneChange = (rawValue: string) => {
+    const typed = rawValue ?? "";
+    if (typed && !PHONE_ALLOWED_CHARS_REGEX.test(typed)) {
+      return;
+    }
+
+    const digits = typed.replace(/\D/g, "");
+    const trimmed = typed.trim();
+    const hasCountryCode =
+      trimmed.startsWith("+") || (digits.startsWith("55") && digits.length > 11);
+    const nationalDigits = hasCountryCode ? digits.slice(2) : digits;
+    const maxNationalDigits =
+      nationalDigits[2] === "9"
+        ? REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode
+        : REGISTER_LIMITS.phoneDigitsLandlineWithoutCountryCode;
+    const maxTotalDigits = hasCountryCode ? 2 + maxNationalDigits : maxNationalDigits;
+
+    if (digits.length > maxTotalDigits) {
+      return;
+    }
+
+    const normalized = normalizePhoneInput(typed);
+    setTelefone(normalized.masked);
+    if (telefoneError) {
+      setTelefoneError("");
+    }
+  };
+
   const formatCpf = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
     if (digits.length <= 3) return digits;
@@ -168,9 +319,16 @@ export default function RegisterSide() {
       }
     }
 
-    if (!telefone) {
-      setTelefoneError("O campo de telefone é obrigatório.");
-      isValid = false;
+    const normalizedPhone = (telefone ?? "").trim();
+    let phoneToSend: string | undefined;
+    if (normalizedPhone) {
+      const parsedPhone = sanitizePhoneForValidation(normalizedPhone);
+      if (!parsedPhone.valid) {
+        setTelefoneError("Informe um telefone brasileiro válido.");
+        isValid = false;
+      } else {
+        phoneToSend = parsedPhone.payload;
+      }
     }
 
     if (!password) {
@@ -202,7 +360,7 @@ export default function RegisterSide() {
           email: email,
           password: password,
           name: nome,
-          phone: telefone,
+          phone: phoneToSend,
           cpf: cpf || undefined,
           level,
         });
@@ -305,26 +463,21 @@ export default function RegisterSide() {
         </div>
         <div>
           <label className="block text-sm font-semibold text-gray-700 dark:text-neutral-300 mb-1.5">
-            Telefone
+            Telefone{" "}
+            <span className="text-gray-400 dark:text-neutral-500 text-xs font-normal">
+              (opcional)
+            </span>
           </label>
           <div
             className={`flex rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm shadow-sm overflow-hidden transition-all focus-within:ring-2 ${telefoneError ? "border-red-500 focus-within:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus-within:ring-blue-500"} ${isLoading ? "opacity-50" : ""}`}
           >
-            <PhoneInput
-              international
-              defaultCountry="BR"
-              value={telefone}
-              onChange={(value) => {
-                if (
-                  !value ||
-                  value.replace(/\D/g, "").length <= REGISTER_LIMITS.phoneDigits
-                ) {
-                  setTelefone(value);
-                }
-              }}
-              numberInputProps={{ maxLength: REGISTER_LIMITS.phoneDigits + 1 }}
+            <input
+              type="tel"
+              value={telefone ?? ""}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              maxLength={REGISTER_LIMITS.phoneInput}
               disabled={isLoading}
-              className="w-full px-4 py-3.5 text-gray-900 dark:text-white bg-transparent focus:outline-none phone-input-custom"
+              className="w-full px-4 py-3.5 text-gray-900 dark:text-white bg-transparent focus:outline-none"
               placeholder="(34) 23456-7890"
             />
           </div>

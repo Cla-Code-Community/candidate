@@ -1,21 +1,21 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CareerChecklist } from "@/domains/new_dashboard/components/home/CareerChecklist";
-import { Header } from "@/domains/new_dashboard/components/layout/Header";
-import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
 import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
 import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
+import { Header } from "@/domains/new_dashboard/components/layout/Header";
+import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
 import { MentoringTab } from "@/domains/new_dashboard/components/mentoring/MentoringTab";
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
 import { Modal } from "@/domains/new_dashboard/components/shared/Modal";
 import {
-  clearDashboardNotifications,
-  getDashboardNotificationFeed,
-  markDashboardNotificationsRead,
+    clearDashboardNotifications,
+    getDashboardNotificationFeed,
+    markDashboardNotificationsRead,
 } from "@/domains/new_dashboard/infrastructure/notificationsApi";
 import type { Job, UserProfile } from "@/domains/new_dashboard/types";
 import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/domains/new_dashboard/utils/notificationEvents";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockUseAuth = vi.fn();
 const mockUseTheme = vi.fn();
@@ -72,6 +72,15 @@ const profileWithoutAvatar: UserProfile = {
   technologies: ["React"],
   technologyExperiences: [{ name: "React", years: 2 }],
 };
+
+function getCurrentMonthLabel() {
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const [year, monthNumber] = currentMonth.split("-").map(Number);
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(year, monthNumber - 1, 1));
+}
 
 describe("new_dashboard branch coverage", () => {
   beforeEach(() => {
@@ -299,6 +308,7 @@ describe("new_dashboard branch coverage", () => {
 
   it("usa o checklist com título padrão, enter e remoção da lista", () => {
     render(<CareerChecklist />);
+    const currentMonthLabel = getCurrentMonthLabel();
 
     expect(
       screen.getByText(/crie uma lista mensal para começar/i),
@@ -306,7 +316,9 @@ describe("new_dashboard branch coverage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^lista$/i }));
     expect(
-      screen.getByRole("button", { name: /checklist de julho de 2026/i }),
+      screen.getByRole("button", {
+        name: new RegExp(`checklist de ${currentMonthLabel}`, "i"),
+      }),
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText(/novo item do checklist/i), {
