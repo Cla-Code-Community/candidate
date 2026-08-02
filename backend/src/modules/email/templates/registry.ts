@@ -9,7 +9,7 @@ import { Welcome, WelcomeProps } from "./welcome";
  */
 const templates = {
   welcome: {
-    subject: "Bem-vindo ao Painel Vagas",
+    subject: "Bem-vindo ao Candidate",
     component: Welcome,
   },
 } satisfies Record<

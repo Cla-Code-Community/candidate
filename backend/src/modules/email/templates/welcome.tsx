@@ -12,12 +12,12 @@ export interface WelcomeProps {
  */
 export function Welcome({ name, appUrl }: WelcomeProps) {
   return (
-    <BaseLayout previewText="Bem-vindo ao Painel Vagas">
+    <BaseLayout previewText="Bem-vindo ao Candidate">
       <h1 style={{ fontSize: "22px", margin: "0 0 16px" }}>
         Bem-vindo, {name}!
       </h1>
       <p style={{ fontSize: "15px", lineHeight: "24px", margin: "0 0 24px" }}>
-        Sua conta no Painel Vagas foi criada com sucesso. Agora você pode
+        Sua conta no Candidate foi criada com sucesso. Agora você pode
         acompanhar vagas, salvar oportunidades e organizar sua busca por emprego.
       </p>
       <a
