@@ -1,4 +1,6 @@
 import { User } from "../../db/schema/users";
+import { logError } from "../../logger";
+import { emailService } from "../email/email.service";
 import type {
   AuthCallbackParams,
   OAuthProfile,
@@ -39,10 +41,15 @@ export class AuthService {
       throw new Error("oauth_email_required");
     }
 
-    const user = await findOrCreateUser({
+    const { user, isNewUser } = await findOrCreateUser({
       provider,
       profile,
     });
+
+    // Boas-vindas apenas no primeiro login social (usuário recém-criado).
+    if (isNewUser) {
+      await this.sendWelcomeEmail(user);
+    }
 
     const session = await this.createSession(user);
 
@@ -50,6 +57,26 @@ export class AuthService {
       user,
       session,
     };
+  }
+
+  /**
+   * Dispara o e-mail de boas-vindas para um usuário recém-criado via login
+   * social. Falha nunca derruba o login (EMAIL-08): erro é apenas logado.
+   */
+  private async sendWelcomeEmail(user: User): Promise<void> {
+    if (!user.email) return;
+
+    try {
+      await emailService.sendWelcome({
+        email: user.email,
+        name: user.displayName ?? user.username,
+      });
+    } catch (error) {
+      logError("Falha ao disparar e-mail de boas-vindas no login social.", {
+        userId: user.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   async getProfileFromProvider({
