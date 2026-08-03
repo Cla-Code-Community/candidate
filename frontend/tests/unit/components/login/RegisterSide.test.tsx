@@ -26,6 +26,21 @@ function fillRequiredRegisterFields() {
   });
 }
 
+function fillRequiredRegisterFieldsWithoutPhone() {
+  fireEvent.change(screen.getByLabelText(/nome/i), {
+    target: { value: "Bene" },
+  });
+  fireEvent.change(screen.getByLabelText(/email/i), {
+    target: { value: "bene@teste.com" },
+  });
+  fireEvent.change(screen.getByLabelText(/senha/i), {
+    target: { value: "12345678" },
+  });
+  fireEvent.change(screen.getByLabelText(/nível de experiência/i), {
+    target: { value: "pleno" },
+  });
+}
+
 vi.mock("@/domains/auth/infrastructure/authApi", () => ({
   register: (...args: any[]) => mockRegister(...args),
   getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
@@ -110,7 +125,7 @@ describe("RegisterSide", () => {
     expect(screen.getByLabelText(/email/i)).toHaveAttribute("maxlength", "254");
     expect(screen.getByPlaceholderText(/\(34\)/i)).toHaveAttribute(
       "maxlength",
-      "16",
+      "19",
     );
     expect(screen.getByLabelText(/senha/i)).toHaveAttribute("maxlength", "128");
     expect(screen.getByLabelText(/cpf/i)).toHaveAttribute("maxlength", "14");
@@ -138,9 +153,6 @@ describe("RegisterSide", () => {
     ).toBeInTheDocument();
     expect(
       await screen.findByText(/campo de e-mail é obrigatório/i),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText(/campo de telefone é obrigatório/i),
     ).toBeInTheDocument();
     expect(
       await screen.findByText(/campo de senha é obrigatório/i),
@@ -188,6 +200,69 @@ describe("RegisterSide", () => {
       });
     });
     expect(window.location.href).toBe("/login?registered=true");
+  });
+
+  it("envia formulário válido sem telefone", async () => {
+    mockRegister.mockResolvedValueOnce({ message: "Usuário criado" });
+    render(<RegisterSide />);
+    fillRequiredRegisterFieldsWithoutPhone();
+    fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
+
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalledWith({
+        email: "bene@teste.com",
+        password: "12345678",
+        name: "Bene",
+        phone: undefined,
+        cpf: undefined,
+        level: "pleno",
+      });
+    });
+  });
+
+  it("rejeita telefone inválido quando preenchido", async () => {
+    render(<RegisterSide />);
+    fillRequiredRegisterFieldsWithoutPhone();
+    fireEvent.change(screen.getByPlaceholderText(/\(34\)/i), {
+      target: { value: "123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
+
+    expect(
+      await screen.findByText(/telefone brasileiro válido/i),
+    ).toBeInTheDocument();
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
+
+  it("aplica máscara para celular e fixo brasileiros", () => {
+    render(<RegisterSide />);
+    const phoneInput = screen.getByPlaceholderText(/\(34\)/i) as HTMLInputElement;
+
+    fireEvent.change(phoneInput, { target: { value: "11912345678" } });
+    expect(phoneInput.value).toBe("(11) 91234-5678");
+
+    fireEvent.change(phoneInput, { target: { value: "1134567890" } });
+    expect(phoneInput.value).toBe("(11) 3456-7890");
+
+    fireEvent.change(phoneInput, { target: { value: "5511912345678" } });
+    expect(phoneInput.value).toBe("+55 (11) 91234-5678");
+  });
+
+  it("bloqueia números maiores que o limite permitido", async () => {
+    render(<RegisterSide />);
+    fillRequiredRegisterFieldsWithoutPhone();
+    const phoneInput = screen.getByPlaceholderText(/\(34\)/i) as HTMLInputElement;
+
+    fireEvent.change(phoneInput, { target: { value: "+55 1891898989989999" } });
+    expect(phoneInput.value).toBe("");
+
+    fireEvent.click(screen.getByRole("button", { name: /cadastrar/i }));
+
+    await waitFor(() => {
+      expect(mockRegister).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: undefined }),
+      );
+    });
   });
 
   it("envia formulário válido com CPF como usuário (sem tecnologias/nível)", async () => {

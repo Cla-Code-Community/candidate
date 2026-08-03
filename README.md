@@ -1,6 +1,8 @@
 # Painel de Vagas
 
-[![CI](https://github.com/Benevanio/Jobs_Scraper_Global/actions/workflows/ci.yml/badge.svg)](https://github.com/Benevanio/Jobs_Scraper_Global/actions/workflows/ci.yml)
+> Novo no projeto? Comece por aqui: [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md)
+
+[![CI](https://github.com/Cla-Code-Community/candidate/actions/workflows/ci.yml/badge.svg)](https://github.com/Cla-Code-Community/candidate/actions/workflows/ci.yml)
 ![Node >= 22](https://img.shields.io/badge/node-%3E%3D22-339933)
 ![Monorepo](https://img.shields.io/badge/architecture-monorepo-0A66C2)
 ![License ISC](https://img.shields.io/badge/license-ISC-lightgrey)
