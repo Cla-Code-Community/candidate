@@ -4,6 +4,8 @@ import AuthCallbackPage from "@/domains/auth/presentation/pages/AuthCallbackPage
 import LoginPage from "@/domains/auth/presentation/pages/LoginPage";
 import RegisterPage from "@/domains/auth/presentation/pages/RegisterPage";
 import LandingPage from "@/domains/marketing/presentation/pages/LandingPage";
+import PrivacyPolicyPage from "@/domains/marketing/presentation/pages/PrivacyPolicyPage";
+import TermsOfUsePage from "@/domains/marketing/presentation/pages/TermsOfUsePage";
 import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
 import NewDashboardLayout from "@/domains/new_dashboard/layout";
 import Loading from "@/shared/ui/Loading";
@@ -65,6 +67,11 @@ export function AppRoutes() {
         }
       />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route
+        path="/politica-de-privacidade"
+        element={<PrivacyPolicyPage />}
+      />
+      <Route path="/termos-de-uso" element={<TermsOfUsePage />} />
       <Route
         path="/perfil/conexoes"
         element={<Navigate to="/perfil" replace />}
