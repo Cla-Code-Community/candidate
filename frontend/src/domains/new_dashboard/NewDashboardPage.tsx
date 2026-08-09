@@ -1,6 +1,6 @@
 import { useAuth } from "@/domains/auth/application/AuthContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardTab } from "./components/dashboard/DashboardTab";
 import { HelpTab } from "./components/help/HelpTab";
 import { HomeTab } from "./components/home/HomeTab";
@@ -134,11 +134,11 @@ function scoreJobWithTechnologies(
     matchedTechnologies.length === 0
       ? 45
       : Math.min(
-          99,
-          55 +
-            Math.round(coverage * 35) +
-            Math.min(matchedTechnologies.length * 4, 9),
-        );
+        99,
+        55 +
+        Math.round(coverage * 35) +
+        Math.min(matchedTechnologies.length * 4, 9),
+      );
 
   return {
     ...job,
@@ -163,6 +163,7 @@ export default function NewDashboardPage() {
   const [countryFilter, setCountryFilter] = useState<CountryFilter>("Todos");
   const [matchSort, setMatchSort] = useState<MatchSort>("default");
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [hasUserChangedJobFilters, setHasUserChangedJobFilters] =
@@ -185,14 +186,31 @@ export default function NewDashboardPage() {
     () => getModelFilterFromJobTypes(searchPreferences.jobTypes),
     [searchPreferences.jobTypes],
   );
+
+  useEffect(() => {
+    const jobId = searchParams.get("jobId");
+    if (!jobId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza o jobId vindo da URL (navegação externa) com o estado local; execução única por navegação, não é loop de renderização.
+    setSelectedJobId(jobId);
+    setSelectedJobId(jobId);
+    setSearchParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        next.delete("jobId");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [searchParams, setSearchParams]);
+
   const initialRecommendationSearch = useMemo(
     () =>
       isLoadingUserData
         ? null
         : {
-            keywords: [],
-            filters: modelFilterToApiFilter(preferredModelFilter),
-          },
+          keywords: [],
+          filters: modelFilterToApiFilter(preferredModelFilter),
+        },
     [isLoadingUserData, preferredModelFilter],
   );
   const {

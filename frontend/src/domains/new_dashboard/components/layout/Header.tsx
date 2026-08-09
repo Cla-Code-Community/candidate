@@ -16,6 +16,10 @@ import {
 import { MessageDetailModal } from "./MessageDetailModal";
 import { ThemeToggle } from "./ThemeToggle";
 
+function extractJobIdFromNotification(notificationId: string): string | null {
+  const match = notificationId.match(/^local:job:(.+):\d+$/);
+  return match ? match[1] : null;
+}
 interface HeaderProps {
   title?: string;
   userProfile?: UserProfile;
@@ -320,20 +324,36 @@ export function Header({
                 </button>
               </div>
               <div className="space-y-5 pt-4">
-                {menuNotifications.length > 0 ? (
-                  menuNotifications.map((notification) => (
-                    <div key={notification.id} className="flex gap-3">
-                      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                      <div>
-                        <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
-                          {notification.text}
-                        </p>
-                        <span className="text-[11px] text-slate-400">
-                          {notification.date}
-                        </span>
-                      </div>
-                    </div>
-                  ))
+          {menuNotifications.length > 0 ? (
+            menuNotifications.map((notification) => {
+              const jobId = extractJobIdFromNotification(String(notification.id));
+              return (
+                <div
+                  key={notification.id}
+                  role={jobId ? "button" : undefined}
+                  tabIndex={jobId ? 0 : undefined}
+                  onClick={
+                    jobId
+                      ? () => {
+                          setShowNotificationsMenu(false);
+                          navigate(`/dashboard?jobId=${jobId}`);
+                        }
+                      : undefined
+                  }
+                  className={`flex gap-3 ${jobId ? "cursor-pointer hover:opacity-80" : ""}`}
+                >
+                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  <div>
+                    <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                      {notification.text}
+                    </p>
+                    <span className="text-[11px] text-slate-400">
+                      {notification.date}
+                    </span>
+                  </div>
+                </div>
+                );
+                 })
                 ) : (
                   <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
                     Nenhuma notificação recente.
