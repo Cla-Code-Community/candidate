@@ -7,6 +7,7 @@ import {
   clearDashboardNotifications,
   getDashboardNotificationFeed,
   markDashboardNotificationsRead,
+  markSingleNotificationRead,
 } from "../../infrastructure/notificationsApi";
 import type { Message, Notification, UserProfile } from "../../types";
 import {
@@ -16,10 +17,6 @@ import {
 import { MessageDetailModal } from "./MessageDetailModal";
 import { ThemeToggle } from "./ThemeToggle";
 
-function extractJobIdFromNotification(notificationId: string): string | null {
-  const match = notificationId.match(/^local:job:(.+):\d+$/);
-  return match ? match[1] : null;
-}
 interface HeaderProps {
   title?: string;
   userProfile?: UserProfile;
@@ -158,6 +155,8 @@ export function Header({
               text: detail.item!.text,
               type: detail.item!.type,
               date: detail.item!.date,
+              jobId: detail.item!.jobId,
+              isRead: detail.item!.isRead ?? false,
             },
             ...current.filter((item) => item.text !== detail.item!.text),
           ]);
@@ -326,8 +325,9 @@ export function Header({
               <div className="space-y-5 pt-4">
           {menuNotifications.length > 0 ? (
             menuNotifications.map((notification) => {
-              const jobId = extractJobIdFromNotification(String(notification.id));
-              return (
+              const jobId = notification.jobId;
+              const isRead = notification.isRead ?? false;
+            return (
                 <div
                   key={notification.id}
                   role={jobId ? "button" : undefined}
@@ -336,13 +336,19 @@ export function Header({
                     jobId
                       ? () => {
                           setShowNotificationsMenu(false);
+                          setMenuNotifications((current) =>
+                          current.map((item) => item.id === notification.id ? { ...item, isRead: true } : item,),
+                      );
+                      void markSingleNotificationRead(String(notification.id)).catch(() => {
+                        });
                           navigate(`/dashboard?jobId=${jobId}`);
                         }
                       : undefined
                   }
-                  className={`flex gap-3 ${jobId ? "cursor-pointer hover:opacity-80" : ""}`}
+                  className={`flex gap-3 ${jobId ? "cursor-pointer hover:opacity-50" : ""} ${ isRead ? "opacity-50" : "" }`}
                 >
-                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${ isRead ? "bg-slate-400" : "bg-emerald-500" }`}
+                  />
                   <div>
                     <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
                       {notification.text}
