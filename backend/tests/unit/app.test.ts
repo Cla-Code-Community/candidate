@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   dbInsertConflict: vi.fn(),
   getUserById: vi.fn(),
   createHighMatchIfMissing: vi.fn(),
+  jobSearchesInc: vi.fn(),
 }));
 
 vi.mock("../../src/lib/cache.js", () => ({
@@ -60,6 +61,13 @@ vi.mock("../../src/db/schema.js", () => ({
 vi.mock("../../src/logger.js", () => ({
   logWarn: mocks.logWarn,
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+}));
+
+vi.mock("../../src/metrics/metrics.js", () => ({
+  register: { contentType: "text/plain", metrics: vi.fn().mockResolvedValue("") },
+  httpRequestDuration: { startTimer: vi.fn(() => vi.fn()) },
+  httpRequestsTotal: { inc: vi.fn() },
+  jobSearchesTotal: { inc: mocks.jobSearchesInc },
 }));
 
 vi.mock("../../src/routes/auth.routes.js", async () => {
@@ -315,6 +323,9 @@ describe("jobsApiApp", () => {
 
     expect(mocks.cacheSearchJobIds).toHaveBeenCalledWith({
       keywords: ["React"],
+      family: [],
+      technology: [],
+      seniority: "",
       level: "Júnior",
       location: "Brasil",
       continent: "",
@@ -322,9 +333,10 @@ describe("jobsApiApp", () => {
       state: "",
       city: "",
       type: ["Remoto"],
-      model: [],
+      model: ["Remoto"],
       contract: "",
     });
+    expect(mocks.jobSearchesInc).toHaveBeenCalledWith({ has_keywords: "true" });
     expect(mocks.cacheSearchKeywords).not.toHaveBeenCalled();
     expect(mocks.cacheGetJobsByIds).toHaveBeenCalledWith(["id-structured"]);
     expect(res.body.jobs).toEqual([

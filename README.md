@@ -1,9 +1,20 @@
-# Painel de Vagas
+# <Cand!Date!>
 
 [![CI](https://github.com/Benevanio/Jobs_Scraper_Global/actions/workflows/ci.yml/badge.svg)](https://github.com/Benevanio/Jobs_Scraper_Global/actions/workflows/ci.yml)
 ![Node >= 22](https://img.shields.io/badge/node-%3E%3D22-339933)
 ![Monorepo](https://img.shields.io/badge/architecture-monorepo-0A66C2)
 ![License ISC](https://img.shields.io/badge/license-ISC-lightgrey)
+
+**Documentação**:
+[README](README.md) |
+[SCRAPER](SCRAPER.md) |
+[BACKEND](BACKEND.md) |
+[TESTING](TESTING.md) |
+[CONTRIBUTING](contribuition.md) |
+[ESCOPO](ESCOPO.md) |
+[Frontend](frontend/README.md) |
+[Frontend Architecture](frontend/ARCHITECTURE.md) |
+[Front Admin](front_admin/README.md)
 
 Plataforma de captura, agregação e consulta de vagas com arquitetura monorepo, composta por frontend web, API Node.js, scraper Go, painel administrativo e aplicação desktop com Electron.
 
@@ -11,8 +22,8 @@ O produto evoluiu para um modelo orientado a serviços (API + scraper Go + cache
 
 ## Links oficiais
 
-- Gestão de produto (Linear): https://linear.app/tatame/team/PAV/all
-- Design system oficial (Figma): https://www.figma.com/design/gollJBtK8PGkffNN4zk9t9/Painel-Dev---releitura?node-id=0-1&p=f&t=zU8zrFzPsNPxZ3qU-0
+- Gestão de produto (Linear): <https://linear.app/tatame/team/PAV/all>
+- Design system oficial (Figma): <https://www.figma.com/design/gollJBtK8PGkffNN4zk9t9/Painel-Dev---releitura?node-id=0-1&p=f&t=zU8zrFzPsNPxZ3qU-0>
 - Documentação backend detalhada: [BACKEND.md](BACKEND.md)
 - Documentação scraper Go: [SCRAPER.md](SCRAPER.md)
 - Guia de testes: [TESTING.md](TESTING.md)
@@ -84,13 +95,13 @@ Objetivo de produto: fornecer uma base robusta para busca, filtragem e gestão d
 
 Use este fluxo para subir Postgres, Valkey, scraper Go, backend, frontend e front_admin com a mesma rede Docker.
 
-1. Instale as dependências locais:
+1 - Instale as dependências locais:
 
 ```bash
 npm install
 ```
 
-2. Crie o `.env` da raiz a partir do exemplo versionado:
+2 - Crie o `.env` da raiz a partir do exemplo versionado:
 
 ```bash
 cp .env.example .env
@@ -102,7 +113,7 @@ No Windows PowerShell:
 Copy-Item .env.example .env
 ```
 
-3. Crie a rede Docker compartilhada, se ela ainda não existir:
+3 - Crie a rede Docker compartilhada, se ela ainda não existir:
 
 ```bash
 docker network create vagas-net
@@ -110,19 +121,19 @@ docker network create vagas-net
 
 Se a rede já existir, o Docker vai avisar e você pode seguir para o próximo passo.
 
-4. Suba Postgres, Valkey, scraper, backend, frontend e front_admin:
+4 - Suba Postgres, Valkey, scraper, backend, frontend e front_admin:
 
 ```bash
 docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml up --build -d
 ```
 
-5. Acesse os serviços:
+5 - Acesse os serviços:
 
-- Frontend: http://localhost:5173
-- Front admin: http://localhost:5174
-- Backend health: http://localhost:3001/health
-- Scraper health: http://localhost:8081/health
-- Vagas salvas no scraper: http://localhost:8081/admin/jobs/count
+- Frontend: <http://localhost:5173>
+- Front admin: <http://localhost:5174>
+- Backend health: <http://localhost:3001/health>
+- Scraper health: <http://localhost:8081/health>
+- Vagas salvas no scraper: <http://localhost:8081/admin/jobs/count>
 
 ### Desenvolvimento com Node local
 
@@ -269,6 +280,7 @@ Usuários:
 Jobs:
 
 - GET /jobs/search
+  - Busca vagas nos índices do Valkey e aceita filtros por `keywords`, `family`, `technology`, `seniority`, `level`, `location`, `country`, `type`/`model`, `contract` e ordenação por `matchSort`.
 
 Keywords:
 
@@ -357,17 +369,17 @@ Por isso o `docker-compose.yml` e o `docker-compose.migrate.yml` sobrescrevem va
 
 Serviços padrão:
 
-- Frontend: http://localhost:5173
-- Front admin: http://localhost:5174
-- Backend: http://localhost:3001
-- Scraper Go: http://localhost:8081
+- Frontend: <http://localhost:5173>
+- Front admin: <http://localhost:5174>
+- Backend: <http://localhost:3001>
+- Scraper Go: <http://localhost:8081>
 
 Endpoints úteis do scraper:
 
-- Health: http://localhost:8081/health
-- Status da execução: http://localhost:8081/admin/scrape/status
-- Contagem de vagas salvas: http://localhost:8081/admin/jobs/count
-- Lista de vagas salvas: http://localhost:8081/admin/jobs
+- Health: <http://localhost:8081/health>
+- Status da execução: <http://localhost:8081/admin/scrape/status>
+- Contagem de vagas salvas: <http://localhost:8081/admin/jobs/count>
+- Lista de vagas salvas: <http://localhost:8081/admin/jobs>
 
 ## Desktop com Electron
 
@@ -428,6 +440,17 @@ Variáveis centrais de operação:
 - WAIT_BETWEEN_SEARCHES_MS
 - PAGE_TIMEOUT_MS
 - MAX_PAGES_PER_KEYWORD
+- LINKEDIN_KEYWORD_SLOT_SIZE
+- ADZUNA_KEYWORD_SLOT_SIZE
+- GUPY_ENABLED
+- GUPY_RAW_DISCOVERY_ENABLED
+- GUPY_FULL_SWEEP_ENABLED
+- GUPY_FULL_REMOTE_SWEEP_ENABLED
+- GUPY_QUERY_LIMIT
+- INHIRE_ENABLED
+- INHIRE_ENRICH_DETAILS
+- GREENHOUSE_ENABLED
+- LEVER_ENABLED
 - CACHE_TTL_MS
 - VITE_API_BASE_URL
 - VITE_API_URL
@@ -439,6 +462,11 @@ Segurança operacional:
 - Nunca versionar segredos reais no Git.
 - Preferir acesso interno para banco/cache em VPS.
 - Em ambiente externo, usar TLS para conexões de dados sempre que possível.
+
+Observação operacional do scraper:
+
+- O padrão atual privilegia resposta rápida e estabilidade. LinkedIn e Adzuna usam slots rotativos de keywords por execução, e Gupy limita a quantidade de queries expandidas por rodada. Isso reduz cobertura imediata por execução, mas evita milhares de requests em uma única rodada e distribui a coleta ao longo das próximas execuções.
+- `tools/` e `data/` são ignorados pelo Git. Scripts versionados não devem depender de arquivos nessas pastas, a menos que sejam tratados como utilitários locais opcionais.
 
 ## Testes e qualidade
 
@@ -486,7 +514,7 @@ Observação: o painel admin já possui testes e build próprios, mas ainda deve
 
 Padrão oficial:
 
-1. Abrir card no Linear: https://linear.app/tatame/team/PAV/all
+1. Abrir card no Linear: <https://linear.app/tatame/team/PAV/all>
 2. Criar branch de feature a partir de master
 3. Desenvolver e testar localmente
 4. Abrir PR da feature para develop
@@ -496,7 +524,7 @@ Padrão oficial:
 
 Convenção recomendada de branch:
 
-- feature/<id-do-card>-<descricao-curta>
+- feature/{id-do-card}-{descricao-curta}
 
 ## Git Hooks e qualidade local
 
@@ -526,8 +554,6 @@ Observação importante:
 
 - CI continua obrigatório e independente de hooks locais. Mesmo com bypass local, o pipeline valida cobertura/lint/build antes de merge.
 
-
-
 ## Roadmap técnico sugerido
 
 ### DX e onboarding
@@ -535,7 +561,6 @@ Observação importante:
 - Adicionar script único de bootstrap (exemplo: npm run setup:dev) para criar .env e validar pré-requisitos.
 - Adicionar verificação automática de scripts quebrados no CI.
 - Padronizar comandos cross-platform (evitar dependência de sintaxe de variável de ambiente Unix em scripts críticos).
-
 
 ### Segurança
 

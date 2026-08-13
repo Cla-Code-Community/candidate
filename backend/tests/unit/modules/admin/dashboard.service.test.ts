@@ -106,6 +106,7 @@ describe("DashboardService", () => {
       running: false,
       jobsCollected: 5,
     });
+    scrapersService.getJobsCount.mockRejectedValueOnce(new Error("down"));
 
     const service = new DashboardService(
       repository as any,

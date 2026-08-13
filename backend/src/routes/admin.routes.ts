@@ -47,6 +47,11 @@ router.post(
   requirePermission("scrapers", "trigger"),
   scrapersCtrl.trigger.bind(scrapersCtrl),
 );
+router.post(
+  "/scrapers/:id/run",
+  requirePermission("scrapers", "trigger"),
+  scrapersCtrl.triggerOne.bind(scrapersCtrl),
+);
 
 router.get(
   "/observability/metrics",

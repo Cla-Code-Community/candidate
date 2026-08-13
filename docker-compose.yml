@@ -11,6 +11,21 @@ services:
     environment:
       - GO_SCRAPER_ADDR=:8081
       - VALKEY_URL=redis://valkey:6379/0
+      - GUPY_ENABLED=${GUPY_ENABLED:-true}
+      - GUPY_RAW_DISCOVERY_ENABLED=${GUPY_RAW_DISCOVERY_ENABLED:-true}
+      - GUPY_FULL_SWEEP_ENABLED=${GUPY_FULL_SWEEP_ENABLED:-true}
+      - GUPY_FULL_REMOTE_SWEEP_ENABLED=${GUPY_FULL_REMOTE_SWEEP_ENABLED:-true}
+      - INHIRE_ENABLED=${INHIRE_ENABLED:-true}
+      - INHIRE_TENANTS_FILE=/app/internal/interfaces/inhireTenants.json
+      - INHIRE_ENRICH_DETAILS=${INHIRE_ENRICH_DETAILS:-false}
+      - INHIRE_DETAILS_MODE=${INHIRE_DETAILS_MODE:-ambiguous}
+      - INHIRE_DETAILS_CONCURRENCY=${INHIRE_DETAILS_CONCURRENCY:-8}
+      - INHIRE_DETAILS_TIMEOUT_MS=${INHIRE_DETAILS_TIMEOUT_MS:-10000}
+      - GREENHOUSE_ENABLED=${GREENHOUSE_ENABLED:-true}
+      - GREENHOUSE_COMPANIES_FILE=/app/internal/interfaces/greenhouseCompanies.json
+      - LEVER_ENABLED=${LEVER_ENABLED:-false}
+      - LEVER_COMPANIES_FILE=/app/internal/interfaces/leverCompanies.json
+      - LEVER_INCLUDE_ALL_JOBS=${LEVER_INCLUDE_ALL_JOBS:-true}
     ports:
       - "8081:8081"
     healthcheck:

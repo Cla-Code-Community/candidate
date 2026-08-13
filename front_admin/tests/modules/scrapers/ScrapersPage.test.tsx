@@ -62,12 +62,11 @@ const scraperState = {
   isLoading: false,
   isRefreshing: false,
   isStarting: false,
+  startingScraperId: null,
   isClearingJobsCache: false,
   error: null,
   refresh: vi.fn(),
   toggleScraper: vi.fn(),
-  startAll: vi.fn(),
-  pauseAll: vi.fn(),
   clearJobsCache: vi.fn(),
   clearLogs: vi.fn(),
   refreshIntervalMs: 15_000,
@@ -106,14 +105,12 @@ describe("ScrapersPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Recarregar dados" }));
     fireEvent.click(screen.getByRole("button", { name: /limpar cache de vagas/i }));
-    fireEvent.click(screen.getByRole("button", { name: /iniciar todos/i }));
-    fireEvent.click(screen.getByRole("button", { name: /pausar todos/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
     fireEvent.click(screen.getByRole("button", { name: /limpar logs/i }));
 
     expect(scraperState.refresh).toHaveBeenCalledTimes(1);
     expect(scraperState.clearJobsCache).toHaveBeenCalledTimes(1);
-    expect(scraperState.startAll).toHaveBeenCalledTimes(1);
-    expect(scraperState.pauseAll).toHaveBeenCalledTimes(1);
+    expect(scraperState.toggleScraper).toHaveBeenCalledWith("lever");
     expect(scraperState.clearLogs).toHaveBeenCalledTimes(1);
   });
 

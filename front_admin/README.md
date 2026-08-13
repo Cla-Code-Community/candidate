@@ -1,6 +1,6 @@
 # Front Admin
 
-Painel administrativo do <Cand!date!>, separado da experiência principal para reduzir atrito no onboarding de contribuidores.
+Painel administrativo do Cand!Date!, separado da experiência principal para reduzir atrito no onboarding de contribuidores.
 
 Use este workspace quando a tarefa envolver operação da plataforma, gestão de usuários, permissões, scrapers, auditoria, observabilidade ou configurações administrativas.
 
@@ -34,7 +34,7 @@ Para executar apenas o painel:
 npm run dev --workspace=front_admin
 ```
 
-Quando executado junto com o frontend principal, use a porta http://localhost:5174 para o admin.
+Quando executado junto com o frontend principal, use a porta <http://localhost:5174> para o admin.
 
 ## Variáveis de ambiente
 
@@ -78,6 +78,10 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
 - `/observability`: saúde da plataforma.
 - `/audit`: auditoria.
 - `/settings`: configurações.
+
+## Scrapers e Observabilidade
+
+O painel consome as rotas administrativas do backend para disparar o scraper completo ou uma fonte conhecida, consultar status, exibir contagem de vagas coletadas e mostrar dashboards de métricas. A fonte `go-scraper` é a integração operacional atual para execução manual.
 
 ## Comandos
 

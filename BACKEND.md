@@ -63,7 +63,7 @@ Módulos principais:
 - `src/modules/users` — perfis e preferências do usuário (`UsersController`, `UsersService`).
 - `src/modules/savedJobs` — CRUD de vagas salvas (`SavedJobsController`, `SavedJobsService`).
 - `src/modules/notifications` — notificações do usuário autenticado.
-- `src/modules/jobs` — regras de matching/score de vagas.
+- `src/modules/jobs` — busca, parsing de filtros, fallback pós-filtro e regras de matching/score de vagas.
 - `src/modules/admin` — usuários admin, permissões, scrapers, auditoria, dashboard e observabilidade.
 
 Adaptadores externos:
@@ -81,8 +81,9 @@ Database / Schemas (Drizzle):
 
 Cache & Indexes:
 
-- `src/lib/cache.ts` — helpers para Redis/Valkey; usado por `jobs.routes` para obter ids e buscar vagas em memória.
+- `src/lib/cache.ts` — helpers para Redis/Valkey; usado pelo módulo de jobs para obter ids e buscar vagas em memória.
 - Busca por palavras-chave usa índices invertidos e interseção para eficiência.
+- Filtros estruturados podem usar índices por família (`family`), tecnologia (`technology`), senioridade (`seniority`), localização, modelo e contrato.
 
 ## Middlewares
 
@@ -122,6 +123,7 @@ Base: `/`
 
 - Jobs
   - `GET /jobs/search?keywords=...` — busca vagas utilizando índices/Valkey/Redis. Retorna paginação e fonte (`source`).
+  - Filtros aceitos incluem `keywords`, `family`, `technology`, `seniority`, `level`, `location`, `country`, `state`, `city`, `type`/`model`, `contract`/`contractType`/`jobTypes` e `matchSort`.
 
 - Keywords
   - `GET /keywords` — lista keywords persistidas no banco.
@@ -190,6 +192,7 @@ Definidas/consumidas em `src/config.ts` e outros módulos:
 
 - `goScraper.ts` faz POST em `${GO_SCRAPER_URL}/scrape` com `ScrapeParams` e valida `ScrapeResponse`.
 - `goKeywords.ts` consulta e publica keywords via endpoints do serviço Go (`/api/keywords`).
+- O backend lê os índices criados pelo scraper no Valkey, incluindo `scraper:jobs:keyword:*`, `scraper:jobs:family:*`, `scraper:jobs:technology:*` e `scraper:jobs:seniority:*`.
 
 ## Banco de dados
 

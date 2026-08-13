@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { createClient, type RedisClientType } from "redis";
 import { logger } from "../logger";
+import { cacheOperationsTotal } from "../metrics/metrics";
 
 export const TTL = {
   PROFILE: 60 * 60, // 1 hora
@@ -46,15 +47,29 @@ function key(suffix: string): string {
   return `${NS}${suffix}`;
 }
 
+function recordCacheOperation(operation: string, result: string): void {
+  cacheOperationsTotal.inc({ operation, result });
+}
+
 export async function cacheGet<T>(suffix: string): Promise<T | null> {
   const client = await getCache();
-  const raw = await client.get(key(suffix));
-  if (!raw) return null;
-
   try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return raw as unknown as T;
+    const raw = await client.get(key(suffix));
+    if (!raw) {
+      recordCacheOperation("get", "miss");
+      return null;
+    }
+
+    recordCacheOperation("get", "hit");
+
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return raw as unknown as T;
+    }
+  } catch (error) {
+    recordCacheOperation("get", "error");
+    throw error;
   }
 }
 
@@ -66,16 +81,28 @@ export async function cacheSet(
   const client = await getCache();
   const serialized = typeof value === "string" ? value : JSON.stringify(value);
 
-  if (ttlSeconds > 0) {
-    await client.set(key(suffix), serialized, { EX: ttlSeconds });
-  } else {
-    await client.set(key(suffix), serialized);
+  try {
+    if (ttlSeconds > 0) {
+      await client.set(key(suffix), serialized, { EX: ttlSeconds });
+    } else {
+      await client.set(key(suffix), serialized);
+    }
+    recordCacheOperation("set", "ok");
+  } catch (error) {
+    recordCacheOperation("set", "error");
+    throw error;
   }
 }
 
 export async function cacheDel(suffix: string): Promise<void> {
   const client = await getCache();
-  await client.del(key(suffix));
+  try {
+    await client.del(key(suffix));
+    recordCacheOperation("delete", "ok");
+  } catch (error) {
+    recordCacheOperation("delete", "error");
+    throw error;
+  }
 }
 
 export async function invalidateUser(userId: string): Promise<void> {
@@ -92,12 +119,26 @@ export async function cacheAbsoluteSMembers(
   absoluteKey: string,
 ): Promise<string[]> {
   const client = await getCache();
-  return await client.sMembers(absoluteKey);
+  try {
+    const result = await client.sMembers(absoluteKey);
+    recordCacheOperation("smembers", result.length > 0 ? "hit" : "miss");
+    return result;
+  } catch (error) {
+    recordCacheOperation("smembers", "error");
+    throw error;
+  }
 }
 
 export async function cacheAbsoluteSCard(absoluteKey: string): Promise<number> {
   const client = await getCache();
-  return await client.sCard(absoluteKey);
+  try {
+    const result = await client.sCard(absoluteKey);
+    recordCacheOperation("scard", "ok");
+    return result;
+  } catch (error) {
+    recordCacheOperation("scard", "error");
+    throw error;
+  }
 }
 
 /**
@@ -115,11 +156,20 @@ export async function cacheSearchKeywords(
 
   const keys = keywordSearchKeys(keywords);
 
-  if (keys.length === 0) return [];
-  if (keys.length === 1) return await client.sMembers(keys[0]);
+  if (keys.length === 0) {
+    recordCacheOperation("search_keywords", "miss");
+    return [];
+  }
 
-  // SUNION → vagas que têm QUALQUER uma das keywords (OU)
-  return await client.sUnion(keys);
+  try {
+    const result =
+      keys.length === 1 ? await client.sMembers(keys[0]) : await client.sUnion(keys);
+    recordCacheOperation("search_keywords", result.length > 0 ? "hit" : "miss");
+    return result;
+  } catch (error) {
+    recordCacheOperation("search_keywords", "error");
+    throw error;
+  }
 }
 
 function normalizeIndexValue(value: string): string {
@@ -180,7 +230,11 @@ function keywordIndexKeyVariants(keyword: string): string[] {
     if (term) variants.add(term);
   }
 
-  return [...variants].map((value) => `scraper:jobs:keyword:${value}`);
+  return [...variants].flatMap((value) => [
+    `scraper:jobs:keyword:${value}`,
+    `scraper:jobs:technology:${value}`,
+    `scraper:jobs:family:${value}`,
+  ]);
 }
 
 function keywordSearchKeys(keywords: string[]): string[] {
@@ -191,6 +245,9 @@ function keywordSearchKeys(keywords: string[]): string[] {
 
 export type CacheJobIndexFilters = {
   keywords?: string[];
+  family?: string | string[];
+  technology?: string | string[];
+  seniority?: string;
   level?: string;
   location?: string;
   continent?: string;
@@ -226,6 +283,9 @@ function cacheJobIndexKey(kind: string, value: string): string {
 
 function cacheJobIndexKeyGroups(filters: CacheJobIndexFilters): string[][] {
   const entries: Array<[string, string | string[] | undefined]> = [
+    ["family", filters.family],
+    ["technology", filters.technology],
+    ["seniority", filters.seniority],
     ["level", filters.level],
     ["location", filters.location],
     ["continent", filters.continent],
@@ -269,19 +329,30 @@ export async function cacheSearchJobIds(
   );
 
   try {
+    let result: string[];
     if (keywordKeys.length === 0 && filterKeys.length === 0) {
-      return await client.sMembers("scraper:jobs:index");
+      result = await client.sMembers("scraper:jobs:index");
+      recordCacheOperation("search_jobs", result.length > 0 ? "hit" : "miss");
+      return result;
     }
 
     if (keywordKeys.length === 0) {
-      if (filterKeys.length === 1) return await client.sMembers(filterKeys[0]);
-      return (await client.sendCommand(["SINTER", ...filterKeys])) as string[];
+      result =
+        filterKeys.length === 1
+          ? await client.sMembers(filterKeys[0])
+          : ((await client.sendCommand(["SINTER", ...filterKeys])) as string[]);
+      recordCacheOperation("search_jobs", result.length > 0 ? "hit" : "miss");
+      return result;
     }
 
     if (keywordKeys.length === 1) {
       const keys = [keywordKeys[0], ...filterKeys];
-      if (keys.length === 1) return await client.sMembers(keys[0]);
-      return (await client.sendCommand(["SINTER", ...keys])) as string[];
+      result =
+        keys.length === 1
+          ? await client.sMembers(keys[0])
+          : ((await client.sendCommand(["SINTER", ...keys])) as string[]);
+      recordCacheOperation("search_jobs", result.length > 0 ? "hit" : "miss");
+      return result;
     }
 
     const tempKey = `scraper:jobs:search:${randomUUID()}`;
@@ -291,8 +362,15 @@ export async function cacheSearchJobIds(
     await client.expire(tempKey, 30);
 
     const keys = [tempKey, ...filterKeys];
-    if (keys.length === 1) return await client.sMembers(keys[0]);
-    return (await client.sendCommand(["SINTER", ...keys])) as string[];
+    result =
+      keys.length === 1
+        ? await client.sMembers(keys[0])
+        : ((await client.sendCommand(["SINTER", ...keys])) as string[]);
+    recordCacheOperation("search_jobs", result.length > 0 ? "hit" : "miss");
+    return result;
+  } catch (error) {
+    recordCacheOperation("search_jobs", "error");
+    throw error;
   } finally {
     await Promise.all(tempKeys.map((key) => client.del(key)));
   }
@@ -304,9 +382,15 @@ export async function cacheGetJobsByIds(ids: string[]): Promise<unknown[]> {
   if (ids.length === 0) return [];
 
   const keys = ids.map((id) => `scraper:job:${id}`);
-  const results = await client.mGet(keys);
+  let results: Array<string | null>;
+  try {
+    results = await client.mGet(keys);
+  } catch (error) {
+    recordCacheOperation("mget_jobs", "error");
+    throw error;
+  }
 
-  return results
+  const jobs = results
     .filter((raw): raw is string => raw !== null)
     .map((raw) => {
       try {
@@ -316,6 +400,9 @@ export async function cacheGetJobsByIds(ids: string[]): Promise<unknown[]> {
       }
     })
     .filter(Boolean);
+
+  recordCacheOperation("mget_jobs", jobs.length > 0 ? "hit" : "miss");
+  return jobs;
 }
 
 async function cacheDeleteByPattern(pattern: string): Promise<number> {
@@ -359,5 +446,12 @@ export async function cacheClearJobs(): Promise<{
 
 export async function cachePing(): Promise<string> {
   const client = await getCache();
-  return await client.ping();
+  try {
+    const result = await client.ping();
+    recordCacheOperation("ping", "ok");
+    return result;
+  } catch (error) {
+    recordCacheOperation("ping", "error");
+    throw error;
+  }
 }

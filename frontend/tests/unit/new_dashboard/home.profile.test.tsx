@@ -15,6 +15,13 @@ import type { ReactElement } from "react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+function currentChecklistMonth() {
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+}
+
 function renderWithProfileState(
   ui: (props: {
     userProfile: UserProfile;
@@ -140,7 +147,7 @@ describe("new_dashboard home and profile components", () => {
 
     expect(screen.getByRole("button", { name: /metas/i })).toBeInTheDocument();
     expect(
-      screen.getByText("julho de 2026", { selector: "span" }),
+      screen.getByText(currentChecklistMonth(), { selector: "span" }),
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText(/novo item do checklist/i), {

@@ -19,6 +19,15 @@ import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/domains/new_dashboard/u
 const mockUseAuth = vi.fn();
 const mockUseTheme = vi.fn();
 
+function currentChecklistLabel() {
+  const month = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+
+  return `Checklist de ${month}`;
+}
+
 vi.mock("@/domains/auth/application/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
@@ -284,7 +293,9 @@ describe("new_dashboard branch coverage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /^lista$/i }));
     expect(
-      screen.getByRole("button", { name: /checklist de julho de 2026/i }),
+      screen.getByRole("button", {
+        name: new RegExp(currentChecklistLabel(), "i"),
+      }),
     ).toBeInTheDocument();
 
     fireEvent.change(screen.getByPlaceholderText(/novo item do checklist/i), {
