@@ -63,6 +63,9 @@ export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
       <td className="px-4 py-5 align-middle text-sm text-muted-foreground">
         {job.level}
       </td>
+      <td className="whitespace-nowrap px-4 py-5 align-middle text-sm text-muted-foreground">
+        {job.posted}
+      </td>
       <td className="px-4 py-5 align-middle">
         <span
           className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-700"

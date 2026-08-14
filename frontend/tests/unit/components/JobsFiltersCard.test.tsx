@@ -47,6 +47,19 @@ describe("JobsFiltersCard", () => {
     expect(screen.getByPlaceholderText(/buscar/i)).toHaveValue("");
   });
 
+  it("limita a busca e trunca filtros longos sem perder o conteúdo completo", () => {
+    const longFilter = "a".repeat(100);
+    renderFiltersCard({ keywordFilter: [longFilter] });
+
+    expect(screen.getByPlaceholderText(/buscar/i)).toHaveAttribute(
+      "maxlength",
+      "100",
+    );
+    const filterText = screen.getByText(longFilter);
+    expect(filterText).toHaveClass("truncate");
+    expect(filterText.closest("[title]")).toHaveAttribute("title", longFilter);
+  });
+
   it("renderiza total e area de filtros", () => {
     renderFiltersCard();
 

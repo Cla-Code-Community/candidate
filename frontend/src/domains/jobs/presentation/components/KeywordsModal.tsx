@@ -1,9 +1,18 @@
-import { fetchKeywords, saveKeywords } from "@/domains/jobs/infrastructure/jobsApi";
+import {
+  fetchKeywords,
+  saveKeywords,
+} from "@/domains/jobs/infrastructure/jobsApi";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/shared/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
 
 interface KeywordsModalProps {
@@ -61,7 +70,8 @@ export function KeywordsModal({ onClose }: KeywordsModalProps) {
         <CardHeader>
           <CardTitle>Gerenciar filtros</CardTitle>
           <CardDescription>
-            Adicione ou remova as palavras-chave usadas na busca e nos filtros de vagas.
+            Adicione ou remova as palavras-chave usadas na busca e nos filtros
+            de vagas.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -71,6 +81,7 @@ export function KeywordsModal({ onClose }: KeywordsModalProps) {
               aria-label="Nova keyword ou filtro"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
+              maxLength={100}
               onKeyDown={(e) => e.key === "Enter" && handleAddKeyword()}
             />
             <Button onClick={handleAddKeyword} disabled={isLoading || isSaving}>
@@ -80,14 +91,25 @@ export function KeywordsModal({ onClose }: KeywordsModalProps) {
 
           <div className="flex flex-wrap gap-2 p-4 border rounded-md bg-muted/20">
             {isLoading ? (
-              <p className="text-sm text-muted-foreground italic">Carregando keywords...</p>
+              <p className="text-sm text-muted-foreground italic">
+                Carregando keywords...
+              </p>
             ) : keywords.length === 0 ? (
-              <p className="text-sm text-muted-foreground italic">Nenhuma keyword cadastrada.</p>
+              <p className="text-sm text-muted-foreground italic">
+                Nenhuma keyword cadastrada.
+              </p>
             ) : (
               keywords.map((kw) => (
-                <Badge key={kw} variant="secondary" className="pl-3 pr-1 gap-1">
-                  {kw}
+                <Badge
+                  key={kw}
+                  variant="secondary"
+                  title={kw}
+                  className="max-w-full pl-3 pr-1 gap-1"
+                >
+                  <span className="max-w-72 truncate">{kw}</span>
                   <button
+                    type="button"
+                    aria-label={`Remover keyword ${kw}`}
                     onClick={() => handleRemoveKeyword(kw)}
                     className="hover:bg-red-500/50 rounded-full p-0.5"
                   >

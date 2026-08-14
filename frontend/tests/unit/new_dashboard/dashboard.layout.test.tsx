@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DashboardTab } from "@/domains/new_dashboard/components/dashboard/DashboardTab";
 import { KanbanBoard } from "@/domains/new_dashboard/components/dashboard/KanbanBoard";
 import { CandidateLogo } from "@/domains/new_dashboard/components/shared/CandidateLogo";
 import { Header } from "@/domains/new_dashboard/components/layout/Header";
+import { MobileTabBar } from "@/domains/new_dashboard/components/layout/MobileTabBar";
 import { Sidebar } from "@/domains/new_dashboard/components/layout/Sidebar";
 import { ThemeToggle } from "@/domains/new_dashboard/components/layout/ThemeToggle";
 import type { Job } from "@/domains/new_dashboard/types";
@@ -176,5 +177,21 @@ describe("new_dashboard dashboard and layout components", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /sair/i }));
     expect(logout).toHaveBeenCalledTimes(1);
+  });
+
+  it("renderiza a navegação mobile e destaca a aba ativa", () => {
+    renderWithRouter(<MobileTabBar />, "/vagas");
+
+    const navigation = screen.getByRole("navigation", {
+      name: /navegação principal mobile/i,
+    });
+    const activeLink = within(navigation).getByRole("link", { name: /vagas/i });
+
+    expect(within(navigation).getAllByRole("link")).toHaveLength(4);
+    expect(activeLink).toHaveAttribute("aria-current", "page");
+    expect(within(navigation).getByRole("link", { name: /início/i })).toHaveAttribute(
+      "href",
+      "/home",
+    );
   });
 });

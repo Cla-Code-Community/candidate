@@ -67,6 +67,38 @@ describe("useJobsData extended", () => {
     expect(result.current.error).toBe("falha jobs");
   });
 
+  it("aplica os metadados padrão quando a API retorna payload parcial", async () => {
+    mocks.fetchJobsByAPIMock.mockResolvedValueOnce({});
+
+    const { result } = renderHook(() => useJobsData(3, 10));
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+      expect(result.current.meta).toEqual({
+        total: 0,
+        hasNext: false,
+        hasPrev: false,
+        page: 3,
+        limit: 10,
+        totalPages: 0,
+      });
+    });
+
+    expect(result.current.jobs).toEqual([]);
+  });
+
+  it("usa mensagem padrão quando carregar vagas rejeita sem Error", async () => {
+    mocks.fetchJobsByAPIMock.mockRejectedValueOnce("offline");
+
+    const { result } = renderHook(() => useJobsData());
+
+    await waitFor(() => {
+      expect(result.current.error).toBe(
+        "Erro inesperado ao carregar vagas.",
+      );
+    });
+  });
+
   it("triggerScraper carrega jobs após executar request", async () => {
     const { result } = renderHook(() => useJobsData());
 
@@ -76,6 +108,25 @@ describe("useJobsData extended", () => {
 
     expect(mocks.runScraperRequestMock).toHaveBeenCalled();
     expect(mocks.fetchJobsByAPIMock).toHaveBeenCalled();
+    expect(result.current.scraping).toBe(false);
+  });
+
+  it("usa mensagem padrão quando o scraper rejeita sem Error", async () => {
+    mocks.runScraperRequestMock.mockRejectedValueOnce("indisponível");
+
+    const { result } = renderHook(() => useJobsData());
+
+    await waitFor(() => {
+      expect(result.current.loading).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.triggerScraper();
+    });
+
+    expect(result.current.error).toBe(
+      "Erro inesperado ao executar o scraper.",
+    );
     expect(result.current.scraping).toBe(false);
   });
 });

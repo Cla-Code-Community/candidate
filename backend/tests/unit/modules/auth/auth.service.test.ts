@@ -4,6 +4,13 @@ const mocks = vi.hoisted(() => ({
   getAuthUrl: vi.fn(),
   exchangeCode: vi.fn(),
   findOrCreateUser: vi.fn(),
+  sendWelcome: vi.fn(),
+}));
+
+vi.mock("../../../../src/modules/email/email.service", () => ({
+  emailService: {
+    sendWelcome: mocks.sendWelcome,
+  },
 }));
 
 vi.mock("../../../../src/modules/auth/providers/auth.provider", () => ({
@@ -113,7 +120,51 @@ describe("AuthService", () => {
   describe("handleCallback", () => {
     it("returns user and session on success", async () => {
       mocks.exchangeCode.mockResolvedValueOnce(mockProfile);
-      mocks.findOrCreateUser.mockResolvedValueOnce(mockUser);
+      mocks.findOrCreateUser.mockResolvedValueOnce({
+        user: mockUser,
+        isNewUser: false,
+      });
+
+      const result = await service.handleCallback(validCallbackParams);
+
+      expect(result.user).toEqual(mockUser);
+      expect(result.session).toEqual({ userId: "uuid-123", role: "user" });
+    });
+
+    it("enfileira boas-vindas quando é o primeiro login social (usuário novo)", async () => {
+      mocks.exchangeCode.mockResolvedValueOnce(mockProfile);
+      mocks.findOrCreateUser.mockResolvedValueOnce({
+        user: mockUser,
+        isNewUser: true,
+      });
+
+      await service.handleCallback(validCallbackParams);
+
+      expect(mocks.sendWelcome).toHaveBeenCalledWith({
+        email: mockUser.email,
+        name: mockUser.username,
+      });
+    });
+
+    it("não enfileira boas-vindas quando o usuário já existia (relogin/vínculo)", async () => {
+      mocks.exchangeCode.mockResolvedValueOnce(mockProfile);
+      mocks.findOrCreateUser.mockResolvedValueOnce({
+        user: mockUser,
+        isNewUser: false,
+      });
+
+      await service.handleCallback(validCallbackParams);
+
+      expect(mocks.sendWelcome).not.toHaveBeenCalled();
+    });
+
+    it("conclui o login mesmo se o envio de boas-vindas falhar", async () => {
+      mocks.exchangeCode.mockResolvedValueOnce(mockProfile);
+      mocks.findOrCreateUser.mockResolvedValueOnce({
+        user: mockUser,
+        isNewUser: true,
+      });
+      mocks.sendWelcome.mockRejectedValueOnce(new Error("valkey down"));
 
       const result = await service.handleCallback(validCallbackParams);
 
@@ -153,7 +204,10 @@ describe("AuthService", () => {
 
     it("calls findOrCreateUser with provider and profile", async () => {
       mocks.exchangeCode.mockResolvedValueOnce(mockProfile);
-      mocks.findOrCreateUser.mockResolvedValueOnce(mockUser);
+      mocks.findOrCreateUser.mockResolvedValueOnce({
+        user: mockUser,
+        isNewUser: false,
+      });
 
       await service.handleCallback(validCallbackParams);
 

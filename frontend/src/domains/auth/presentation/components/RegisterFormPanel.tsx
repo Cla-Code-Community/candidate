@@ -1,9 +1,10 @@
+import { useTheme } from "@/shared/hooks/useTheme";
+import { ThemeToggle } from "@/shared/ui/theme-toggle";
 import { Image } from "@unpic/react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { FormEvent, useState } from "react";
-import PhoneInput from "react-phone-number-input";
-import "react-phone-number-input/style.css";
+
 import {
   getGithubAuthUrl,
   getGoogleAuthUrl,
@@ -29,6 +30,139 @@ const LEVEL_OPTIONS = [
   { value: "pleno", label: "Pleno" },
   { value: "senior", label: "Sênior" },
 ];
+
+const REGISTER_LIMITS = {
+  name: 100,
+  email: 254,
+  phoneDigitsWithCountryCode: 13,
+  phoneDigitsMobileWithoutCountryCode: 11,
+  phoneDigitsLandlineWithoutCountryCode: 10,
+  phoneInput: 19,
+  password: 128,
+  cpf: 14,
+} as const;
+
+const PHONE_ALLOWED_CHARS_REGEX = /^[0-9+()\s-]*$/;
+const BRAZIL_MOBILE_PHONE_REGEX = /^(?:\+55)?[1-9]{2}9\d{8}$/;
+const BRAZIL_LANDLINE_PHONE_REGEX = /^(?:\+55)?[1-9]{2}[2-8]\d{7}$/;
+
+function formatBrazilianPhoneFromDigits(digits: string) {
+  const ddd = digits.slice(0, 2);
+  const subscriber = digits.slice(2);
+
+  if (digits.length <= 2) return `(${ddd}`;
+
+  const isMobile = digits.length === 11 || subscriber.startsWith("9");
+  if (isMobile) {
+    if (subscriber.length <= 5) return `(${ddd}) ${subscriber}`;
+    return `(${ddd}) ${subscriber.slice(0, 5)}-${subscriber.slice(5, 9)}`;
+  }
+
+  if (subscriber.length <= 4) return `(${ddd}) ${subscriber}`;
+  return `(${ddd}) ${subscriber.slice(0, 4)}-${subscriber.slice(4, 8)}`;
+}
+
+function normalizePhoneInput(rawValue: string) {
+  const trimmed = rawValue.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  const hasExplicitPlus = trimmed.startsWith("+");
+
+  if (hasExplicitPlus && !digits.startsWith("55")) {
+    return {
+      masked: `+${digits.slice(0, REGISTER_LIMITS.phoneDigitsWithCountryCode)}`,
+    };
+  }
+
+  const inferredCountryCode =
+    hasExplicitPlus || (digits.startsWith("55") && digits.length > 11);
+
+  let nationalDigits = inferredCountryCode ? digits.slice(2) : digits;
+  const defaultMaxDigits =
+    nationalDigits[2] === "9"
+      ? REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode
+      : REGISTER_LIMITS.phoneDigitsLandlineWithoutCountryCode;
+
+  const maxNationalDigits = Math.min(
+    defaultMaxDigits,
+    REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode,
+  );
+
+  nationalDigits = nationalDigits.slice(0, maxNationalDigits);
+  const maskedNational = nationalDigits
+    ? formatBrazilianPhoneFromDigits(nationalDigits)
+    : "";
+
+  return {
+    masked: inferredCountryCode
+      ? `+55${maskedNational ? ` ${maskedNational}` : ""}`
+      : maskedNational,
+  };
+}
+
+function sanitizePhoneForValidation(value: string) {
+  const trimmed = value.trim();
+  const plusCount = (trimmed.match(/\+/g) || []).length;
+
+  if (!PHONE_ALLOWED_CHARS_REGEX.test(trimmed)) {
+    return { valid: false as const };
+  }
+
+  if (plusCount > 1 || (plusCount === 1 && !trimmed.startsWith("+"))) {
+    return { valid: false as const };
+  }
+
+  const compact = trimmed.replace(/[\s()-]/g, "");
+  if (/[^\d+]/.test(compact)) {
+    return { valid: false as const };
+  }
+
+  const hasCountryCode = compact.startsWith("+");
+  if (hasCountryCode && !compact.startsWith("+55")) {
+    return { valid: false as const };
+  }
+
+  if (hasCountryCode && !/^\+55\d+$/.test(compact)) {
+    return { valid: false as const };
+  }
+
+  const digitsOnly = compact.replace(/\D/g, "");
+  const nationalDigits = hasCountryCode ? digitsOnly.slice(2) : digitsOnly;
+  const isMobileLength =
+    nationalDigits.length === REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode;
+  const isLandlineLength =
+    nationalDigits.length ===
+    REGISTER_LIMITS.phoneDigitsLandlineWithoutCountryCode;
+
+  if (!isMobileLength && !isLandlineLength) {
+    return { valid: false as const };
+  }
+
+  if (
+    hasCountryCode &&
+    digitsOnly.length !== REGISTER_LIMITS.phoneDigitsWithCountryCode &&
+    digitsOnly.length !== REGISTER_LIMITS.phoneDigitsWithCountryCode - 1
+  ) {
+    return { valid: false as const };
+  }
+
+  const ddd = nationalDigits.slice(0, 2);
+  if (!/^[1-9]{2}$/.test(ddd)) {
+    return { valid: false as const };
+  }
+
+  const candidate = hasCountryCode ? `+55${nationalDigits}` : nationalDigits;
+  const isValidMobile = BRAZIL_MOBILE_PHONE_REGEX.test(candidate);
+  const isValidLandline = BRAZIL_LANDLINE_PHONE_REGEX.test(candidate);
+
+  if (!isValidMobile && !isValidLandline) {
+    return { valid: false as const };
+  }
+
+  return {
+    valid: true as const,
+    payload: hasCountryCode ? `+55${nationalDigits}` : nationalDigits,
+  };
+}
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
@@ -80,7 +214,9 @@ export default function RegisterSide() {
   const [levelError, setLevelError] = useState("");
 
   const [isLoading, setIsLoading] = useState(false);
-  const [apiError, setApiError] = useState("");
+  const [apiError, setApiError] = useState("");  
+  const { resolvedTheme, toggleTheme } = useTheme();
+  
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
@@ -117,6 +253,34 @@ export default function RegisterSide() {
   };
 
   const handleRevealPassword = () => setShowPassword((prev) => !prev);
+
+  const handlePhoneChange = (rawValue: string) => {
+    const typed = rawValue ?? "";
+    if (typed && !PHONE_ALLOWED_CHARS_REGEX.test(typed)) {
+      return;
+    }
+
+    const digits = typed.replace(/\D/g, "");
+    const trimmed = typed.trim();
+    const hasCountryCode =
+      trimmed.startsWith("+") || (digits.startsWith("55") && digits.length > 11);
+    const nationalDigits = hasCountryCode ? digits.slice(2) : digits;
+    const maxNationalDigits =
+      nationalDigits[2] === "9"
+        ? REGISTER_LIMITS.phoneDigitsMobileWithoutCountryCode
+        : REGISTER_LIMITS.phoneDigitsLandlineWithoutCountryCode;
+    const maxTotalDigits = hasCountryCode ? 2 + maxNationalDigits : maxNationalDigits;
+
+    if (digits.length > maxTotalDigits) {
+      return;
+    }
+
+    const normalized = normalizePhoneInput(typed);
+    setTelefone(normalized.masked);
+    if (telefoneError) {
+      setTelefoneError("");
+    }
+  };
 
   const formatCpf = (value: string) => {
     const digits = value.replace(/\D/g, "").slice(0, 11);
@@ -155,16 +319,23 @@ export default function RegisterSide() {
       }
     }
 
-    if (!telefone) {
-      setTelefoneError("O campo de telefone é obrigatório.");
-      isValid = false;
+    const normalizedPhone = (telefone ?? "").trim();
+    let phoneToSend: string | undefined;
+    if (normalizedPhone) {
+      const parsedPhone = sanitizePhoneForValidation(normalizedPhone);
+      if (!parsedPhone.valid) {
+        setTelefoneError("Informe um telefone brasileiro válido.");
+        isValid = false;
+      } else {
+        phoneToSend = parsedPhone.payload;
+      }
     }
 
     if (!password) {
       setPasswordError("O campo de senha é obrigatório.");
       isValid = false;
-    } else if (password.length < 6) {
-      setPasswordError("A senha precisa conter pelo menos 6 caracteres.");
+    } else if (password.length < 8) {
+      setPasswordError("A senha precisa conter pelo menos 8 caracteres.");
       isValid = false;
     }
 
@@ -189,14 +360,16 @@ export default function RegisterSide() {
           email: email,
           password: password,
           name: nome,
-          phone: telefone,
+          phone: phoneToSend,
           cpf: cpf || undefined,
           level,
         });
         window.location.href = "/login?registered=true";
       } catch (error: unknown) {
         console.error("Erro no cadastro:", error);
-        setApiError(getErrorMessage(error, "Erro ao cadastrar. Tente novamente."));
+        setApiError(
+          getErrorMessage(error, "Erro ao cadastrar. Tente novamente."),
+        );
       } finally {
         setIsLoading(false);
       }
@@ -210,7 +383,7 @@ export default function RegisterSide() {
         <StarsBackground />
       </div>
       <div className="relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center gap-8">
-        <div className="w-full self-start">
+        <div className="w-full self-start flex justify-between items-center">
           <a
             href="/login"
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors group"
@@ -218,6 +391,8 @@ export default function RegisterSide() {
             <ArrowLeft className="h-4 w-4 transform group-hover:-translate-x-1 transition-transform" />
             Voltar para o login
           </a>
+
+          <ThemeToggle theme={resolvedTheme} onToggle={toggleTheme} />
         </div>
         <div className="text-center w-full">
           <h2 className="text-5xl sm:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white flex items-center justify-center gap-1 select-none">
@@ -226,15 +401,7 @@ export default function RegisterSide() {
             <span className="text-purple-500">!</span>
             <span className="text-blue-500 font-light">&gt;</span>
           </h2>
-          <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium">
-            Já tem conta?{" "}
-            <a
-              href="/login"
-              className="font-semibold bg-gradient-to-r from-blue-600 to-purple-500 bg-clip-text text-transparent dark:from-blue-400 dark:to-purple-400 underline underline-offset-2 hover:opacity-80 transition-opacity"
-            >
-              Entrar
-            </a>
-          </p>
+         
         </div>
       </div>
       <form
@@ -260,6 +427,7 @@ export default function RegisterSide() {
             type="text"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
+            maxLength={REGISTER_LIMITS.name}
             placeholder="benevanio"
             disabled={isLoading}
             className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${nomeError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -282,6 +450,7 @@ export default function RegisterSide() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            maxLength={REGISTER_LIMITS.email}
             placeholder="benevanio@dev.com.br"
             disabled={isLoading}
             className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${emailError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -294,18 +463,21 @@ export default function RegisterSide() {
         </div>
         <div>
           <label className="block text-sm font-semibold text-gray-700 dark:text-neutral-300 mb-1.5">
-            Telefone
+            Telefone{" "}
+            <span className="text-gray-400 dark:text-neutral-500 text-xs font-normal">
+              (opcional)
+            </span>
           </label>
           <div
             className={`flex rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm shadow-sm overflow-hidden transition-all focus-within:ring-2 ${telefoneError ? "border-red-500 focus-within:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus-within:ring-blue-500"} ${isLoading ? "opacity-50" : ""}`}
           >
-            <PhoneInput
-              international
-              defaultCountry="BR"
-              value={telefone}
-              onChange={setTelefone}
+            <input
+              type="tel"
+              value={telefone ?? ""}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              maxLength={REGISTER_LIMITS.phoneInput}
               disabled={isLoading}
-              className="w-full px-4 py-3.5 text-gray-900 dark:text-white bg-transparent focus:outline-none phone-input-custom"
+              className="w-full px-4 py-3.5 text-gray-900 dark:text-white bg-transparent focus:outline-none"
               placeholder="(34) 23456-7890"
             />
           </div>
@@ -328,6 +500,7 @@ export default function RegisterSide() {
               type={showPassword ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              maxLength={REGISTER_LIMITS.password}
               placeholder="Ex: ••••••••••••"
               disabled={isLoading}
               className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${passwordError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -366,6 +539,7 @@ export default function RegisterSide() {
             type="text"
             value={cpf}
             onChange={(e) => setCpf(formatCpf(e.target.value))}
+            maxLength={REGISTER_LIMITS.cpf}
             placeholder="091.000.000-00"
             disabled={isLoading}
             className={`w-full px-4 py-3.5 rounded-xl border bg-white/80 dark:bg-neutral-800/80 backdrop-blur-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 transition-all shadow-sm ${cpfError ? "border-red-500 focus:ring-red-500" : "border-gray-200 dark:border-neutral-700 focus:ring-blue-500 focus:border-transparent"} ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -408,10 +582,19 @@ export default function RegisterSide() {
           disabled={isLoading}
           whileHover={{ scale: isLoading ? 1 : 1.01 }}
           whileTap={{ scale: isLoading ? 1 : 0.99 }}
-          className="w-full bg-gradient-to-r from-blue-600 via-purple-600 to-teal-600 hover:opacity-95 text-white py-3.5 px-4 rounded-xl font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-gradient-to-r from-[#004726] to-[#00663A] hover:opacity-95 text-white py-3.5 px-4 rounded-xl font-bold text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-md shadow-blue-500/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? "Cadastrando..." : "Cadastrar"}
         </motion.button>
+         <p className="mt-4 text-sm text-gray-500 dark:text-neutral-400 font-medium text-center">
+            Já tem conta?{" "}
+            <a
+              href="/login"
+              className="font-semibold text-[#0EBB69] underline underline-offset-2 hover:opacity-80 transition-opacity"
+            >
+              Entrar
+            </a>
+          </p>
       </form>
       <div className="relative z-10 w-full max-w-2xl mx-auto">
         <div className="relative mb-6">

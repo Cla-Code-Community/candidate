@@ -8,6 +8,7 @@ import { AddJobModal } from "./components/jobs/AddJobModal";
 import { JobDetailModal } from "./components/jobs/JobDetailModal";
 import { JobTab } from "./components/jobs/JobTab";
 import { Header } from "./components/layout/Header";
+import { MobileTabBar } from "./components/layout/MobileTabBar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { MentoringTab } from "./components/mentoring/MentoringTab";
 import { ProfileTab } from "./components/profile/ProfileTab";
@@ -180,6 +181,20 @@ export default function NewDashboardPage() {
     saveUserProfile,
     saveSearchPreferences,
   } = useUserDashboardData(user, { onError: showToast });
+  const preferredModelFilter = useMemo(
+    () => getModelFilterFromJobTypes(searchPreferences.jobTypes),
+    [searchPreferences.jobTypes],
+  );
+  const initialRecommendationSearch = useMemo(
+    () =>
+      isLoadingUserData
+        ? null
+        : {
+            keywords: [],
+            filters: modelFilterToApiFilter(preferredModelFilter),
+          },
+    [isLoadingUserData, preferredModelFilter],
+  );
   const {
     trackedJobs,
     recommendedJobs,
@@ -190,7 +205,10 @@ export default function NewDashboardPage() {
     changeJobStatus,
     changeJobNotesLocally,
     saveJobNotes,
-  } = useDashboardJobs(user, { onError: showToast });
+  } = useDashboardJobs(user, {
+    onError: showToast,
+    initialRecommendationSearch,
+  });
 
   const matchedTrackedJobs = useMemo(
     () =>
@@ -212,10 +230,6 @@ export default function NewDashboardPage() {
         modelFilterMatchesJob(job, filterType),
       ),
     [filterType, matchedRecommendedJobs],
-  );
-  const preferredModelFilter = useMemo(
-    () => getModelFilterFromJobTypes(searchPreferences.jobTypes),
-    [searchPreferences.jobTypes],
   );
   const showPreferenceNotice =
     !hasUserChangedJobFilters &&
@@ -527,10 +541,12 @@ export default function NewDashboardPage() {
       <div className="flex min-w-0 flex-1 flex-col">
         <Header userProfile={userProfile} />
 
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-background">
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-background pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
           {renderContent()}
         </main>
       </div>
+
+      <MobileTabBar />
 
       {selectedJob ? (
         <JobDetailModal

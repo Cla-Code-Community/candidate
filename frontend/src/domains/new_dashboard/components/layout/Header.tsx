@@ -192,11 +192,14 @@ export function Header({
   }, []);
 
   return (
-    <header className="relative z-20 flex h-[58px] shrink-0 items-center justify-between border-b border-border bg-card px-6 md:px-8">
-      <h1 className="text-[20px] font-bold leading-none text-foreground">
+    <header className="relative z-20 flex h-[58px] shrink-0 items-center justify-between gap-2 border-b border-border bg-card px-3 sm:px-6 md:px-8">
+      <h1 className="min-w-0 truncate text-base font-bold leading-none text-foreground sm:text-[20px]">
         {activeTitle}
       </h1>
-      <div ref={actionsRef} className="relative flex items-center gap-3">
+      <div
+        ref={actionsRef}
+        className="relative flex shrink-0 items-center gap-1 sm:gap-2 md:gap-3"
+      >
         <ThemeToggle />
 
         <div className="relative">
@@ -228,7 +231,7 @@ export function Header({
           </button>
 
           {showMessagesMenu ? (
-            <div className="absolute right-0 mt-3 w-[286px] rounded-xl border border-border bg-card p-4 text-sm text-foreground shadow-xl">
+            <div className="absolute right-0 mt-3 w-[min(286px,calc(100vw-1.5rem))] rounded-xl border border-border bg-card p-4 text-sm text-foreground shadow-xl">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <span className="font-bold">Caixa de Mensagens</span>
                 <span className="text-xs font-bold text-primary">
@@ -299,7 +302,7 @@ export function Header({
           </button>
 
           {showNotificationsMenu ? (
-            <div className="absolute right-0 mt-3 w-[286px] rounded-xl border border-border bg-card p-4 text-sm text-foreground shadow-xl">
+            <div className="absolute right-0 mt-3 w-[min(286px,calc(100vw-1.5rem))] rounded-xl border border-border bg-card p-4 text-sm text-foreground shadow-xl">
               <div className="flex items-center justify-between border-b border-border pb-3">
                 <span className="font-bold">Notificações Recentes</span>
                 <button
@@ -349,17 +352,17 @@ export function Header({
               setShowMessagesMenu(false);
               setShowNotificationsMenu(false);
             }}
-            className="flex h-12 items-center gap-3 rounded-xl border border-border bg-muted/45 px-3 pr-2 text-left transition-colors hover:bg-muted"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted/45 p-0 text-left transition-colors hover:bg-muted md:h-12 md:w-auto md:justify-start md:gap-3 md:rounded-xl md:px-3 md:pr-2"
             aria-label="Menu do usuário"
           >
             {avatarUrl ? (
               <img
                 src={avatarUrl}
                 alt={`Avatar de ${displayName}`}
-                className="h-9 w-9 shrink-0 rounded-full border border-border object-cover"
+                className="h-8 w-8 shrink-0 rounded-full border border-border object-cover md:h-9 md:w-9"
               />
             ) : (
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground md:h-9 md:w-9">
                 {initials}
               </span>
             )}
@@ -375,7 +378,7 @@ export function Header({
           </button>
 
           {showUserMenu ? (
-            <div className="absolute right-0 mt-3 w-64 overflow-hidden rounded-xl border border-border bg-card text-sm text-foreground shadow-xl">
+            <div className="absolute right-0 mt-3 w-[min(16rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl border border-border bg-card text-sm text-foreground shadow-xl">
               <div className="border-b border-border px-4 py-3 text-xs text-muted-foreground">
                 {accountLabel}
               </div>
@@ -391,10 +394,13 @@ export function Header({
               </button>
               <button
                 type="button"
-                onClick={() => setShowUserMenu(false)}
+                onClick={() => {
+                  setShowUserMenu(false);
+                  navigate("/ajuda");
+                }}
                 className="block w-full px-4 py-3 text-left hover:bg-muted"
               >
-                Segurança
+                Ajuda
               </button>
               <button
                 type="button"

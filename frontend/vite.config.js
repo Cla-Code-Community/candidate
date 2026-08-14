@@ -19,6 +19,13 @@ export default defineConfig({
       "^/(auth|users|jobs|keywords|saved-jobs)": {
         target: apiTarget,
         changeOrigin: true,
+        // Deixa navegações de página (ex: redirect OAuth para /auth/callback)
+        // caírem no index.html do SPA; só proxia chamadas de API (fetch/XHR).
+        bypass(req) {
+          if (req.method === "GET" && req.headers.accept?.includes("text/html")) {
+            return req.url;
+          }
+        },
       },
     },
   },
