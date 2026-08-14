@@ -8,11 +8,11 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/models"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 )
 
-func DedupeJobs(jobs []models.Job) []models.Job {
-	unique := make(map[string]*models.Job, len(jobs))
+func DedupeJobs(jobs []domain.Job) []domain.Job {
+	unique := make(map[string]*domain.Job, len(jobs))
 
 	for i := range jobs {
 		job := jobs[i]
@@ -27,14 +27,14 @@ func DedupeJobs(jobs []models.Job) []models.Job {
 		if len(job.Sources) == 0 {
 			job.Sources = []string{job.Source}
 		}
-		if len(job.Keywords) == 0 {
+		if len(job.Keywords) == 0 && strings.TrimSpace(job.Keyword) != "" {
 			job.Keywords = []string{job.Keyword}
 		}
 
 		unique[key] = &job
 	}
 
-	result := make([]models.Job, 0, len(unique))
+	result := make([]domain.Job, 0, len(unique))
 	for _, j := range unique {
 		result = append(result, *j)
 	}
@@ -42,7 +42,7 @@ func DedupeJobs(jobs []models.Job) []models.Job {
 	return result
 }
 
-func buildKey(j *models.Job) string {
+func buildKey(j *domain.Job) string {
 	title := normalizeText(j.Title)
 	company := normalizeText(j.Company)
 	location := normalizeText(j.Location)
@@ -66,7 +66,7 @@ func buildKey(j *models.Job) string {
 	return "fallback:" + title + "|" + company + "|" + location + "|" + normalizeText(j.Source)
 }
 
-func merge(existing, incoming *models.Job) *models.Job {
+func merge(existing, incoming *domain.Job) *domain.Job {
 	merged := *existing
 
 	merged.Sources = uniqueStrings(append(existing.Sources, incoming.Sources...))

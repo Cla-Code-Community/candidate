@@ -8,14 +8,12 @@ describe("ScraperGrid", () => {
     const { rerender } = render(
       <ScraperGrid
         scrapers={[]}
-        isStarting
+        startingScraperId="a"
         onToggle={onToggle}
-        onStartAll={vi.fn()}
-        onPauseAll={vi.fn()}
       />,
     );
     expect(screen.getByText("Nenhum scraper retornado pelo backend.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Iniciando..." })).toBeDisabled();
+    expect(screen.getByText("Rode cada scraper pelo card")).toBeInTheDocument();
 
     rerender(
       <ScraperGrid
@@ -39,19 +37,15 @@ describe("ScraperGrid", () => {
             sla: "Indisponivel",
           },
         ]}
-        isStarting={false}
+        startingScraperId={null}
         onToggle={onToggle}
-        onStartAll={vi.fn()}
-        onPauseAll={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Em execução" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Rodando" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Desativar" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ativar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
 
-    expect(onToggle).toHaveBeenNthCalledWith(1, "a");
-    expect(onToggle).toHaveBeenNthCalledWith(2, "b");
+    expect(onToggle).toHaveBeenCalledWith("b");
   });
 });

@@ -3,10 +3,13 @@ import type { Scraper } from "../../schemas/scraper.schema";
 
 interface ScraperCardProps {
   scraper: Scraper;
+  isStarting: boolean;
   onToggle: (id: string) => void;
 }
 
-export function ScraperCard({ scraper, onToggle }: ScraperCardProps) {
+export function ScraperCard({ scraper, isStarting, onToggle }: ScraperCardProps) {
+  const isDisabled = scraper.active || isStarting;
+
   return (
     <div className="flex min-h-40 flex-col justify-between rounded-lg border border-slate-100 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-900">
       <div>
@@ -39,14 +42,17 @@ export function ScraperCard({ scraper, onToggle }: ScraperCardProps) {
           </p>
         </div>
         <button
+          type="button"
           onClick={() => onToggle(scraper.id)}
+          disabled={isDisabled}
+          title={scraper.active ? "Scraper em execução" : "Run deste scraper"}
           className={`text-xs px-3 py-1.5 font-bold rounded-lg transition-colors ${
             scraper.active
-              ? "bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-500/20"
+              ? "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-300"
               : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20"
-          }`}
+          } disabled:cursor-not-allowed disabled:opacity-60`}
         >
-          {scraper.active ? "Desativar" : "Ativar"}
+          {scraper.active ? "Rodando" : isStarting ? "Iniciando..." : "Run"}
         </button>
       </div>
     </div>

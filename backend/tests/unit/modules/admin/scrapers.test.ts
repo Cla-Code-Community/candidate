@@ -167,6 +167,23 @@ describe("ScrapersService", () => {
     );
   });
 
+  it("triggers a known scraper by name and rejects unknown scrapers", async () => {
+    vi.spyOn(scraperClient, "triggerScrape").mockResolvedValue({
+      ok: true,
+      message: "started",
+    });
+
+    const service = new ScrapersService();
+
+    await expect(service.triggerScraper("go-scraper")).resolves.toEqual({
+      ok: true,
+      message: "started",
+    });
+    await expect(service.triggerScraper("lever")).rejects.toThrow(
+      "scraper desconhecido",
+    );
+  });
+
   it("returns null jobsCollected when count fails", async () => {
     vi.spyOn(scraperClient, "getStatus").mockResolvedValue({ running: true });
     vi.spyOn(scraperClient, "getJobsCount").mockRejectedValue(new Error("down"));
@@ -198,6 +215,7 @@ describe("ScrapersService", () => {
 describe("ScrapersController", () => {
   const service = {
     triggerScrape: vi.fn(),
+    triggerScraper: vi.fn(),
     getStatus: vi.fn(),
     listScrapers: vi.fn(),
     getJobs: vi.fn(),
@@ -210,6 +228,7 @@ describe("ScrapersController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     service.triggerScrape.mockResolvedValue({ ok: true, message: "started" });
+    service.triggerScraper.mockResolvedValue({ ok: true, message: "started" });
     service.getStatus.mockResolvedValue({ running: false });
     service.listScrapers.mockResolvedValue([{ name: "go-scraper", running: false }]);
     service.getJobs.mockResolvedValue({ jobs: [], total: 0 });
@@ -230,6 +249,42 @@ describe("ScrapersController", () => {
     const conflictRes = response();
     await controller.trigger(req, conflictRes);
     expect(conflictRes.status).toHaveBeenCalledWith(409);
+  });
+
+  it("triggers one scraper with 202 and maps failures", async () => {
+    const res = response();
+    await controller.triggerOne(
+      { ...req, params: { id: "go-scraper" } } as unknown as Request,
+      res,
+    );
+
+    expect(res.status).toHaveBeenCalledWith(202);
+    expect(service.triggerScraper).toHaveBeenCalledWith("go-scraper");
+    expect(auditService.fromRequest).toHaveBeenCalledWith(
+      expect.anything(),
+      "scrapers.trigger",
+      { type: "scrapers", id: "go-scraper" },
+    );
+
+    service.triggerScraper.mockRejectedValueOnce(
+      new ScraperAlreadyRunningError("busy"),
+    );
+    const conflictRes = response();
+    await controller.triggerOne(
+      { ...req, params: { id: "go-scraper" } } as unknown as Request,
+      conflictRes,
+    );
+    expect(conflictRes.status).toHaveBeenCalledWith(409);
+
+    service.triggerScraper.mockRejectedValueOnce(
+      new Error("scraper desconhecido: lever"),
+    );
+    const missingRes = response();
+    await controller.triggerOne(
+      { ...req, params: { id: "lever" } } as unknown as Request,
+      missingRes,
+    );
+    expect(missingRes.status).toHaveBeenCalledWith(404);
   });
 
   it("returns read endpoints and audits each read", async () => {

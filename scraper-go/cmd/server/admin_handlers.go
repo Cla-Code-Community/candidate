@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
@@ -13,7 +15,9 @@ import (
 // retorna 409 se já houver uma execução em andamento.
 func handleTriggerScrape(scheduler *cronjob.Scheduler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := scheduler.RunNow(r.Context()); err != nil {
+		// A execução manual precisa sobreviver ao fim da request HTTP; se usarmos
+		// r.Context(), o scraper nasce com contexto cancelado assim que respondemos.
+		if err := scheduler.RunNow(context.Background()); err != nil {
 			if err == cronjob.ErrAlreadyRunning {
 				w.WriteHeader(http.StatusConflict)
 				json.NewEncoder(w).Encode(map[string]any{
@@ -37,9 +41,19 @@ func handleTriggerScrape(scheduler *cronjob.Scheduler) http.HandlerFunc {
 // handleScraperStatus retorna o estado atual do scheduler via GET /admin/scrape/status
 func handleScraperStatus(scheduler *cronjob.Scheduler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		running, lastRunAt, jobsCollected := scheduler.Snapshot()
+		var lastRunAtValue *string
+		if !lastRunAt.IsZero() {
+			formatted := lastRunAt.Format(time.RFC3339)
+			lastRunAtValue = &formatted
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"running": scheduler.IsRunning(),
+			"name":          "go-scraper",
+			"running":       running,
+			"lastRunAt":     lastRunAtValue,
+			"jobsCollected": jobsCollected,
 		})
 	}
 }

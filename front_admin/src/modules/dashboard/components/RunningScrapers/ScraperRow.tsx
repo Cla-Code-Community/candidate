@@ -1,6 +1,5 @@
 import { Play, Settings } from "lucide-react";
 
-import { useNotifications } from "../../../../components/notifications/useNotifications";
 import { StatusBadge } from "../../../../components/ui/StatusBadge";
 import { formatNumber } from "../../../../utils/formatNumber";
 import type { ScraperSummary } from "../../schemas/scraper.schemas";
@@ -8,11 +7,10 @@ import type { ScraperSummary } from "../../schemas/scraper.schemas";
 interface ScraperRowProps {
   scraper: ScraperSummary;
   onToggle: (id: string) => void;
+  onConfigure: (id: string) => void;
 }
 
-export function ScraperRow({ scraper, onToggle }: ScraperRowProps) {
-  const { notify } = useNotifications();
-
+export function ScraperRow({ scraper, onToggle, onConfigure }: ScraperRowProps) {
   return (
     <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/60 transition-colors">
       <td className="py-3.5 font-bold text-slate-700 dark:text-slate-200">{scraper.name}</td>
@@ -29,27 +27,23 @@ export function ScraperRow({ scraper, onToggle }: ScraperRowProps) {
       <td className="py-3.5 text-right space-x-1">
         <button
           onClick={() => onToggle(scraper.id)}
-          title={scraper.active ? "Pausar Scraper" : "Iniciar Scraper"}
+          disabled={scraper.active}
+          title={scraper.active ? "Scraper em execução" : "Iniciar Scraper"}
           className={`p-1.5 rounded-md inline-flex items-center justify-center transition-colors ${
             scraper.active
-              ? "hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-300"
+              ? "cursor-not-allowed text-slate-400 opacity-60"
               : "hover:bg-emerald-50 dark:hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
           }`}
         >
           {scraper.active ? (
-            <span className="text-[10px] font-bold px-1">Pausar</span>
+            <span className="text-[10px] font-bold px-1">Rodando</span>
           ) : (
             <Play size={12} />
           )}
         </button>
         <button
-          onClick={() =>
-            notify({
-              tone: "warning",
-              title: "Configurações em desenvolvimento",
-              description: `As configurações de scraping do ${scraper.name} ainda não possuem endpoint conectado.`,
-            })
-          }
+          onClick={() => onConfigure(scraper.id)}
+          title={`Ver detalhes de ${scraper.name}`}
           className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-md inline-flex items-center justify-center"
         >
           <Settings size={12} />

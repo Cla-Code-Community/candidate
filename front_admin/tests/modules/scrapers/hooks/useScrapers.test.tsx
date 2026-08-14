@@ -12,6 +12,7 @@ vi.mock("../../../../src/lib/api/scrapers.api", () => ({
     jobsCount: vi.fn(),
     jobs: vi.fn(),
     trigger: vi.fn(),
+    triggerOne: vi.fn(),
     clearJobsCache: vi.fn(),
   },
 }));
@@ -77,6 +78,11 @@ describe("useScrapers", () => {
       ok: true,
       message: "Execução iniciada",
     });
+    vi.mocked(scrapersApi.triggerOne).mockResolvedValue({
+      ok: true,
+      message: "Execução individual iniciada",
+      scraper: "Adzuna",
+    });
     vi.mocked(scrapersApi.clearJobsCache).mockResolvedValue({
       ok: true,
       deleted: 4,
@@ -98,8 +104,11 @@ describe("useScrapers", () => {
     expect(result.current.adapterStats[0].jobs).toBeGreaterThan(0);
     expect(result.current.jobPreviews[0].title).toBe("Frontend");
 
-    act(() => result.current.toggleScraper("Adzuna"));
-    expect(result.current.logs[0].text).toContain("ainda nao esta disponivel");
+    await act(async () => {
+      await result.current.toggleScraper("Adzuna");
+    });
+    expect(scrapersApi.triggerOne).toHaveBeenCalledWith("Adzuna");
+    expect(result.current.logs[0].text).toBe("Execução individual iniciada");
 
     act(() => result.current.pauseAll());
     expect(result.current.logs[0].text).toContain("Pausar scrapers");
@@ -145,6 +154,18 @@ describe("useScrapers", () => {
     });
 
     expect(result.current.error).toBe("Nao foi possivel iniciar os scrapers.");
+  });
+
+  it("handles individual scraper trigger failures", async () => {
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    vi.mocked(scrapersApi.triggerOne).mockRejectedValueOnce(new Error("fail"));
+    await act(async () => {
+      await result.current.toggleScraper("Adzuna");
+    });
+
+    expect(result.current.error).toBe("Nao foi possivel iniciar Adzuna.");
   });
 
   it("handles already running scraper trigger as warning", async () => {

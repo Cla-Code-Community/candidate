@@ -16,5 +16,9 @@ export const createSavedJobSchema = z.object({
 
 export const updateSavedJobSchema = createSavedJobSchema.partial();
 
+export const savedJobParamsSchema = z.object({
+  id: z.string().uuid("ID da vaga salva inválido."),
+});
+
 export type CreateSavedJobInput = z.infer<typeof createSavedJobSchema>;
 export type UpdateSavedJobInput = z.infer<typeof updateSavedJobSchema>;

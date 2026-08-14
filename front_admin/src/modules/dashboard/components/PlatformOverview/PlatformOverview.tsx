@@ -1,5 +1,4 @@
 import type { DashboardChartPoint } from "../../schemas";
-import { ChartLegend } from "./ChartLegend";
 import { PlatformChart } from "./PlatformChart";
 
 interface PlatformOverviewProps {
@@ -14,10 +13,10 @@ export function PlatformOverview({ points, lastUpdatedAt }: PlatformOverviewProp
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-              Visão Geral da Plataforma
+              Crescimento do índice
             </h3>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Série gerada pelos snapshots reais do dashboard
+              Acompanhe volume total e variação das vagas indexadas.
             </p>
           </div>
           {lastUpdatedAt && (
@@ -26,7 +25,6 @@ export function PlatformOverview({ points, lastUpdatedAt }: PlatformOverviewProp
             </span>
           )}
         </div>
-        <ChartLegend />
       </div>
       <PlatformChart points={points} />
     </div>

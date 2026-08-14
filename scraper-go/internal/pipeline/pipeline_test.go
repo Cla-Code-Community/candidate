@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/models"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
 )
 
@@ -34,7 +34,7 @@ func TestIndexJobsInValkey_SemJanelaVazia(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{Title: "Engenheiro Go", Company: "Acme", Location: "Brasil", Description: "vaga de go golang"},
 	}
 	keywords := []string{"go", "golang"}
@@ -68,7 +68,7 @@ func TestIndexJobsInValkey_TTLKeywordAlinhado(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{Title: "Dev Go", Company: "Acme", Location: "Brasil", Description: "golang backend"},
 	}
 	keywords := []string{"go"}
@@ -89,7 +89,7 @@ func TestIndexJobsInValkey_IndexGlobalSemTTL(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{Title: "Dev Go", Company: "Acme", Location: "Brasil"},
 	}
 
@@ -109,7 +109,7 @@ func TestIndexJobsInValkey_KeywordComposta(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{
 			Title:       "Dev Node.js",
 			Company:     "Empresa A",
@@ -144,7 +144,7 @@ func TestIndexJobsInValkey_SubTermosIndexadosIndividualmente(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{
 			Title:       "Dev Node.js",
 			Company:     "Acme",
@@ -171,7 +171,7 @@ func TestIndexJobsInValkey_NormalizaAliasesDeTecnologia(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{
 			Title:       "Node.js Developer",
 			Company:     "Acme",
@@ -201,7 +201,7 @@ func TestIndexJobsInValkey_IndicesEstruturados(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{
 			Title:       "Desenvolvedor Node.js Júnior PJ",
 			Company:     "Acme",
@@ -232,11 +232,54 @@ func TestIndexJobsInValkey_IndicesEstruturados(t *testing.T) {
 	}
 }
 
+func TestIndexJobsInValkey_IndicesDeClassificacao(t *testing.T) {
+	rdb, _ := newTestRedis(t)
+	ctx := context.Background()
+
+	classification := domain.Classification{
+		PrimaryFamily:   "backend",
+		RelatedFamilies: []string{"platform"},
+		Technologies:    []string{"go", "postgresql"},
+		Seniority:       "senior",
+		InScope:         true,
+		Confidence:      0.91,
+	}
+	jobs := []domain.Job{
+		{
+			Title:          "Senior Software Engineer - APIs",
+			Company:        "Acme",
+			Location:       "Brasil",
+			Description:    "Go e PostgreSQL",
+			Classification: &classification,
+		},
+	}
+
+	pipeline.IndexJobsInValkey(ctx, rdb, jobs, []string{"software engineer"})
+	expectedID := jobstore.StableID(&jobs[0])
+
+	keys := []string{
+		"scraper:jobs:family:backend",
+		"scraper:jobs:family:platform",
+		"scraper:jobs:technology:go",
+		"scraper:jobs:technology:postgresql",
+		"scraper:jobs:keyword:backend",
+		"scraper:jobs:keyword:go",
+		"scraper:jobs:keyword:postgresql",
+		"scraper:jobs:seniority:senior",
+	}
+
+	for _, key := range keys {
+		members, err := rdb.SMembers(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Contains(t, members, expectedID, "índice de classificação %s deve conter a vaga", key)
+	}
+}
+
 func TestIndexJobsInValkey_DetectaBrasilPorEstadoECidade(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{
 			Title:       "Junior/midlevel Java Developer - Remote Work",
 			Company:     "BairesDev",
@@ -267,7 +310,7 @@ func TestIndexJobsInValkey_ClassificacaoIgnoraKeywordDaBusca(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{
 			Title:    "Software Engineer",
 			Company:  "Acme",
@@ -303,7 +346,7 @@ func TestIndexJobsInValkey_VagasSemIDIgnoradas(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{}, // vaga completamente vazia — StableID retorna ""
 		{Title: "Dev Go", Company: "Acme", Location: "Brasil"},
 	}

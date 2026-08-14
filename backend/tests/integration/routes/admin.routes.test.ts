@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   scrapersJobs: vi.fn((_req, res) => res.json({ jobs: [], total: 0 })),
   scrapersJobsCount: vi.fn((_req, res) => res.json({ total: 0 })),
   scrapersTrigger: vi.fn((_req, res) => res.status(202).json({ ok: true })),
+  scrapersTriggerOne: vi.fn((_req, res) => res.status(202).json({ ok: true })),
   health: vi.fn((_req, res) => res.json({ status: "ok" })),
   metrics: vi.fn((_req, res) => res.json({ requestRatePerMinute: 1 })),
   dashboards: vi.fn((_req, res) => res.json({ dashboards: [] })),
@@ -68,6 +69,7 @@ vi.mock("../../../src/routes/admin.context", () => ({
     listJobs: mocks.scrapersJobs,
     jobsCount: mocks.scrapersJobsCount,
     trigger: mocks.scrapersTrigger,
+    triggerOne: mocks.scrapersTriggerOne,
   },
   observabilityCtrl: {
     getHealth: mocks.health,
@@ -156,6 +158,7 @@ describe("Integration - Admin Routes", () => {
     await request(app).patch("/admin/users/user-2/block").expect(200);
     await request(app).post("/admin/users/user-2/reset").expect(200);
     await request(app).post("/admin/scrapers/run").expect(202);
+    await request(app).post("/admin/scrapers/go-scraper/run").expect(202);
     await request(app).get("/admin/observability/metrics").expect(200);
     await request(app).get("/admin/audit").expect(200);
     await request(app).get("/admin/users").expect(200);
@@ -163,6 +166,7 @@ describe("Integration - Admin Routes", () => {
     expect(mocks.blockUser).toHaveBeenCalled();
     expect(mocks.resetPassword).toHaveBeenCalled();
     expect(mocks.scrapersTrigger).toHaveBeenCalled();
+    expect(mocks.scrapersTriggerOne).toHaveBeenCalled();
     expect(mocks.metrics).toHaveBeenCalled();
     expect(mocks.audit).toHaveBeenCalled();
     expect(mocks.usersList).toHaveBeenCalled();
