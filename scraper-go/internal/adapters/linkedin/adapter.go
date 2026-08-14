@@ -1,25 +1,34 @@
-package adapters
+package linkedin
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/adapters/adapterutil"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/dedup"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/models"
 	"github.com/PuerkitoBio/goquery"
 )
 
 const linkedinSearchURL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
 const linkedinPageStep = 25
+const defaultLinkedInMaxPages = 5
+const defaultLinkedInKeywordSlotSize = 30
 
 type LinkedInAdapter struct {
-	client    *http.Client
-	semaphore chan struct{}
+	client     *http.Client
+	semaphore  chan struct{}
+	mu         sync.Mutex
+	nextOffset int
 }
 
 func NewLinkedIn() *LinkedInAdapter {
@@ -31,7 +40,19 @@ func NewLinkedIn() *LinkedInAdapter {
 
 func (a *LinkedInAdapter) SourceName() string { return "linkedin" }
 
-func buildLinkedInURL(keyword string, req models.ScrapeRequest, start int) string {
+func linkedinKeywordSlotSize() int {
+	value := strings.TrimSpace(os.Getenv("LINKEDIN_KEYWORD_SLOT_SIZE"))
+	if value == "" {
+		return defaultLinkedInKeywordSlotSize
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed <= 0 {
+		return defaultLinkedInKeywordSlotSize
+	}
+	return parsed
+}
+
+func buildLinkedInURL(keyword string, req domain.ScrapeRequest, start int) string {
 	u, _ := url.Parse(linkedinSearchURL)
 	q := u.Query()
 	q.Set("keywords", keyword)
@@ -58,7 +79,7 @@ func buildLinkedInURL(keyword string, req models.ScrapeRequest, start int) strin
 	return u.String()
 }
 
-func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, req models.ScrapeRequest, start int) ([]models.Job, error) {
+func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, req domain.ScrapeRequest, start int) ([]domain.Job, error) {
 	pageTimeout := time.Duration(req.PageTimeoutMs) * time.Millisecond
 	if pageTimeout <= 0 {
 		pageTimeout = 15 * time.Second
@@ -95,7 +116,7 @@ func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, re
 		return nil, err
 	}
 
-	var jobs []models.Job
+	var jobs []domain.Job
 	doc.Find(".base-card, .job-search-card").Each(func(_ int, card *goquery.Selection) {
 		titulo := strings.TrimSpace(card.Find(".base-search-card__title").Text())
 		if titulo == "" {
@@ -110,7 +131,7 @@ func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, re
 		if link == "" {
 			link, _ = card.Find("a[href*='/jobs/view/']").Attr("href")
 		}
-		jobs = append(jobs, models.Job{
+		jobs = append(jobs, domain.Job{
 			Title:    titulo,
 			Company:  empresa,
 			Location: local,
@@ -121,7 +142,7 @@ func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, re
 	return jobs, nil
 }
 
-func normalizeLinkedInLocation(location string, req models.ScrapeRequest) string {
+func normalizeLinkedInLocation(location string, req domain.ScrapeRequest) string {
 	location = strings.TrimSpace(location)
 	searchLocation := strings.TrimSpace(req.SearchLocation)
 	if searchLocation == "" {
@@ -196,10 +217,10 @@ func normalizeLinkedInComparable(value string) string {
 	return replacer.Replace(strings.ToLower(strings.TrimSpace(value)))
 }
 
-func normalizeLinkedInJob(keyword string, req models.ScrapeRequest, job models.Job) models.Job {
+func normalizeLinkedInJob(keyword string, req domain.ScrapeRequest, job domain.Job) domain.Job {
 	u := dedup.NormalizeURL(strings.TrimSpace(job.URL))
 
-	normalized := models.Job{
+	normalized := domain.Job{
 		Title:    strings.TrimSpace(job.Title),
 		Company:  strings.TrimSpace(job.Company),
 		Location: normalizeLinkedInLocation(job.Location, req),
@@ -216,8 +237,8 @@ func normalizeLinkedInJob(keyword string, req models.ScrapeRequest, job models.J
 	return normalized
 }
 
-func dedupeLinkedIn(jobs []models.Job) []models.Job {
-	unique := make(map[string]models.Job, len(jobs))
+func dedupeLinkedIn(jobs []domain.Job) []domain.Job {
+	unique := make(map[string]domain.Job, len(jobs))
 	order := make([]string, 0, len(jobs))
 	for _, job := range jobs {
 		key := job.URL
@@ -232,21 +253,115 @@ func dedupeLinkedIn(jobs []models.Job) []models.Job {
 			order = append(order, key)
 		}
 	}
-	result := make([]models.Job, 0, len(order))
+	result := make([]domain.Job, 0, len(order))
 	for _, key := range order {
 		result = append(result, unique[key])
 	}
 	return result
 }
 
-func (a *LinkedInAdapter) Search(ctx context.Context, keyword string, req models.ScrapeRequest) ([]models.Job, error) {
-	// Semáforo: no máximo 2 keywords rodando ao mesmo tempo no LinkedIn
+func (a *LinkedInAdapter) Search(ctx context.Context, keyword string, req domain.ScrapeRequest) ([]domain.Job, error) {
 	a.semaphore <- struct{}{}
 	defer func() { <-a.semaphore }()
 
+	return a.searchKeyword(ctx, keyword, req)
+}
+
+func (a *LinkedInAdapter) SearchBatch(ctx context.Context, keywords []string, req domain.ScrapeRequest) ([]domain.Job, error) {
+	slot := a.nextKeywordSlot(keywords, linkedinKeywordSlotSize())
+	if len(slot) == 0 {
+		return nil, nil
+	}
+
+	if len(slot) < len(keywords) {
+		slog.Info("linkedin: usando slot rotativo de keywords",
+			"selected", len(slot),
+			"total", len(keywords),
+		)
+	}
+
+	type searchResult struct {
+		jobs []domain.Job
+		err  error
+	}
+
+	results := make(chan searchResult, len(slot))
+	var wg sync.WaitGroup
+
+	for _, keyword := range slot {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" {
+			continue
+		}
+
+		wg.Add(1)
+		go func(keyword string) {
+			defer wg.Done()
+
+			select {
+			case a.semaphore <- struct{}{}:
+				defer func() { <-a.semaphore }()
+			case <-ctx.Done():
+				results <- searchResult{err: ctx.Err()}
+				return
+			}
+
+			jobs, err := a.searchKeyword(ctx, keyword, req)
+			results <- searchResult{jobs: jobs, err: err}
+		}(keyword)
+	}
+
+	wg.Wait()
+	close(results)
+
+	var allJobs []domain.Job
+	var firstErr error
+	for result := range results {
+		if result.err != nil {
+			if firstErr == nil {
+				firstErr = result.err
+			}
+			continue
+		}
+		allJobs = append(allJobs, result.jobs...)
+	}
+	if len(allJobs) > 0 {
+		return dedupeLinkedIn(allJobs), nil
+	}
+
+	return nil, firstErr
+}
+
+func (a *LinkedInAdapter) nextKeywordSlot(keywords []string, slotSize int) []string {
+	if len(keywords) == 0 {
+		return nil
+	}
+	if slotSize <= 0 || slotSize >= len(keywords) {
+		return append([]string(nil), keywords...)
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	offset := a.nextOffset % len(keywords)
+	a.nextOffset = (offset + slotSize) % len(keywords)
+
+	slot := make([]string, 0, slotSize)
+	for i := 0; i < slotSize; i++ {
+		slot = append(slot, keywords[(offset+i)%len(keywords)])
+	}
+	return slot
+}
+
+func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req domain.ScrapeRequest) ([]domain.Job, error) {
+	keyword = strings.TrimSpace(keyword)
+	if keyword == "" {
+		return nil, nil
+	}
+
 	maxPages := req.MaxPagesPerKeyword
 	if maxPages <= 0 {
-		maxPages = 5
+		maxPages = defaultLinkedInMaxPages
 	}
 
 	waitBetween := time.Duration(req.WaitBetweenSearchesMs) * time.Millisecond
@@ -254,7 +369,8 @@ func (a *LinkedInAdapter) Search(ctx context.Context, keyword string, req models
 		waitBetween = 3000 * time.Millisecond
 	}
 
-	var allJobs []models.Job
+	var allJobs []domain.Job
+	seenPages := make(map[string]struct{})
 
 	for pageIndex := 0; pageIndex < maxPages; pageIndex++ {
 		start := pageIndex * linkedinPageStep
@@ -286,9 +402,15 @@ func (a *LinkedInAdapter) Search(ctx context.Context, keyword string, req models
 			break
 		}
 
+		normalizedJobs := make([]domain.Job, 0, len(jobs))
 		for _, job := range jobs {
-			allJobs = append(allJobs, normalizeLinkedInJob(keyword, req, job))
+			normalizedJobs = append(normalizedJobs, normalizeLinkedInJob(keyword, req, job))
 		}
+		if adapterutil.RepeatedJobPage(seenPages, normalizedJobs) {
+			break
+		}
+
+		allJobs = append(allJobs, normalizedJobs...)
 
 		if pageIndex < maxPages-1 {
 			select {

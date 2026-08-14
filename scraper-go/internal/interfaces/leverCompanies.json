@@ -1,36 +1,310 @@
 [
-  { "slug": "netlify", "name": "Netlify" },
-  { "slug": "vercel", "name": "Vercel" },
-  { "slug": "postman", "name": "Postman" },
-  { "slug": "sentry", "name": "Sentry" },
-  { "slug": "supabase", "name": "Supabase" },
-  { "slug": "planetscale", "name": "PlanetScale" },
-  { "slug": "render", "name": "Render" },
-  { "slug": "railway", "name": "Railway" },
-  { "slug": "flyio", "name": "Fly.io" },
-  { "slug": "typeform", "name": "Typeform" },
-  { "slug": "hotjar", "name": "Hotjar" },
-  { "slug": "contentful", "name": "Contentful" },
-  { "slug": "algolia", "name": "Algolia" },
-  { "slug": "front", "name": "Front" },
-  { "slug": "segment", "name": "Segment" },
-  { "slug": "linear", "name": "Linear" },
-  { "slug": "retool", "name": "Retool" },
-  { "slug": "loom", "name": "Loom" },
-  { "slug": "superhuman", "name": "Superhuman" },
-  { "slug": "pitch", "name": "Pitch" },
-  { "slug": "mercury", "name": "Mercury" },
-  { "slug": "alchemy", "name": "Alchemy" },
-  { "slug": "chainlink", "name": "Chainlink" },
-  { "slug": "openzeppelin", "name": "OpenZeppelin" },
-  { "slug": "replicate", "name": "Replicate" },
-  { "slug": "twelve-labs", "name": "Twelve Labs" },
-  { "slug": "buffer", "name": "Buffer" },
-  { "slug": "gitlab", "name": "GitLab" },
-  { "slug": "automattic", "name": "Automattic" },
-  { "slug": "wise", "name": "Wise" },
-  { "slug": "klarna", "name": "Klarna" },
-  { "slug": "glossier", "name": "Glossier" },
-  { "slug": "patreon", "name": "Patreon" },
-  { "slug": "robinhood", "name": "Robinhood" }
+  {
+    "site": "amicustherapeutics",
+    "companyName": "Amicus Therapeutics",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/amicustherapeutics",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/amicustherapeutics?mode=json"
+  },
+  {
+    "site": "blackshark",
+    "companyName": "Blackshark.ai",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/blackshark",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/blackshark?mode=json"
+  },
+  {
+    "site": "byborgenterprises",
+    "companyName": "Byborg Enterprises",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/byborgenterprises",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/byborgenterprises?mode=json"
+  },
+  {
+    "site": "coinspaid",
+    "companyName": "CoinsPaid",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/coinspaid",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/coinspaid?mode=json"
+  },
+  {
+    "site": "controlai",
+    "companyName": "ControlAI",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/controlai",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/controlai?mode=json"
+  },
+  {
+    "site": "coretechsecurity",
+    "companyName": "CoreTech Security Services",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/coretechsecurity",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/coretechsecurity?mode=json"
+  },
+  {
+    "site": "creatio",
+    "companyName": "Creatio",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/creatio",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/creatio?mode=json"
+  },
+  {
+    "site": "csmcy",
+    "companyName": "Columbia Shipmanagement",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/csmcy",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/csmcy?mode=json"
+  },
+  {
+    "site": "diabolocom",
+    "companyName": "Diabolocom",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/diabolocom",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/diabolocom?mode=json"
+  },
+  {
+    "site": "efficioconsulting",
+    "companyName": "Efficio",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/efficioconsulting",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/efficioconsulting?mode=json"
+  },
+  {
+    "site": "eneba",
+    "companyName": "Eneba",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/eneba",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/eneba?mode=json"
+  },
+  {
+    "site": "Expana",
+    "companyName": "Expana",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/Expana",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/Expana?mode=json"
+  },
+  {
+    "site": "frontier",
+    "companyName": "Frontier Developments",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/frontier",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/frontier?mode=json"
+  },
+  {
+    "site": "genomines",
+    "companyName": "GENOMINES",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/genomines",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/genomines?mode=json"
+  },
+  {
+    "site": "innogames",
+    "companyName": "InnoGames",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/innogames",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/innogames?mode=json"
+  },
+  {
+    "site": "ivcevidensia",
+    "companyName": "IVC",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/ivcevidensia",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/ivcevidensia?mode=json"
+  },
+  {
+    "site": "jacquemus",
+    "companyName": "JACQUEMUS",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/jacquemus",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/jacquemus?mode=json"
+  },
+  {
+    "site": "kaiko",
+    "companyName": "Kaiko",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/kaiko",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/kaiko?mode=json"
+  },
+  {
+    "site": "karllagerfeld",
+    "companyName": "Karl Lagerfeld",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/karllagerfeld",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/karllagerfeld?mode=json"
+  },
+  {
+    "site": "kwalee",
+    "companyName": "Kwalee",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/kwalee",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/kwalee?mode=json"
+  },
+  {
+    "site": "lovehoneygroup",
+    "companyName": "Lovehoney Group",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/lovehoneygroup",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/lovehoneygroup?mode=json"
+  },
+  {
+    "site": "mobileye",
+    "companyName": "Mobileye",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/mobileye",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/mobileye?mode=json"
+  },
+  {
+    "site": "olx",
+    "companyName": "OLX",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/olx",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/olx?mode=json"
+  },
+  {
+    "site": "oni",
+    "companyName": "ONI",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/oni",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/oni?mode=json"
+  },
+  {
+    "site": "opencast",
+    "companyName": "Opencast",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/opencast",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/opencast?mode=json"
+  },
+  {
+    "site": "optotune",
+    "companyName": "Optotune",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/optotune",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/optotune?mode=json"
+  },
+  {
+    "site": "orasio",
+    "companyName": "Orasio",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/orasio",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/orasio?mode=json"
+  },
+  {
+    "site": "pnlfin",
+    "companyName": "Finom",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/pnlfin",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/pnlfin?mode=json"
+  },
+  {
+    "site": "prima",
+    "companyName": "Prima",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/prima",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/prima?mode=json"
+  },
+  {
+    "site": "prosus",
+    "companyName": "Prosus",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/prosus",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/prosus?mode=json"
+  },
+  {
+    "site": "quadcode",
+    "companyName": "Quadcode",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/quadcode",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/quadcode?mode=json"
+  },
+  {
+    "site": "quanticdream",
+    "companyName": "QUANTIC DREAM",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/quanticdream",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/quanticdream?mode=json"
+  },
+  {
+    "site": "quantinuum",
+    "companyName": "Quantinuum",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/quantinuum",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/quantinuum?mode=json"
+  },
+  {
+    "site": "refugeerights",
+    "companyName": "International Refugee Assistance Project",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/refugeerights",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/refugeerights?mode=json"
+  },
+  {
+    "site": "seb",
+    "companyName": "SEB",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/seb",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/seb?mode=json"
+  },
+  {
+    "site": "silverfin",
+    "companyName": "Silverfin",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/silverfin",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/silverfin?mode=json"
+  },
+  {
+    "site": "sportalliance",
+    "companyName": "Sport Alliance GmbH",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/sportalliance",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/sportalliance?mode=json"
+  },
+  {
+    "site": "swave",
+    "companyName": "Swave",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/swave",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/swave?mode=json"
+  },
+  {
+    "site": "tradelink",
+    "companyName": "TradeLink",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/tradelink",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/tradelink?mode=json"
+  },
+  {
+    "site": "tsugu",
+    "companyName": "Tsugu AG",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/tsugu",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/tsugu?mode=json"
+  },
+  {
+    "site": "vwgds",
+    "companyName": "Volkswagen Group Digital Solutions [Portugal]",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/vwgds",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/vwgds?mode=json"
+  },
+  {
+    "site": "westernacher",
+    "companyName": "Westernacher Consulting",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/westernacher",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/westernacher?mode=json"
+  },
+  {
+    "site": "wypoon",
+    "companyName": "Wypoon Technologies",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/wypoon",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/wypoon?mode=json"
+  },
+  {
+    "site": "xm",
+    "companyName": "XM Careers",
+    "region": "eu",
+    "jobsUrl": "https://jobs.eu.lever.co/xm",
+    "apiUrl": "https://api.eu.lever.co/v0/postings/xm?mode=json"
+  }
 ]

@@ -4,6 +4,8 @@ Este documento descreve o scraper implementado em Go localizado em `scraper-go/`
 
 ## Visão geral
 
+O scraper Go concentra a coleta e normalização de vagas. Ele recebe configurações de busca do backend, executa fontes externas habilitadas, aplica deduplicação e classificação local, persiste vagas no Valkey e publica índices para a API consultar com baixa latência.
+
 ## Exemplos por adaptador
 
 Abaixo há exemplos simplificados do payload esperado internamente e de como cada adaptador normalmente formata/retorna vagas.
@@ -28,6 +30,7 @@ Abaixo há exemplos simplificados do payload esperado internamente e de como cad
 
 - Adzuna
   - Comportamento: usa API oficial (quando `ADZUNA_APP_ID`/`ADZUNA_APP_KEY` configurados) e retorna JSON com campos estruturados.
+  - Operação: suporta `SearchBatch` com slot rotativo de keywords e limite padrão de 5 páginas por keyword.
   - Exemplo (Job adaptado):
 
 ```json
@@ -46,6 +49,7 @@ Abaixo há exemplos simplificados do payload esperado internamente e de como cad
 
 - Jooble
   - Comportamento: integra com Jooble API quando `JOOBLE_API_KEY` presente; pode usar Redis para controle de cota.
+  - Operação: usa slot rotativo, cota diária e cadência de 12h para proteger a integração.
   - Exemplo (Job adaptado):
 
 ```json
@@ -80,7 +84,38 @@ Abaixo há exemplos simplificados do payload esperado internamente e de como cad
 }
 ```
 
-Esses exemplos ilustram o contrato interno entre adaptadores e pipeline: o pipeline espera `models.Job` com campos normalizados (URL limpa, título/empresa/local, `Source` e `StableID` calculável). O `jobstore.StableID` deriva o ID a partir de título+empresa+local ou URL.
+### Descobrir tokens do Greenhouse
+
+O `board_token` é o trecho final da URL pública da Greenhouse. Por exemplo:
+
+- `https://job-boards.greenhouse.io/reddit` → token `reddit`
+- `https://job-boards.greenhouse.io/gitlab` → token `gitlab`
+
+Para validar tokens ou testar nomes de empresas, use:
+
+```bash
+cd scraper-go
+go run ./cmd/greenhouse-discover -names Reddit,GitLab
+```
+
+Saída esperada:
+
+```text
+OK   gitlab                             186 vagas  https://job-boards.greenhouse.io/gitlab
+OK   reddit                             195 vagas  https://job-boards.greenhouse.io/reddit
+```
+
+Também é possível validar o JSON atual:
+
+```bash
+cd scraper-go
+go run ./cmd/greenhouse-discover -file internal/interfaces/greenhouseCompanies.json
+```
+
+Tokens com `OK` podem entrar em `internal/interfaces/greenhouseCompanies.json`.
+Tokens com `MISS status=404` devem ser removidos ou substituídos.
+
+Esses exemplos ilustram o contrato interno entre adaptadores e pipeline: o pipeline espera `domain.Job` com campos normalizados (URL limpa, título/empresa/local, `Source` e `StableID` calculável). O `jobstore.StableID` deriva o ID a partir de título+empresa+local ou URL.
 
 ## Especificação OpenAPI (local)
 
@@ -95,8 +130,12 @@ O scraper é um serviço HTTP em Go que consulta múltiplas fontes de vagas (Lin
 Componentes principais:
 
 - `cmd/server` — inicializador e ponto de entrada.
-- `internal/adapters` — coleções de adaptadores por fonte que implementam a interface `Adapter`.
-- `internal/pipeline` — core do pipeline de scraping, orquestra execução concorrente e indexação.
+- `internal/domain` — modelos centrais do scraper (`Job`, `ScrapeRequest`, `ScrapeResponse`, classificação).
+- `internal/ports` — contratos internos da aplicação, como fontes de vagas, repositórios, cache e métricas.
+- `internal/adapters` — composição de adapters concretos e registry das fontes habilitadas.
+- `internal/adapters/<fonte>` — implementação isolada de cada fonte externa (`gupy`, `inhire`, `greenhouse`, `lever`, `jooble`, `linkedin`, `themuse`, `adzuna`).
+- `internal/adapters/adapterutil` — helpers compartilhados entre adapters concretos.
+- `internal/pipeline` — camada de aplicação do pipeline de scraping, orquestra execução concorrente e indexação.
 - `internal/jobstore` — persistência em Redis (valkey) para jobs, índices e IDs estáveis.
 - `internal/cache` — abstração de cache com implementação Redis e memória (fallback).
 - `internal/dedup` — regras para deduplicação/merge de vagas.
@@ -104,6 +143,34 @@ Componentes principais:
 - `internal/inflight` — deduplicador de requisições concorrentes (singleflight).
 - `internal/cronjob` — scheduler de scraping em background e execução manual.
 - `internal/metrics` — métricas Prometheus por fonte/execução.
+- `cmd/greenhouse-discover` — utilitário Go para validar tokens de empresas Greenhouse antes de atualizar `internal/interfaces/greenhouseCompanies.json`.
+
+## Arquitetura atual
+
+O scraper evolui para uma arquitetura hexagonal de forma incremental. O domínio fica em `internal/domain`, as portas em `internal/ports` e os adapters concretos ficam em subpastas de `internal/adapters`.
+
+A fronteira principal é a porta `ports.JobSource`: cada fonte externa implementa `SourceName`, `Search` e, opcionalmente, `SearchBatch`. O pipeline recebe uma lista de `ports.JobSource` já montada pelo servidor/registry, evitando que a camada de aplicação conheça diretamente as implementações concretas.
+
+Desenho atual:
+
+```text
+cmd/server
+  monta cache, Valkey, stores, scheduler e adapters
+
+internal/domain
+  modelos centrais do scraper
+
+internal/ports
+  contratos que a aplicação consome
+
+internal/pipeline
+  orquestra scraping, dedupe, classificação e indexação
+
+internal/adapters
+  registry e implementações concretas por fonte
+```
+
+Ainda há pontos a evoluir: `pipeline` e `cronjob` continuam recebendo `*redis.Client` em fluxos de indexação/cadência, e métricas Prometheus ainda são chamadas diretamente. Os próximos passos naturais são criar adapters outbound para Valkey e Prometheus por trás de portas específicas, reduzindo ainda mais o acoplamento de infraestrutura.
 
 ## Como executar
 
@@ -126,7 +193,7 @@ go run ./cmd/server
 
 Docker: há um `Dockerfile` em `scraper-go/`. No Docker Compose, configure `VALKEY_URL=redis://valkey:6379/0` no `.env` da raiz para que o scraper acesse o Valkey pelo nome do serviço na rede Docker.
 
-No Compose da raiz, o serviço escuta em http://localhost:8081.
+No Compose da raiz, o serviço escuta em <http://localhost:8081>.
 
 ## Endpoints HTTP
 
@@ -193,10 +260,11 @@ Fluxo principal:
 1. Recebe `ScrapeRequest` com keywords e configuração.
 2. Verifica cache (`internal/cache`). Se encontrado, retorna resultado cacheado.
 3. Caso contrário, executa `pipeline.ScrapeAllSources` que:
-   - Constrói lista de adaptadores (`adapters.GetAdapters`).
-   - Cria tarefas (adapter × keyword) e executa concorrente com limite (`MaxConcurrency`).
-   - Cada adaptador realiza requisições HTTP específicas, parseia HTML/JSON com `goquery` e retorna `models.Job`.
+   - Recebe a lista de fontes já montada pelo servidor/registry.
+   - Cria uma tarefa por fonte batch (`SearchBatch`) ou uma tarefa por keyword para fontes sem batch, sempre respeitando `MaxConcurrency`.
+   - Cada adaptador realiza requisições HTTP específicas, parseia HTML/JSON quando necessário e retorna `domain.Job`.
    - Agrega resultados e aplica deduplicação (`dedup.DedupeJobs`).
+   - Classifica vagas por família, tecnologias e senioridade antes da indexação.
    - Persiste vagas novas no `jobstore` (Redis) e atualiza índices invertidos (função `IndexJobsInValkey`).
    - Escreve resultado no cache para próximas requisições.
 
@@ -205,16 +273,28 @@ Concorrência e resiliência:
 - Semáforos por adaptador (ex.: LinkedIn usa um semáforo de 5 simultâneos para proteção).
 - Tratamento de status 429 com backoff; aborta apenas a keyword afetada em caso de falhas persistentes.
 - Uso de `inflight` para evitar que múltiplas requisições idênticas disparem scrapes simultâneos.
+- Slots rotativos reduzem o número de keywords/queries por rodada em fontes caras, preservando cobertura progressiva em execuções futuras.
 
 ## Adaptadores
 
-Cada adaptador em `internal/adapters` implementa a interface `Adapter` com `SourceName()` e `Search(ctx, keyword, req)`.
+Cada adaptador em `internal/adapters/<fonte>` implementa a porta `ports.JobSource` com `SourceName()` e `Search(ctx, keyword, req)`. Quando a fonte consegue buscar várias keywords em uma chamada/lote, ela também pode implementar `ports.BatchJobSource`.
 Implementações incluem:
 
-- `linkedin.go` — busca via endpoint público `jobs-guest` do LinkedIn; parsing com `goquery`.
-- `adzuna.go` — integra via API Adzuna (se configurada com `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`).
-- `jooble.go` — integra com Jooble API (se `JOOBLE_API_KEY` configurada); pode usar Redis para quota.
-- `greenhouse.go`, `lever.go`, `themuse.go` — adaptadores por empresa/plataforma com parsing/integração próprios.
+- `internal/adapters/linkedin` — busca via endpoint público `jobs-guest` do LinkedIn; parsing com `goquery`.
+- `internal/adapters/adzuna` — integra via API Adzuna (se configurada com `ADZUNA_APP_ID`/`ADZUNA_APP_KEY`).
+- `internal/adapters/jooble` — integra com Jooble API (se `JOOBLE_API_KEY` configurada); pode usar Redis para quota.
+- `internal/adapters/greenhouse`, `internal/adapters/lever`, `internal/adapters/themuse` — adaptadores por empresa/plataforma com parsing/integração próprios.
+- `internal/adapters/gupy`, `internal/adapters/inhire` — adaptadores para fontes usadas no fluxo atual de vagas.
+
+### Estratégia por fonte
+
+- LinkedIn: sempre habilitado; `SearchBatch` seleciona um slot rotativo de keywords por execução. Defaults atuais: 5 páginas por keyword e 30 keywords por rodada.
+- Adzuna: habilitado quando `ADZUNA_APP_ID` e `ADZUNA_APP_KEY` existem; `SearchBatch` usa slot rotativo. Defaults atuais: 5 páginas por keyword e 30 keywords por rodada.
+- Gupy: habilitado com `GUPY_ENABLED=true`; usa queries expandidas, descoberta por termos amplos e sweep opcional. O default atual limita o sweep a offset 10000 e processa 60 queries por rodada.
+- Jooble: habilitado com `JOOBLE_API_KEY`; usa cota diária, slot rotativo e cadência de 12h.
+- Greenhouse: habilitado com `GREENHOUSE_ENABLED=true`; cria um adapter por empresa listada em `internal/interfaces/greenhouseCompanies.json`.
+- Lever: habilitado com `LEVER_ENABLED=true`; cria adapters a partir de `internal/interfaces/leverCompanies.json`.
+- InHire: habilitado com `INHIRE_ENABLED=true`; consulta tenants de `internal/interfaces/inhireTenants.json` e só enriquece detalhes quando `INHIRE_ENRICH_DETAILS=true`.
 
 Boas práticas nos adaptadores:
 
@@ -226,6 +306,8 @@ Boas práticas nos adaptadores:
 
 - `jobstore.SaveBatch` persiste vagas no Redis com TTL e mantém um índice global (`scraper:jobs:index`).
 - `pipeline.IndexJobsInValkey` cria índices invertidos por keyword e sub-termos (`scraper:jobs:keyword:<term>`), além de manter TTL para índices.
+- A classificação local também gera índices estruturados: `scraper:jobs:family:<family>`, `scraper:jobs:technology:<technology>` e `scraper:jobs:seniority:<seniority>`.
+- Filtros estruturados de localização, modelo, contrato e senioridade continuam em chaves como `scraper:jobs:country:<value>`, `scraper:jobs:model:<value>` e `scraper:jobs:contract:<value>`.
 - `jobstore.StableID` garante IDs determinísticos para permitir identificação e deduplicação entre execuções.
 
 ## Cache e configuração
@@ -243,14 +325,19 @@ Boas práticas nos adaptadores:
 - `VALKEY_URL` — conexão Redis/Valkey. Em Docker Compose, use `redis://valkey:6379/0`; em execução local fora do Docker, use uma URL acessível pelo host, por exemplo `redis://localhost:6379/0`.
 - `JOOBLE_API_KEY` — Jooble integration.
 - `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` — Adzuna API.
-- Configurações de logging e quota podem ser definidas via `.env`.
+- `LINKEDIN_KEYWORD_SLOT_SIZE` — quantidade máxima de keywords do LinkedIn por execução quando a busca vier com uma lista grande. Padrão: `30`.
+- `ADZUNA_KEYWORD_SLOT_SIZE` — quantidade máxima de keywords do Adzuna por execução. Padrão: `30`.
+- `GUPY_ENABLED` — habilita o adapter Gupy.
+- `GUPY_RAW_DISCOVERY_ENABLED` — adiciona queries amplas de tecnologia na Gupy.
+- `GUPY_FULL_SWEEP_ENABLED` / `GUPY_FULL_REMOTE_SWEEP_ENABLED` — controla sweeps amplos na Gupy.
+- `GUPY_QUERY_LIMIT` — limita quantas queries expandidas da Gupy rodam por execução. Padrão: `60`.
+- `INHIRE_ENABLED`, `INHIRE_TENANTS_FILE`, `INHIRE_ENRICH_DETAILS`, `INHIRE_DETAILS_MODE`, `INHIRE_DETAILS_CONCURRENCY`, `INHIRE_DETAILS_TIMEOUT_MS` — controlam fonte e enriquecimento InHire.
+- `GREENHOUSE_ENABLED`, `GREENHOUSE_COMPANIES_FILE` — controlam fonte Greenhouse.
+- `LEVER_ENABLED`, `LEVER_COMPANIES_FILE`, `LEVER_INCLUDE_ALL_JOBS` — controlam fonte Lever.
+- Configurações de logging, quota e performance podem ser definidas via `.env`.
 
 ## Observações operacionais
 
 - Projetado para rodar frequentemente; use caching e indexação para reduzir chamadas repetidas.
 - Monitorar erros 429 e ajustar `WaitBetweenSearchesMs` / semáforos por adaptador.
 - Verifique logs estruturados (slog JSON) e `/metrics` para métricas de sucesso/falhas por adaptador.
-
----
-
-Arquivo gerado: `scraper-go/SCRAPER.md`.

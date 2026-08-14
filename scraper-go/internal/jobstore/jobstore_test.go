@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/models"
 )
 
 func newTestStore(t *testing.T) (*jobstore.Store, *miniredis.Miniredis) {
@@ -33,7 +33,7 @@ func TestSaveBatch_IndexGlobalSemTTL(t *testing.T) {
 	store, _ := newTestStore(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{Title: "Engenheiro Go", Company: "Acme", Location: "Brasil"},
 	}
 
@@ -55,7 +55,7 @@ func TestSaveBatch_TTLVagaIndividual(t *testing.T) {
 	store := jobstore.New(rdb)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{Title: "Dev Go", Company: "Empresa A", Location: "Brasil"},
 	}
 
@@ -84,7 +84,7 @@ func TestSaveBatch_IndexSobreviventeAposExpiracao(t *testing.T) {
 	ctx := context.Background()
 
 	// Ciclo 1: semana atual
-	semana1 := []models.Job{
+	semana1 := []domain.Job{
 		{Title: "Dev Go", Company: "Empresa A", Location: "Brasil"},
 		{Title: "Dev Python", Company: "Empresa B", Location: "Brasil"},
 	}
@@ -93,7 +93,7 @@ func TestSaveBatch_IndexSobreviventeAposExpiracao(t *testing.T) {
 	assert.Equal(t, 2, saved1)
 
 	// Ciclo 2: semana seguinte, vagas novas + as antigas ainda no cache
-	semana2 := []models.Job{
+	semana2 := []domain.Job{
 		{Title: "Dev Rust", Company: "Empresa C", Location: "Brasil"},
 	}
 	saved2, err := store.SaveBatch(ctx, semana2)
@@ -130,14 +130,14 @@ func TestSaveBatch_DeduplicacaoEntreCiclos(t *testing.T) {
 	store := jobstore.New(rdb)
 	ctx := context.Background()
 
-	vaga := models.Job{Title: "Dev Go", Company: "Acme", Location: "Brasil"}
+	vaga := domain.Job{Title: "Dev Go", Company: "Acme", Location: "Brasil"}
 
-	saved1, err := store.SaveBatch(ctx, []models.Job{vaga})
+	saved1, err := store.SaveBatch(ctx, []domain.Job{vaga})
 	require.NoError(t, err)
 	assert.Equal(t, 1, saved1)
 
 	// Mesma vaga no próximo ciclo
-	saved2, err := store.SaveBatch(ctx, []models.Job{vaga})
+	saved2, err := store.SaveBatch(ctx, []domain.Job{vaga})
 	require.NoError(t, err)
 	assert.Equal(t, 0, saved2, "vaga duplicada não deve ser salva novamente")
 
@@ -154,7 +154,7 @@ func TestGetAll_LimpaIDsOrfaos(t *testing.T) {
 	store := jobstore.New(rdb)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{Title: "Dev Go", Company: "Acme", Location: "Brasil"},
 		{Title: "Dev Rust", Company: "Acme", Location: "Brasil"},
 	}
@@ -182,7 +182,7 @@ func TestGetSample_RespeitaLimite(t *testing.T) {
 	store, _ := newTestStore(t)
 	ctx := context.Background()
 
-	jobs := []models.Job{
+	jobs := []domain.Job{
 		{Title: "Dev Go", Company: "Acme", Location: "Brasil"},
 		{Title: "Dev Rust", Company: "Globex", Location: "Brasil"},
 		{Title: "Dev Python", Company: "Initech", Location: "Brasil"},

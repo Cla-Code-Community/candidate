@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { PlatformChart } from "../../../../src/modules/dashboard/components/PlatformOverview/PlatformChart";
 
 describe("PlatformChart", () => {
-  it("renders empty, single and dense point states", () => {
+  it("renders empty, single and dense point states with index metrics", () => {
     const { rerender, container } = render(<PlatformChart points={[]} />);
     expect(
-      screen.getByText("Aguardando novos snapshots para formar a tendência"),
+      screen.getByText("Aguardando o primeiro snapshot do dashboard"),
     ).toBeInTheDocument();
 
     rerender(
@@ -21,7 +21,12 @@ describe("PlatformChart", () => {
         ]}
       />,
     );
-    expect(screen.getByText("10:00")).toBeInTheDocument();
+    expect(screen.getByText("Total indexado")).toBeInTheDocument();
+    expect(screen.getAllByText("5")).toHaveLength(2);
+    expect(screen.getByText("Índice estável")).toBeInTheDocument();
+    expect(
+      screen.getByText("Mais um snapshot é necessário para calcular variação."),
+    ).toBeInTheDocument();
 
     rerender(
       <PlatformChart
@@ -33,6 +38,8 @@ describe("PlatformChart", () => {
         }))}
       />,
     );
-    expect(container.querySelectorAll("circle")).toHaveLength(16);
+    expect(screen.getByText("Estado do índice")).toBeInTheDocument();
+    expect(screen.getByText("+1")).toBeInTheDocument();
+    expect(container.querySelectorAll("circle")).toHaveLength(0);
   });
 });

@@ -1,10 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { dashboardApi } from "../../../../src/lib/api/dashboard.api";
+import { scrapersApi } from "../../../../src/lib/api/scrapers.api";
 import { dashboardService } from "../../../../src/modules/dashboard/services/dashboard.service";
 
 vi.mock("../../../../src/lib/api/dashboard.api", () => ({
   dashboardApi: {
     getOverview: vi.fn(),
+  },
+}));
+
+vi.mock("../../../../src/lib/api/scrapers.api", () => ({
+  scrapersApi: {
+    triggerOne: vi.fn(),
   },
 }));
 
@@ -46,6 +53,11 @@ const backendOverview = {
 describe("dashboardService", () => {
   beforeEach(() => {
     vi.mocked(dashboardApi.getOverview).mockResolvedValue(backendOverview);
+    vi.mocked(scrapersApi.triggerOne).mockResolvedValue({
+      ok: true,
+      message: "iniciado",
+      scraper: "x",
+    });
   });
 
   it("maps backend overview to dashboard view model", async () => {
@@ -71,7 +83,7 @@ describe("dashboardService", () => {
     });
   });
 
-  it("exposes segmented getters and noop toggle", async () => {
+  it("exposes segmented getters and real scraper trigger", async () => {
     await expect(dashboardService.getStats()).resolves.toMatchObject({
       activeUsers: { value: 8 },
     });
@@ -81,5 +93,9 @@ describe("dashboardService", () => {
     await expect(dashboardService.getServices()).resolves.toHaveLength(3);
     await expect(dashboardService.getScrapersSummary()).resolves.toHaveLength(2);
     await expect(dashboardService.toggleScraper("x", true)).resolves.toBeUndefined();
+    expect(scrapersApi.triggerOne).toHaveBeenCalledWith("x");
+    await expect(dashboardService.toggleScraper("x", false)).rejects.toThrow(
+      "pausar scraper",
+    );
   });
 });

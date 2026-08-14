@@ -209,8 +209,8 @@ export const initialUser: UserProfile = {
 export const initialPreferences: SearchPreferences = {
   keywords: ["React", "Frontend", "Fullstack"],
   searchLocation: "São Paulo, SP",
-  remoteOnly: true,
-  jobTypes: ["Remoto"],
+  remoteOnly: false,
+  jobTypes: [],
   emailNotifications: true,
   careerChecklist: [],
 };

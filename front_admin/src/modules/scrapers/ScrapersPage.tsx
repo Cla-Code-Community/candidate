@@ -244,13 +244,11 @@ export function ScrapersPage() {
     logs,
     isLoading,
     isRefreshing,
-    isStarting,
+    startingScraperId,
     isClearingJobsCache,
     error,
     refresh,
     toggleScraper,
-    startAll,
-    pauseAll,
     clearJobsCache,
     clearLogs,
     refreshIntervalMs,
@@ -330,10 +328,8 @@ export function ScrapersPage() {
 
       <ScraperGrid
         scrapers={scrapers}
-        isStarting={isStarting}
+        startingScraperId={startingScraperId}
         onToggle={toggleScraper}
-        onStartAll={startAll}
-        onPauseAll={pauseAll}
       />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_1fr]">

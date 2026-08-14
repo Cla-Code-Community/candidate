@@ -25,6 +25,35 @@ export class ScrapersController {
     }
   }
 
+  async triggerOne(req: Request, res: Response): Promise<void> {
+    try {
+      const scraperName = String(req.params.id ?? "");
+      const result = await this.scrapersService.triggerScraper(scraperName);
+
+      this.auditService.fromRequest(req, "scrapers.trigger", {
+        type: "scrapers",
+        id: scraperName,
+      });
+
+      res.status(202).json({ ...result, scraper: scraperName });
+    } catch (error) {
+      if (error instanceof ScraperAlreadyRunningError) {
+        res.status(409).json({ ok: false, message: error.message });
+        return;
+      }
+
+      const message =
+        error instanceof Error && error.message.startsWith("scraper desconhecido")
+          ? error.message
+          : "erro ao iniciar scraper";
+
+      res.status(message.startsWith("scraper desconhecido") ? 404 : 500).json({
+        ok: false,
+        message,
+      });
+    }
+  }
+
   async status(req: Request, res: Response): Promise<void> {
     try {
       const result = await this.scrapersService.getStatus();

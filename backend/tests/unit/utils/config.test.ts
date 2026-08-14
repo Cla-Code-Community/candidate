@@ -81,7 +81,7 @@ describe("getConfig", () => {
     const config = getConfig();
 
     expect(config.headless).toBe(false);
-    expect(config.remoteOnly).toBe(true);
+    expect(config.remoteOnly).toBe(false);
     expect(config.waitBetweenSearchesMs).toBe(5000);
     expect(config.pageTimeoutMs).toBe(10000);
     expect(config.maxPagesPerKeyword).toBe(5);
@@ -98,9 +98,9 @@ describe("getConfig", () => {
     expect(config.searchLanguage).toBe("pt");
   });
 
-  it("retorna remoteOnly true e jobTypes padrão", () => {
+  it("retorna remoteOnly false e jobTypes padrão", () => {
     const config = getConfig();
-    expect(config.remoteOnly).toBe(true);
+    expect(config.remoteOnly).toBe(false);
     expect(config.jobTypes).toBe("C,F");
   });
 

@@ -1,13 +1,17 @@
 import { and, count, desc, eq, isNull } from "drizzle-orm";
 import { db } from "../../db/client";
-import { NewUserNotification, SavedJob, userNotifications } from "../../db/schema";
+import {
+  NewUserNotification,
+  SavedJob,
+  userNotifications,
+} from "../../db/schema";
 import { DB } from "../../db/types/types";
 import { ownedBy } from "../../lib/authorization/ownership";
 import { AppError } from "../../lib/errors";
 import {
   jobNotificationIdentity,
   MatchedJob,
-} from "../jobs/jobMatch.service";
+} from "../jobs/services/jobMatch.service";
 import { ListNotificationsQuery } from "./schemas/notifications.schemas";
 
 const statusLabels: Record<string, string> = {
@@ -67,7 +71,10 @@ export class NotificationsService {
   }
 
   async create(data: NewUserNotification) {
-    const result = await this.tx.insert(userNotifications).values(data).returning();
+    const result = await this.tx
+      .insert(userNotifications)
+      .values(data)
+      .returning();
     return result[0];
   }
 

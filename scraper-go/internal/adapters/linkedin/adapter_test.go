@@ -1,14 +1,14 @@
-package adapters
+package linkedin
 
 import (
 	"testing"
 
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/models"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNormalizeLinkedInLocation_UsaPaisDaBusca(t *testing.T) {
-	req := models.ScrapeRequest{SearchLocation: "Brasil"}
+	req := domain.ScrapeRequest{SearchLocation: "Brasil"}
 
 	assert.Equal(
 		t,

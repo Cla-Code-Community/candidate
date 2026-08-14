@@ -1,5 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { NotificationProvider } from "../../../../src/components/notifications/NotificationProvider";
 import { dashboardService } from "../../../../src/modules/dashboard/services/dashboard.service";
 import { useDashboard } from "../../../../src/modules/dashboard/hooks/useDashboard";
 import { useDashboardMetrics } from "../../../../src/modules/dashboard/hooks/useDashboardMetrics";
@@ -38,6 +40,10 @@ const scrapers = [
   },
 ];
 
+function wrapper({ children }: { children: ReactNode }) {
+  return <NotificationProvider>{children}</NotificationProvider>;
+}
+
 describe("dashboard hooks", () => {
   beforeEach(() => {
     vi.mocked(dashboardService.getOverview).mockResolvedValue({
@@ -51,10 +57,11 @@ describe("dashboard hooks", () => {
     vi.mocked(dashboardService.getResources).mockResolvedValue(resources);
     vi.mocked(dashboardService.getServices).mockResolvedValue(services);
     vi.mocked(dashboardService.getScrapersSummary).mockResolvedValue(scrapers);
+    vi.mocked(dashboardService.toggleScraper).mockResolvedValue(undefined);
   });
 
   it("loads dashboard overview and toggles scrapers", async () => {
-    const { result } = renderHook(() => useDashboard());
+    const { result } = renderHook(() => useDashboard(), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.chartPoints).toHaveLength(1);
@@ -62,11 +69,14 @@ describe("dashboard hooks", () => {
 
     result.current.toggleScraper("adzuna");
     expect(dashboardService.toggleScraper).toHaveBeenCalledWith("adzuna", false);
+    await waitFor(() =>
+      expect(dashboardService.getOverview).toHaveBeenCalledTimes(2),
+    );
 
     result.current.toggleScraper("missing");
     expect(dashboardService.toggleScraper).toHaveBeenCalledTimes(1);
 
-    vi.mocked(dashboardService.getOverview).mockResolvedValueOnce({
+    vi.mocked(dashboardService.getOverview).mockResolvedValue({
       stats: { ...stats, totalJobs: { value: 101, trend: "ok", positive: true } },
       resources,
       services,
@@ -83,7 +93,7 @@ describe("dashboard hooks", () => {
   it("handles dashboard refresh failures", async () => {
     vi.mocked(dashboardService.getOverview).mockRejectedValueOnce(new Error("fail"));
 
-    const { result } = renderHook(() => useDashboard());
+    const { result } = renderHook(() => useDashboard(), { wrapper });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.error).toBe(

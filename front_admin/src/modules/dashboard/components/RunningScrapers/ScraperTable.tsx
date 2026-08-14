@@ -4,9 +4,10 @@ import { ScraperRow } from "./ScraperRow";
 interface ScraperTableProps {
   scrapers: ScraperSummary[];
   onToggle: (id: string) => void;
+  onConfigure: (id: string) => void;
 }
 
-export function ScraperTable({ scrapers, onToggle }: ScraperTableProps) {
+export function ScraperTable({ scrapers, onToggle, onConfigure }: ScraperTableProps) {
   if (scrapers.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400">
@@ -33,6 +34,7 @@ export function ScraperTable({ scrapers, onToggle }: ScraperTableProps) {
               key={scraper.id}
               scraper={scraper}
               onToggle={onToggle}
+              onConfigure={onConfigure}
             />
           ))}
         </tbody>

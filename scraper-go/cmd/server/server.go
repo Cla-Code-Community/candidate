@@ -10,16 +10,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/adapters"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cache"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 )
 
-func run(adapterList []adapters.Adapter) {
+func run(adapterList []ports.JobSource) {
 	addr := os.Getenv("GO_SCRAPER_ADDR")
 	if addr == "" {
 		addr = ":8081"
@@ -44,7 +44,7 @@ func run(adapterList []adapters.Adapter) {
 
 	// ── Scheduler (cronjob) ──
 	schedulerCfg := cronjob.DefaultConfig()
-	scheduler := cronjob.New(schedulerCfg, kwStore, jobStore, rdb)
+	scheduler := cronjob.New(schedulerCfg, kwStore, jobStore, adapterList, rdb)
 
 	scheduler.OnComplete = func(kws []string, scraped, saved int, duration time.Duration) {
 		printSummary(len(adapterList), kws, scraped, duration)
@@ -119,13 +119,33 @@ func newRedisClient() (*redis.Client, error) {
 
 	rdb := redis.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := rdb.Ping(ctx).Err(); err != nil {
+	if err := waitForRedisPing(ctx, rdb); err != nil {
 		_ = rdb.Close()
 		return nil, err
 	}
 
 	return rdb, nil
+}
+
+func waitForRedisPing(ctx context.Context, rdb *redis.Client) error {
+	var lastErr error
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		if err := rdb.Ping(ctx).Err(); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			return lastErr
+		case <-ticker.C:
+		}
+	}
 }
