@@ -77,6 +77,8 @@ function notifyJobEvent(job: Job, status?: JobStatus) {
       text,
       type: isApplied ? "success" : "info",
       date: "Agora",
+      jobId: job.id,
+      isRead: false,
     },
   });
 }

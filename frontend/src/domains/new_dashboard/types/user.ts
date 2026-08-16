@@ -46,6 +46,8 @@ export const NotificationSchema = z.object({
   text: z.string().min(1),
   type: z.enum(["info", "success", "match"]),
   date: z.string().min(1),
+  jobId: z.string().optional(),
+  isRead: z.boolean().optional(),
 });
 
 export const MessageSchema = z.object({

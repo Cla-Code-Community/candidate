@@ -23,6 +23,7 @@ import {
   clearDashboardNotifications,
   getDashboardNotificationFeed as getNotificationFeed,
   markDashboardNotificationsRead as markNotificationsRead,
+  markSingleNotificationRead,
 } from "@/domains/new_dashboard/infrastructure/notificationsApi";
 import {
   getUserPreferences,
@@ -183,6 +184,55 @@ describe("new_dashboard api adapters", () => {
       params: { channel: "notification" },
     });
   });
+
+it("marca uma única notificação como lida pela rota correta", async () => {
+  apiMock.patch.mockResolvedValue({ data: {} });
+
+  await markSingleNotificationRead("notification-42");
+
+  expect(apiMock.patch).toHaveBeenCalledWith(
+    "/notifications/notification-42/read",
+  );
+});
+
+it("mapeia entityId para jobId apenas quando entityType é job, e readAt para isRead", async () => {
+  apiMock.get.mockResolvedValueOnce({
+    data: {
+      unreadCount: 2,
+      notifications: [
+        {
+          id: "job-linked",
+          channel: "notification",
+          type: "job_applied",
+          title: "Candidatura enviada",
+          message: "Sua candidatura foi registrada.",
+          readAt: null,
+          createdAt: new Date().toISOString(),
+          entityType: "job",
+          entityId: "job-99",
+        },
+        {
+          id: "mentor-linked",
+          channel: "notification",
+          type: "mentor_message",
+          title: "Mentoria",
+          message: "Nova mensagem do mentor.",
+          readAt: "2026-08-01T10:00:00.000Z",
+          createdAt: new Date().toISOString(),
+          entityType: "mentor",
+          entityId: "mentor-5",
+        },
+      ],
+    },
+  });
+
+  const result = await getNotificationFeed("notification");
+
+  expect(result.notifications).toMatchObject([
+    { id: "job-linked", jobId: "job-99", isRead: false },
+    { id: "mentor-linked", jobId: undefined, isRead: true },
+  ]);
+});
 
   it("normaliza tipos, origens e datas do feed de notificações", async () => {
     vi.useFakeTimers();

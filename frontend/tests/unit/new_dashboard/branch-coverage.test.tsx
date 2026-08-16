@@ -7,9 +7,10 @@ import { MentoringTab } from "@/domains/new_dashboard/components/mentoring/Mento
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
 import { Modal } from "@/domains/new_dashboard/components/shared/Modal";
 import {
-    clearDashboardNotifications,
-    getDashboardNotificationFeed,
-    markDashboardNotificationsRead,
+  clearDashboardNotifications,
+  getDashboardNotificationFeed,
+  markDashboardNotificationsRead,
+  markSingleNotificationRead,
 } from "@/domains/new_dashboard/infrastructure/notificationsApi";
 import type { Job, UserProfile } from "@/domains/new_dashboard/types";
 import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/domains/new_dashboard/utils/notificationEvents";
@@ -28,6 +29,18 @@ vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => mockUseTheme(),
 }));
 
+const mockNavigate = vi.fn();
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>(
+    "react-router-dom",
+  );
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
+
 vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
   getDashboardNotificationFeed: vi.fn().mockResolvedValue({
     messages: [],
@@ -36,6 +49,7 @@ vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
   }),
   markDashboardNotificationsRead: vi.fn().mockResolvedValue(undefined),
   clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
+  markSingleNotificationRead: vi.fn().mockResolvedValue(undefined),
 }));
 
 function renderWithRouter(ui: React.ReactElement) {
@@ -88,6 +102,8 @@ describe("new_dashboard branch coverage", () => {
     vi.mocked(getDashboardNotificationFeed).mockReset();
     vi.mocked(markDashboardNotificationsRead).mockReset();
     vi.mocked(clearDashboardNotifications).mockReset();
+    vi.mocked(markSingleNotificationRead).mockReset();
+    mockNavigate.mockReset();
     vi.mocked(getDashboardNotificationFeed).mockResolvedValue({
       messages: [],
       notifications: [],
@@ -95,6 +111,7 @@ describe("new_dashboard branch coverage", () => {
     } as never);
     vi.mocked(markDashboardNotificationsRead).mockResolvedValue(undefined);
     vi.mocked(clearDashboardNotifications).mockResolvedValue(undefined);
+    vi.mocked(markSingleNotificationRead).mockResolvedValue(undefined);
     mockUseAuth.mockReturnValue({
       user: null,
       logout: vi.fn(),
@@ -226,6 +243,157 @@ describe("new_dashboard branch coverage", () => {
       expect(
         screen.getByText("Sua candidatura foi registrada."),
       ).toBeInTheDocument();
+    });
+  });
+
+  it("navega até a vaga e marca como lida ao clicar em notificação com jobId", async () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: "ana@exemplo.com", name: "Ana" },
+      logout: vi.fn(),
+    });
+
+    renderWithRouter(<Header notifications={[]} unreadNotifications={0} />);
+
+    window.dispatchEvent(
+      new CustomEvent(DASHBOARD_NOTIFICATIONS_REFRESH_EVENT, {
+        detail: {
+          channel: "notification",
+          incrementUnread: true,
+          item: {
+            id: "local:job:job-42:123",
+            text: "Sua candidatura foi registrada.",
+            type: "success",
+            date: "Agora",
+            jobId: "job-42",
+            isRead: false,
+          },
+        },
+      }),
+    );
+
+    fireEvent.click(screen.getByLabelText("Notificações"));
+
+    const notification = await screen.findByText(
+      "Sua candidatura foi registrada.",
+    );
+
+    fireEvent.click(notification);
+
+    expect(mockNavigate).toHaveBeenCalledWith("/dashboard?jobId=job-42");
+    expect(markSingleNotificationRead).toHaveBeenCalledWith("local:job:job-42:123");
+  });
+
+  it("não navega nem marca como lida ao clicar em notificação sem jobId", async () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: "ana@exemplo.com", name: "Ana" },
+      logout: vi.fn(),
+    });
+
+    renderWithRouter(<Header notifications={[]} unreadNotifications={0} />);
+
+    window.dispatchEvent(
+      new CustomEvent(DASHBOARD_NOTIFICATIONS_REFRESH_EVENT, {
+        detail: {
+          channel: "notification",
+          incrementUnread: true,
+          item: {
+            id: "notification-sem-vaga",
+            text: "Novo conteúdo de mentoria disponível.",
+            type: "info",
+            date: "Agora",
+          },
+        },
+      }),
+    );
+
+    fireEvent.click(screen.getByLabelText("Notificações"));
+
+    const notification = await screen.findByText(
+      "Novo conteúdo de mentoria disponível.",
+    );
+
+    fireEvent.click(notification);
+
+    expect(mockNavigate).not.toHaveBeenCalled();
+    expect(markSingleNotificationRead).not.toHaveBeenCalled();
+  });
+
+  it("usa título padrão quando a rota atual não está mapeada", () => {
+    mockUseAuth.mockReturnValue({ user: null, logout: vi.fn() });
+
+    render(
+      <MemoryRouter initialEntries={["/rota-desconhecida"]}>
+        <Header />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Início" })).toBeInTheDocument();
+  });
+
+  it("fecha os menus abertos ao clicar fora da área de ações", () => {
+    mockUseAuth.mockReturnValue({ user: null, logout: vi.fn() });
+
+    renderWithRouter(<Header />);
+
+    fireEvent.click(screen.getByLabelText("Notificações"));
+    expect(screen.getByText("Notificações Recentes")).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByText("Notificações Recentes")).not.toBeInTheDocument();
+  });
+
+  it("inclui mensagem local recebida por evento sem depender de reload", async () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: "ana@exemplo.com", name: "Ana" },
+      logout: vi.fn(),
+    });
+
+    renderWithRouter(<Header messages={[]} />);
+
+    window.dispatchEvent(
+      new CustomEvent(DASHBOARD_NOTIFICATIONS_REFRESH_EVENT, {
+        detail: {
+          channel: "message",
+          incrementUnread: true,
+          item: {
+            id: "local:message",
+            sender: "Mentor",
+            text: "Nova mensagem do mentor.",
+            date: "Agora",
+          },
+        },
+      }),
+    );
+
+    fireEvent.click(screen.getByLabelText("Mensagens"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Nova mensagem do mentor.")).toBeInTheDocument();
+    });
+  });
+
+  it("recarrega feeds via API quando o evento não traz um item", async () => {
+    mockUseAuth.mockReturnValue({
+      user: { email: "ana@exemplo.com", name: "Ana" },
+      logout: vi.fn(),
+    });
+
+    renderWithRouter(<Header notifications={[]} unreadNotifications={0} />);
+
+    await waitFor(() => {
+      expect(getDashboardNotificationFeed).toHaveBeenCalled();
+    });
+    vi.mocked(getDashboardNotificationFeed).mockClear();
+
+    window.dispatchEvent(
+      new CustomEvent(DASHBOARD_NOTIFICATIONS_REFRESH_EVENT, {
+        detail: { channel: "notification" },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(getDashboardNotificationFeed).toHaveBeenCalled();
     });
   });
 
