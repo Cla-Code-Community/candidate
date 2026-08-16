@@ -9,6 +9,16 @@ type FindOrCreateUserParams = {
   profile: OAuthProfile;
 };
 
+/**
+ * Resultado do `findOrCreateUser`. `isNewUser` distingue o primeiro login
+ * social (conta recém-criada) de um relogin ou da vinculação de um provider
+ * a um usuário que já existia — usado para disparar boas-vindas só uma vez.
+ */
+export type FindOrCreateUserResult = {
+  user: Awaited<ReturnType<typeof createUser>>;
+  isNewUser: boolean;
+};
+
 function mapOAuthProfileToCreateUserParams(
   profile: OAuthProfile,
 ): CreateUserParams {
@@ -25,14 +35,16 @@ function mapOAuthProfileToCreateUserParams(
 export async function findOrCreateUser({
   provider,
   profile,
-}: FindOrCreateUserParams) {
+}: FindOrCreateUserParams): Promise<FindOrCreateUserResult> {
   return db.transaction(async (tx) => {
     const existingByProvider = await findUserByProvider(
       { provider, providerAccountId: profile.id },
       tx,
     );
 
-    if (existingByProvider) return existingByProvider;
+    // Relogin social: conta já existia para este provider.
+    if (existingByProvider)
+      return { user: existingByProvider, isNewUser: false };
 
     if (profile.email) {
       const existingByEmail = await findUserByEmail(profile.email, tx);
@@ -47,7 +59,9 @@ export async function findOrCreateUser({
           tx,
         );
 
-        return existingByEmail;
+        // Usuário já existia (ex.: cadastro por e-mail/senha) — só vincula o
+        // provider, sem reenviar boas-vindas.
+        return { user: existingByEmail, isNewUser: false };
       }
     }
 
@@ -66,6 +80,7 @@ export async function findOrCreateUser({
       tx,
     );
 
-    return newUser;
+    // Primeiro login social: usuário recém-criado.
+    return { user: newUser, isNewUser: true };
   });
 }

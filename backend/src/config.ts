@@ -17,6 +17,11 @@ export interface AppConfig {
   timeFilter: string;
   databaseUrl: string;
   valkeyUrl: string;
+  frontendUrl: string;
+  emailApiKey: string;
+  emailFromAddress: string;
+  emailFromName: string;
+  emailQueueAttempts: number;
 }
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -60,10 +65,15 @@ export function getConfig(): AppConfig {
     searchLocation: process.env.SEARCH_LOCATION ?? "Brasil",
     searchGeoId: process.env.SEARCH_GEO_ID ?? "106057199",
     searchLanguage: process.env.SEARCH_LANGUAGE ?? "pt",
-    remoteOnly: parseBoolean(process.env.REMOTE_ONLY, true),
+    remoteOnly: parseBoolean(process.env.REMOTE_ONLY, false),
     jobTypes: process.env.JOB_TYPES ?? "C,F",
     timeFilter: parseTimeFilter(process.env.TIME_FILTER, "r604800"),
     databaseUrl: process.env.DATABASE_URL?.trim() ?? "",
     valkeyUrl: process.env.VALKEY_URL?.trim() ?? "",
+    frontendUrl: process.env.FRONTEND_URL?.trim() ?? "",
+    emailApiKey: process.env.EMAIL_API_KEY?.trim() ?? "",
+    emailFromAddress: process.env.EMAIL_FROM_ADDRESS?.trim() ?? "",
+    emailFromName: process.env.EMAIL_FROM_NAME?.trim() ?? "",
+    emailQueueAttempts: parseNumber(process.env.EMAIL_QUEUE_ATTEMPTS, 3),
   };
 }

@@ -138,7 +138,7 @@ describe("findOrCreateUser", () => {
       profile: oauthProfile,
     });
 
-    expect(result).toMatchObject(mockUser);
+    expect(result).toEqual({ user: mockUser, isNewUser: false });
   });
 
   it("encontra por email, cria account e retorna usuário existente", async () => {
@@ -152,7 +152,7 @@ describe("findOrCreateUser", () => {
       profile: oauthProfile,
     });
 
-    expect(result).toMatchObject(mockUser);
+    expect(result).toEqual({ user: mockUser, isNewUser: false });
     expect(mocks.createAccountMock).toHaveBeenCalledWith(
       { userId: mockUser.id, provider: "github", profile: oauthProfile },
       expect.anything(),
@@ -187,7 +187,7 @@ describe("findOrCreateUser", () => {
       { userId: mockUser.id, provider: "github", profile: oauthProfile },
       expect.anything(),
     );
-    expect(result).toMatchObject(mockUser);
+    expect(result).toEqual({ user: mockUser, isNewUser: true });
   });
 
   it("pula a busca por email quando profile.email é undefined", async () => {

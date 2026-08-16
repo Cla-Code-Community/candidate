@@ -26,6 +26,7 @@ type PrometheusRangeResult = {
 
 type DashboardPanelDefinition = Omit<ObservabilityPanel, "series"> & {
   expr: string;
+  instantExpr?: string;
   legend?: (metric: Record<string, string>) => string;
 };
 
@@ -125,6 +126,21 @@ async function queryPrometheusRange({
   }
 }
 
+async function instantSeries(
+  expr: string,
+  legend?: DashboardPanelDefinition["legend"],
+): Promise<ObservabilitySeries[]> {
+  const value = await queryPrometheus(expr);
+  if (value === null) return [];
+
+  return [
+    {
+      label: legend?.({}) ?? "atual",
+      points: [{ timestamp: new Date().toISOString(), value }],
+    },
+  ];
+}
+
 function toSeries(
   result: PrometheusRangeResult["data"]["result"],
   legend?: DashboardPanelDefinition["legend"],
@@ -184,7 +200,7 @@ const DASHBOARDS: Array<
         title: "Cache hit rate",
         unit: "percent",
         visualization: "line",
-        expr: 'sum(rate(cache_operations_total{result="hit"}[5m])) / sum(rate(cache_operations_total[5m])) * 100',
+        expr: 'sum(rate(cache_operations_total{result="hit"}[5m])) / clamp_min(sum(rate(cache_operations_total[5m])), 1) * 100',
         legend: () => "hit rate",
       },
     ],
@@ -252,6 +268,7 @@ const DASHBOARDS: Array<
         unit: "count",
         visualization: "stat",
         expr: "sum(increase(job_searches_total[24h]))",
+        instantExpr: "sum(increase(job_searches_total[24h])) or vector(0)",
         legend: () => "buscas",
       },
       {
@@ -267,7 +284,9 @@ const DASHBOARDS: Array<
         title: "Cache hit rate",
         unit: "percent",
         visualization: "stat",
-        expr: 'sum(rate(cache_operations_total{result="hit"}[24h])) / sum(rate(cache_operations_total[24h])) * 100',
+        expr: 'sum(rate(cache_operations_total{result="hit"}[24h])) / clamp_min(sum(rate(cache_operations_total[24h])), 1) * 100',
+        instantExpr:
+          'sum(rate(cache_operations_total{result="hit"}[24h])) / clamp_min(sum(rate(cache_operations_total[24h])), 1) * 100 or vector(0)',
         legend: () => "hit rate",
       },
       {
@@ -398,13 +417,18 @@ export class MetricsService {
       DASHBOARDS.map(async (dashboard) => ({
         ...dashboard,
         panels: await Promise.all(
-          dashboard.panels.map(async ({ expr, legend, ...panel }) => ({
-            ...panel,
-            series: toSeries(
-              await queryPrometheusRange({ expr, range, step }),
-              legend,
-            ),
-          })),
+          dashboard.panels.map(
+            async ({ expr, instantExpr, legend, ...panel }) => ({
+              ...panel,
+              series:
+                panel.visualization === "stat" && instantExpr
+                  ? await instantSeries(instantExpr, legend)
+                  : toSeries(
+                      await queryPrometheusRange({ expr, range, step }),
+                      legend,
+                    ),
+            }),
+          ),
         ),
       })),
     );

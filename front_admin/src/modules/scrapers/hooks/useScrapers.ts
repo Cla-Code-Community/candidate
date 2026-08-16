@@ -180,7 +180,7 @@ export function useScrapers() {
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
+  const [startingScraperId, setStartingScraperId] = useState<string | null>(null);
   const [isClearingJobsCache, setIsClearingJobsCache] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -284,23 +284,56 @@ export function useScrapers() {
     lastUpdatedAt,
   };
 
-  const toggleScraper = (id: string) => {
+  const runScraper = async (id: string) => {
     const scraper = scrapers.find((item) => item.id === id);
     if (!scraper) return;
 
-    addLog(
-      `Acao individual para ${scraper.name} ainda nao esta disponivel no backend.`,
-    );
-    notify({
-      tone: "warning",
-      title: "Ação indisponível",
-      description:
-        "O backend ainda não possui endpoint para pausar ou ativar um scraper individual.",
-    });
+    if (scraper.active) {
+      addLog(`${scraper.name} ja esta em execucao.`);
+      notify({
+        tone: "warning",
+        title: "Scraper já em execução",
+        description: `${scraper.name} já está rodando neste momento.`,
+      });
+      return;
+    }
+
+    setStartingScraperId(id);
+    try {
+      const result = await scrapersApi.triggerOne(id);
+      addLog(result.message || `${scraper.name} iniciado.`);
+      notify({
+        tone: "success",
+        title: "Scraper iniciado",
+        description: result.message || `${scraper.name} começou a executar.`,
+      });
+      await refresh({ includeJobs: true });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        addLog(`${scraper.name} ja esta em execucao.`);
+        notify({
+          tone: "warning",
+          title: "Scraper já em execução",
+          description: "A execução atual ainda não terminou.",
+        });
+        await refresh({ includeJobs: true });
+        return;
+      }
+
+      setError(`Nao foi possivel iniciar ${scraper.name}.`);
+      addLog(`Falha ao solicitar execucao de ${scraper.name}.`);
+      notify({
+        tone: "error",
+        title: "Erro ao iniciar scraper",
+        description: `O backend não conseguiu disparar ${scraper.name}.`,
+      });
+    } finally {
+      setStartingScraperId(null);
+    }
   };
 
   const startAll = async () => {
-    setIsStarting(true);
+    setStartingScraperId("__all__");
     try {
       const result = await scrapersApi.trigger();
       addLog(result.message || "Execucao dos scrapers iniciada.");
@@ -331,7 +364,7 @@ export function useScrapers() {
           "O backend não conseguiu disparar a execução dos scrapers.",
       });
     } finally {
-      setIsStarting(false);
+      setStartingScraperId(null);
     }
   };
 
@@ -386,11 +419,12 @@ export function useScrapers() {
     logs,
     isLoading,
     isRefreshing,
-    isStarting,
+    isStarting: startingScraperId !== null,
+    startingScraperId,
     isClearingJobsCache,
     error,
     refresh: reloadJobs,
-    toggleScraper,
+    toggleScraper: runScraper,
     startAll,
     pauseAll,
     clearJobsCache,

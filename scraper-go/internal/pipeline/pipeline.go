@@ -9,25 +9,32 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/adapters"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/classifier"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/dedup"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
-	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/models"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
 
-const defaultMaxConcurrency = 150
+const defaultMaxConcurrency = 40
 
 type result struct {
-	jobs []models.Job
+	jobs []domain.Job
 	err  error
 }
 
-func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeRequest) []models.Job {
+type adapterTask struct {
+	adapter  ports.JobSource
+	keywords []string
+	batch    bool
+}
+
+func Run(ctx context.Context, adapterList []ports.JobSource, req domain.ScrapeRequest) []domain.Job {
 	pipelineStart := time.Now()
 
 	maxConcurrency := req.MaxConcurrency
@@ -35,15 +42,15 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 		maxConcurrency = defaultMaxConcurrency
 	}
 
-	type task struct {
-		adapter adapters.Adapter
-		keyword string
-	}
-
-	tasks := make([]task, 0, len(adapterList)*len(req.Keywords))
+	tasks := make([]adapterTask, 0, len(adapterList)*len(req.Keywords))
 	for _, a := range adapterList {
+		if _, ok := a.(ports.BatchJobSource); ok {
+			tasks = append(tasks, adapterTask{adapter: a, keywords: req.Keywords, batch: true})
+			continue
+		}
+
 		for _, kw := range req.Keywords {
-			tasks = append(tasks, task{adapter: a, keyword: kw})
+			tasks = append(tasks, adapterTask{adapter: a, keywords: []string{kw}})
 		}
 	}
 
@@ -55,14 +62,14 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 		wg.Add(1)
 		sem <- struct{}{}
 
-		go func(t task) {
+		go func(t adapterTask) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
 			source := t.adapter.SourceName()
 
 			timer := prometheus.NewTimer(metrics.ScrapeDurationSeconds.WithLabelValues(source))
-			jobs, err := t.adapter.Search(ctx, t.keyword, req)
+			jobs, err := runAdapterTask(ctx, t, req)
 			timer.ObserveDuration()
 
 			metrics.ScrapeRunsTotal.WithLabelValues(source).Inc()
@@ -73,7 +80,8 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 				metrics.ScrapeErrorsTotal.WithLabelValues(source).Inc()
 				slog.Warn("adapter falhou",
 					"source", source,
-					"keyword", t.keyword,
+					"keywords", len(t.keywords),
+					"batch", t.batch,
 					"error", err,
 				)
 				return
@@ -83,7 +91,8 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 
 			slog.Info("adapter concluído",
 				"source", source,
-				"keyword", t.keyword,
+				"keywords", len(t.keywords),
+				"batch", t.batch,
 				"count", len(jobs),
 			)
 		}(t)
@@ -94,7 +103,7 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 		close(results)
 	}()
 
-	var allJobs []models.Job
+	var allJobs []domain.Job
 	for r := range results {
 		if r.err == nil {
 			allJobs = append(allJobs, r.jobs...)
@@ -102,14 +111,29 @@ func Run(ctx context.Context, adapterList []adapters.Adapter, req models.ScrapeR
 	}
 
 	deduped := dedup.DedupeJobs(allJobs)
+	classified := classifier.ClassifyJobs(deduped)
 
 	metrics.PipelineRunDuration.Observe(time.Since(pipelineStart).Seconds())
-	metrics.PipelineJobsTotal.Observe(float64(len(deduped)))
+	metrics.PipelineJobsTotal.Observe(float64(len(classified)))
 
-	return deduped
+	return classified
 }
 
-func IndexJobsInValkey(ctx context.Context, rdb *redis.Client, jobs []models.Job, keywords []string) {
+func runAdapterTask(ctx context.Context, t adapterTask, req domain.ScrapeRequest) ([]domain.Job, error) {
+	if t.batch {
+		batchAdapter := t.adapter.(ports.BatchJobSource)
+		return batchAdapter.SearchBatch(ctx, t.keywords, req)
+	}
+
+	keyword := ""
+	if len(t.keywords) > 0 {
+		keyword = t.keywords[0]
+	}
+
+	return t.adapter.Search(ctx, keyword, req)
+}
+
+func IndexJobsInValkey(ctx context.Context, rdb *redis.Client, jobs []domain.Job, keywords []string) {
 	if rdb == nil || len(jobs) == 0 {
 		return
 	}
@@ -170,6 +194,10 @@ func IndexJobsInValkey(ctx context.Context, rdb *redis.Client, jobs []models.Job
 		for _, key := range structuredIndexKeys(job) {
 			kwIndex[key] = append(kwIndex[key], id)
 		}
+
+		for _, key := range classificationIndexKeys(job) {
+			kwIndex[key] = append(kwIndex[key], id)
+		}
 	}
 
 	// Publica os índices de keyword com RENAME atômico
@@ -202,7 +230,56 @@ func IndexJobsInValkey(ctx context.Context, rdb *redis.Client, jobs []models.Job
 	)
 }
 
-func structuredIndexKeys(job models.Job) []string {
+func classificationIndexKeys(job domain.Job) []string {
+	if job.Classification == nil {
+		return nil
+	}
+
+	classification := job.Classification
+	if !classification.InScope {
+		return nil
+	}
+
+	values := make([]string, 0, 1+len(classification.RelatedFamilies)+len(classification.Technologies))
+
+	if classification.PrimaryFamily != "" {
+		normalized := normalizeIndexValue(classification.PrimaryFamily)
+		if normalized != "" {
+			values = append(values,
+				fmt.Sprintf("scraper:jobs:family:%s", normalized),
+				fmt.Sprintf("scraper:jobs:keyword:%s", normalized),
+			)
+		}
+	}
+	for _, family := range classification.RelatedFamilies {
+		normalized := normalizeIndexValue(family)
+		if normalized != "" {
+			values = append(values,
+				fmt.Sprintf("scraper:jobs:family:%s", normalized),
+				fmt.Sprintf("scraper:jobs:keyword:%s", normalized),
+			)
+		}
+	}
+	for _, technology := range classification.Technologies {
+		normalized := normalizeIndexValue(technology)
+		if normalized != "" {
+			values = append(values,
+				fmt.Sprintf("scraper:jobs:technology:%s", normalized),
+				fmt.Sprintf("scraper:jobs:keyword:%s", normalized),
+			)
+		}
+	}
+	if classification.Seniority != "" {
+		normalized := normalizeIndexValue(classification.Seniority)
+		if normalized != "" {
+			values = append(values, fmt.Sprintf("scraper:jobs:seniority:%s", normalized))
+		}
+	}
+
+	return uniqueStrings(values)
+}
+
+func structuredIndexKeys(job domain.Job) []string {
 	values := map[string]string{
 		"level":    inferLevel(job),
 		"model":    inferWorkModel(job),
@@ -245,7 +322,7 @@ func normalizeIndexValue(value string) string {
 	return strings.Join(strings.Fields(b.String()), " ")
 }
 
-func keywordSearchText(job models.Job) string {
+func keywordSearchText(job domain.Job) string {
 	return normalizeIndexValue(strings.Join([]string{
 		job.Title,
 		job.Company,
@@ -255,7 +332,7 @@ func keywordSearchText(job models.Job) string {
 	}, " "))
 }
 
-func searchableJobText(job models.Job) string {
+func searchableJobText(job domain.Job) string {
 	return normalizeIndexValue(strings.Join([]string{
 		job.Title,
 		job.Company,
@@ -325,7 +402,7 @@ func uniqueStrings(values []string) []string {
 	return result
 }
 
-func inferLevel(job models.Job) string {
+func inferLevel(job domain.Job) string {
 	text := searchableJobText(job)
 
 	if containsAny(text, "estagio", "intern", "trainee") {
@@ -341,7 +418,7 @@ func inferLevel(job models.Job) string {
 	return "pleno"
 }
 
-func inferWorkModel(job models.Job) string {
+func inferWorkModel(job domain.Job) string {
 	text := searchableJobText(job)
 
 	if containsAny(text, "hibrido", "hybrid") {
@@ -372,7 +449,7 @@ func inferWorkModel(job models.Job) string {
 	return "presencial"
 }
 
-func inferContract(job models.Job) string {
+func inferContract(job domain.Job) string {
 	text := searchableJobText(job)
 
 	if containsAny(text, "cooperado", "cooperativa") {

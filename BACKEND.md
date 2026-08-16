@@ -63,7 +63,7 @@ Módulos principais:
 - `src/modules/users` — perfis e preferências do usuário (`UsersController`, `UsersService`).
 - `src/modules/savedJobs` — CRUD de vagas salvas (`SavedJobsController`, `SavedJobsService`).
 - `src/modules/notifications` — notificações do usuário autenticado.
-- `src/modules/jobs` — regras de matching/score de vagas.
+- `src/modules/jobs` — busca, parsing de filtros, fallback pós-filtro e regras de matching/score de vagas.
 - `src/modules/admin` — usuários admin, permissões, scrapers, auditoria, dashboard e observabilidade.
 
 Adaptadores externos:
@@ -81,8 +81,61 @@ Database / Schemas (Drizzle):
 
 Cache & Indexes:
 
-- `src/lib/cache.ts` — helpers para Redis/Valkey; usado por `jobs.routes` para obter ids e buscar vagas em memória.
+- `src/lib/cache.ts` — helpers para Redis/Valkey; usado pelo módulo de jobs para obter ids e buscar vagas em memória.
 - Busca por palavras-chave usa índices invertidos e interseção para eficiência.
+- Filtros estruturados podem usar índices por família (`family`), tecnologia (`technology`), senioridade (`seniority`), localização, modelo e contrato.
+
+## Módulo de E-mail
+
+Módulo centralizado em `src/modules/email` para envio de e-mails transacionais de forma **assíncrona e resiliente**. Qualquer módulo do backend consome a mesma API interna (`emailService`), sem conhecer o provedor.
+
+**Fluxo:** `emailService.send()` valida e enfileira um job na fila BullMQ `email` (sobre Valkey, via `ioredis`) → um worker in-process (`startEmailWorker`, iniciado no boot do `server.ts`) renderiza o template react-email e despacha pelo `MailProvider` configurado. Falha do provedor aciona retry com backoff exponencial; no fracasso final apenas loga. Falha ao enfileirar (ex.: Valkey indisponível) é logada e **não** propaga para o fluxo de negócio chamador.
+
+**Arquivos:**
+
+- `email.service.ts` — API interna (`emailService.send` / `sendWelcome`).
+- `email.queue.ts` — fila BullMQ + conexão `ioredis` dedicada (`getEmailQueue`, `enqueueEmail`, `closeEmailQueue`).
+- `email.worker.ts` — worker in-process (`startEmailWorker`, `stopEmailWorker`).
+- `providers/mail-provider.ts` — interface `MailProvider` + `getMailProvider()` (seleciona `ResendProvider` se `EMAIL_API_KEY` presente, senão `NoopProvider`).
+- `providers/resend.provider.ts`, `providers/noop.provider.ts` — provedores concretos.
+- `templates/registry.ts` + `templates/*.tsx` — templates react-email e lookup por nome.
+
+**Uso (API interna):**
+
+```ts
+import { emailService } from "./modules/email/email.service";
+
+// Envio genérico: valida `to` (formato) e `template` (existe no registry).
+await emailService.send({
+  template: "welcome",
+  to: "usuario@exemplo.com",
+  data: { name: "Ana", appUrl: "https://painelvagas.com" },
+});
+
+// Açúcar para boas-vindas: injeta `appUrl` a partir de FRONTEND_URL.
+await emailService.sendWelcome({ email: "usuario@exemplo.com", name: "Ana" });
+```
+
+`send` resolve sem aguardar a entrega. `to` inválido ou `template` desconhecido lançam `AppError.validation` (antes de enfileirar).
+
+**Variáveis de ambiente:**
+
+- `EMAIL_API_KEY` — chave da Resend. Vazia ⇒ `NoopProvider` (apenas loga; não envia, não quebra o boot).
+- `EMAIL_FROM_ADDRESS` — endereço remetente (ex.: `no-reply@painelvagas.com`).
+- `EMAIL_FROM_NAME` — nome exibido do remetente (ex.: `Painel Vagas`).
+- `EMAIL_QUEUE_ATTEMPTS` — nº de tentativas do job (padrão `3`).
+- `FRONTEND_URL` — reusada para o botão "Acessar plataforma" do template de boas-vindas (nenhuma env de URL nova é criada).
+
+**Adicionar um novo template:**
+
+1. Crie o componente react-email em `src/modules/email/templates/<nome>.tsx` (props tipadas), reusando `BaseLayout`.
+2. Registre-o no mapa `templates` de `registry.ts` (subject + component) e adicione as props em `TemplateDataMap`. O `TemplateName` e `isTemplate` passam a reconhecê-lo automaticamente.
+3. Consuma via `emailService.send({ template: "<nome>", to, data })`.
+
+**Adicionar um novo provider:**
+
+1. Implemente a interface `MailProvider` (`send({ to, subject, html, replyTo? })`) em `src/modules/email/providers/<nome>.provider.ts`. Em falha, **lance** (para o BullMQ re-tentar).
+2. Ajuste `getMailProvider()` em `mail-provider.ts` para selecioná-lo pela configuração. Nenhum caller precisa mudar (contrato via interface).
 
 ## Middlewares
 
@@ -122,6 +175,7 @@ Base: `/`
 
 - Jobs
   - `GET /jobs/search?keywords=...` — busca vagas utilizando índices/Valkey/Redis. Retorna paginação e fonte (`source`).
+  - Filtros aceitos incluem `keywords`, `family`, `technology`, `seniority`, `level`, `location`, `country`, `state`, `city`, `type`/`model`, `contract`/`contractType`/`jobTypes` e `matchSort`.
 
 - Keywords
   - `GET /keywords` — lista keywords persistidas no banco.
@@ -171,7 +225,12 @@ Definidas/consumidas em `src/config.ts` e outros módulos:
 - `JOB_TYPES` — filtros de tipo de vaga.
 - `TIME_FILTER` — filtro temporal (ex: `r604800`).
 - `DATABASE_URL` — conexão com Postgres.
-- `VALKEY_URL` — endpoint do Valkey (se usado).
+- `VALKEY_URL` — endpoint do Valkey (cache e fila de e-mail via BullMQ).
+- `FRONTEND_URL` — URL do frontend; reusada no CTA do e-mail de boas-vindas.
+- `EMAIL_API_KEY` — chave da Resend (vazio ⇒ envio no-op logado).
+- `EMAIL_FROM_ADDRESS` — endereço remetente dos e-mails.
+- `EMAIL_FROM_NAME` — nome exibido do remetente.
+- `EMAIL_QUEUE_ATTEMPTS` — tentativas por job de e-mail (padrão 3).
 - `GO_SCRAPER_URL` — URL do serviço Go que realiza scraping.
 - `SESSION_SECRET` — senha para `iron-session` (obrigatória em produção).
 - `ENCRYPTION_MASTER_KEY`, `ENCRYPTION_KEY_ID`, `SEARCH_KEY` — criptografia e campos pesquisáveis de PII.
@@ -190,6 +249,7 @@ Definidas/consumidas em `src/config.ts` e outros módulos:
 
 - `goScraper.ts` faz POST em `${GO_SCRAPER_URL}/scrape` com `ScrapeParams` e valida `ScrapeResponse`.
 - `goKeywords.ts` consulta e publica keywords via endpoints do serviço Go (`/api/keywords`).
+- O backend lê os índices criados pelo scraper no Valkey, incluindo `scraper:jobs:keyword:*`, `scraper:jobs:family:*`, `scraper:jobs:technology:*` e `scraper:jobs:seniority:*`.
 
 ## Banco de dados
 

@@ -1,6 +1,6 @@
 # Frontend
 
-Aplicação web principal do <Cand!date!>, voltada para usuários finais.
+Aplicação web principal do Cand!Date!, voltada para usuários finais.
 
 Ela concentra a landing page pública, autenticação, callback OAuth e dashboard de vagas com filtros, detalhes, vagas salvas, perfil e preferências.
 
@@ -33,7 +33,7 @@ Para executar apenas este workspace:
 npm run dev --workspace=frontend
 ```
 
-Por padrão o Vite usa http://localhost:5173.
+Por padrão o Vite usa <http://localhost:5173>.
 
 ## Variáveis de ambiente
 

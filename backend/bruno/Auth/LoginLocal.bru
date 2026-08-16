@@ -1,0 +1,47 @@
+meta {
+  name: LoginLocal
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{base_url}}/auth/login
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email":"teste.criptografia.001@example.com",
+    "password":"SenhaForte123"
+  }
+}
+
+tests {
+  console.log("HEADERS:", res.headers);
+  
+  const rawCookie =
+    res.headers["set-cookie"] ||
+    res.headers["Set-Cookie"];
+  
+  console.log("RAW COOKIE:", rawCookie);
+  
+  if (!rawCookie) {
+    throw new Error("Set-Cookie não encontrado");
+  }
+  
+  const cookie = Array.isArray(rawCookie)
+    ? rawCookie[0]
+    : rawCookie;
+  
+  const sessionCookie = cookie.split(";")[0];
+  
+  bru.setEnvVar("sessionCookie", sessionCookie);
+  
+  console.log("SESSION COOKIE:", sessionCookie);
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

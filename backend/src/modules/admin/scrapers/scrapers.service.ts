@@ -21,6 +21,15 @@ export class ScrapersService {
     }
   }
 
+  async triggerScraper(name: string): Promise<TriggerScrapeResult> {
+    const normalized = name.trim().toLowerCase();
+    if (normalized !== "go-scraper") {
+      throw new Error(`scraper desconhecido: ${name}`);
+    }
+
+    return this.triggerScrape();
+  }
+
   async getStatus(): Promise<ScraperStatus> {
     return scraperClient.getStatus();
   }
@@ -35,7 +44,7 @@ export class ScrapersService {
         status: status.running ? "running" : "idle",
         running: status.running,
         lastRunAt: status.lastRunAt ?? null,
-        jobsCollected: status.jobsCollected ?? count?.total ?? null,
+        jobsCollected: count?.total ?? status.jobsCollected ?? null,
       },
     ];
   }

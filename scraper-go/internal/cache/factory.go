@@ -24,13 +24,33 @@ func NewCache() (Cache, error) {
 
 	client := redis.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := client.Ping(ctx).Err(); err != nil {
+	if err := waitForRedisPing(ctx, client); err != nil {
 		_ = client.Close()
 		return nil, fmt.Errorf("cache: could not reach Valkey at %q: %w", url, err)
 	}
 
 	return NewRedisCache(client), nil
+}
+
+func waitForRedisPing(ctx context.Context, client *redis.Client) error {
+	var lastErr error
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		if err := client.Ping(ctx).Err(); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+
+		select {
+		case <-ctx.Done():
+			return lastErr
+		case <-ticker.C:
+		}
+	}
 }

@@ -1,4 +1,5 @@
 import { dashboardApi } from "../../../lib/api/dashboard.api";
+import { scrapersApi } from "../../../lib/api/scrapers.api";
 import type { DashboardOverview as BackendDashboardOverview } from "../../../lib/api/types";
 import type {
   DashboardStats,
@@ -26,6 +27,8 @@ const SERVICE_LABELS: Record<
 
 function statusLabel(status: string): string {
   if (status === "ok") return "Online";
+  if (status === "running") return "Executando";
+  if (status === "idle") return "Disponivel";
   if (status === "degraded") return "Instavel";
   return "Indisponivel";
 }
@@ -136,7 +139,10 @@ export const dashboardService = {
   },
 
   async toggleScraper(id: string, active: boolean): Promise<void> {
-    void id;
-    void active;
+    if (!active) {
+      throw new Error("pausar scraper ainda nao esta disponivel");
+    }
+
+    await scrapersApi.triggerOne(id);
   },
 };
