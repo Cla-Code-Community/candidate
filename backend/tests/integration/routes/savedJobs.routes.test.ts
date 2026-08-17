@@ -7,6 +7,7 @@ import { AppError } from "../../../src/lib/errors";
 const mockSavedJobsService = vi.hoisted(() => ({
   getAll: vi.fn(),
   getById: vi.fn(),
+  getEvents: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
@@ -66,6 +67,29 @@ const createPayload = {
   status: "saved",
 };
 
+const fixtureEvents = [
+  {
+    id: "event-1",
+    userId: "user_abc",
+    savedJobId: "job-1",
+    type: "status_changed",
+    fromStatus: "saved",
+    toStatus: "applied",
+    metadata: null,
+    createdAt: new Date("2024-01-02").toISOString(),
+  },
+  {
+    id: "event-2",
+    userId: "user_abc",
+    savedJobId: "job-1",
+    type: "status_changed",
+    fromStatus: "applied",
+    toStatus: "interviewing",
+    metadata: null,
+    createdAt: new Date("2024-01-03").toISOString(),
+  },
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Integration - SavedJobs Routes", () => {
@@ -79,6 +103,7 @@ describe("Integration - SavedJobs Routes", () => {
 
     mockSavedJobsService.getAll.mockResolvedValue([fixtureJob]);
     mockSavedJobsService.getById.mockResolvedValue(fixtureJob);
+    mockSavedJobsService.getEvents.mockResolvedValue(fixtureEvents);
     mockSavedJobsService.create.mockResolvedValue(fixtureJob);
     mockSavedJobsService.update.mockResolvedValue({
       ...fixtureJob,
@@ -158,6 +183,56 @@ describe("Integration - SavedJobs Routes", () => {
       } as any);
 
       await request(app).get(`${BASE}/job-1`).expect(401);
+    });
+  });
+
+  // ── GET /:id/events ───────────────────────────────────────────────────────
+
+  describe("GET /:id/events", () => {
+    it("retorna os eventos em ordem cronológica", async () => {
+      const res = await request(app)
+        .get(`${BASE}/job-1/events`)
+        .expect(200);
+
+      expect(res.body).toEqual(fixtureEvents);
+      expect(res.body.map((event: { id: string }) => event.id)).toEqual([
+        "event-1",
+        "event-2",
+      ]);
+    });
+
+    it("usa o usuário autenticado para isolar a listagem", async () => {
+      await request(app).get(`${BASE}/job-1/events`).expect(200);
+
+      expect(mockSavedJobsService.getEvents).toHaveBeenCalledWith(
+        "user_abc",
+        "job-1",
+      );
+    });
+
+    it("retorna 401 quando não há usuário autenticado", async () => {
+      vi.mocked(getIronSession).mockResolvedValueOnce({
+        userId: undefined,
+      } as any);
+
+      await request(app).get(`${BASE}/job-1/events`).expect(401);
+
+      expect(mockSavedJobsService.getEvents).not.toHaveBeenCalled();
+    });
+
+    it("retorna 404 quando a vaga não pertence ao usuário", async () => {
+      mockSavedJobsService.getEvents.mockRejectedValueOnce(
+        AppError.notFound("Vaga não encontrada"),
+      );
+
+      const res = await request(app)
+        .get(`${BASE}/job-2/events`)
+        .expect(404);
+
+      expect(res.body).toEqual({
+        code: "NOT_FOUND",
+        message: "Vaga não encontrada",
+      });
     });
   });
 

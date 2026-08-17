@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { SavedJob } from "../../../../src/db/schema";
 
 const drizzleMocks = vi.hoisted(() => ({
   and: vi.fn(),
@@ -16,12 +17,18 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
-const mockJob = {
+const mockJob: SavedJob = {
   id: "job-1",
   userId: "user-1",
   jobLink: "https://example.com/job/1",
   jobTitle: "Engenheiro de Software",
   company: "Empresa X",
+  status: "saved",
+  appliedAt: null,
+  notes: null,
+  location: null,
+  source: null,
+  keyword: null,
   createdAt: new Date("2024-01-01"),
   updatedAt: new Date("2024-01-01"),
 };
@@ -29,17 +36,50 @@ const mockJob = {
 // ─── Mock DB factory ──────────────────────────────────────────────────────────
 
 function makeMockTx() {
-  return {
+  const tx: any = {
     query: {
       savedJobs: {
         findMany: vi.fn(),
         findFirst: vi.fn(),
       },
+      applicationEvents: {
+        findMany: vi.fn(),
+      },
     },
+    select: vi.fn(),
     insert: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    transaction: vi.fn(),
   };
+
+  tx.transaction.mockImplementation(
+    async (callback: (transaction: typeof tx) => unknown) =>
+      callback(tx),
+  );
+
+  return tx;
+}
+
+// HELPER
+
+function mockLockedJob(
+  tx: ReturnType<typeof makeMockTx>,
+  job: SavedJob | undefined,
+) {
+  const forUpdate = vi.fn().mockResolvedValue(job ? [job] : []);
+
+  tx.select.mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        limit: vi.fn().mockReturnValue({
+          for: forUpdate,
+        }),
+      }),
+    }),
+  });
+
+  return forUpdate;
 }
 
 // ─── Import after vitest setup ────────────────────────────────────────────────
@@ -56,6 +96,7 @@ describe("SavedJobsService", () => {
   beforeEach(() => {
     tx = makeMockTx();
     service = new SavedJobsService(tx as any);
+    mockLockedJob(tx, mockJob);
     drizzleMocks.and.mockImplementation((...conditions) => conditions);
     drizzleMocks.eq.mockImplementation((column, value) => ({
       column,
@@ -201,7 +242,6 @@ describe("SavedJobsService", () => {
 
   describe("update", () => {
     it("atualiza e retorna a vaga", async () => {
-      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
       tx.update.mockReturnValue({
         set: vi.fn().mockReturnValue({
           where: vi.fn().mockReturnValue({
@@ -244,13 +284,93 @@ describe("SavedJobsService", () => {
       });
     });
 
+    it("cria evento e notificação quando o status muda", async () => {
+      const previousJob = {
+        ...mockJob,
+        status: "saved" as const,
+      };
+
+      const updatedJob = {
+        ...mockJob,
+        status: "applied" as const,
+      };
+
+      mockLockedJob(tx, previousJob);
+
+      tx.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([updatedJob]),
+          }),
+        }),
+      });
+
+      const eventValues = vi.fn().mockResolvedValue(undefined);
+
+      const notificationValues = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([
+          { id: "notification-1" },
+        ]),
+      });
+
+      tx.insert
+        .mockReturnValueOnce({ values: eventValues })
+        .mockReturnValueOnce({ values: notificationValues });
+
+      const result = await service.update("user-1", "job-1", {
+        status: "applied",
+      });
+
+      expect(result.status).toBe("applied");
+
+      expect(eventValues).toHaveBeenCalledWith({
+        userId: "user-1",
+        savedJobId: "job-1",
+        type: "status_changed",
+        fromStatus: "saved",
+        toStatus: "applied",
+      });
+
+      expect(notificationValues).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: "user-1",
+          type: "job_applied",
+          entityId: "job-1",
+        }),
+      );
+
+      expect(tx.transaction).toHaveBeenCalledOnce();
+    });
+
+    it("não cria evento quando o status não muda", async () => {
+      const appliedJob = {
+        ...mockJob,
+        status: "applied" as const,
+      };
+
+      mockLockedJob(tx, appliedJob);
+
+      tx.update.mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([appliedJob]),
+          }),
+        }),
+      });
+
+      await service.update("user-1", "job-1", {
+        status: "applied",
+      });
+
+      expect(tx.insert).not.toHaveBeenCalled();
+    });
+
     it("inclui updatedAt no set", async () => {
       const setMock = vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
           returning: vi.fn().mockResolvedValue([mockJob]),
         }),
       });
-      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
       tx.update.mockReturnValue({ set: setMock });
 
       await service.update("user-1", "job-1", { jobTitle: "X" });
@@ -264,7 +384,6 @@ describe("SavedJobsService", () => {
       const whereMock = vi.fn().mockReturnValue({
         returning: vi.fn().mockResolvedValue([mockJob]),
       });
-      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
       tx.update.mockReturnValue({
         set: vi.fn().mockReturnValue({ where: whereMock }),
       });
@@ -276,43 +395,97 @@ describe("SavedJobsService", () => {
         { column: expect.anything(), value: "user-1" },
       ]);
     });
+  });
 
-    it("cria notificação quando o status da vaga muda", async () => {
-      const previousJob = { ...mockJob, status: "saved" };
-      const updatedJob = { ...mockJob, status: "applied" };
-      const notificationValues = vi.fn().mockReturnValue({
-        returning: vi.fn().mockResolvedValue([{ id: "notification-1" }]),
-      });
+  // ── getEvents ──────────────────────────────────────────────────────────────
 
-      tx.query.savedJobs.findFirst.mockResolvedValue(previousJob);
-      tx.update.mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockReturnValue({
-            returning: vi.fn().mockResolvedValue([updatedJob]),
-          }),
-        }),
-      });
-      tx.insert.mockReturnValueOnce({ values: notificationValues });
+  describe("getEvents", () => {
+    const events = [
+      {
+        id: "event-1",
+        userId: "user-1",
+        savedJobId: "job-1",
+        type: "status_changed",
+        fromStatus: "saved",
+        toStatus: "applied",
+        metadata: null,
+        createdAt: new Date("2024-01-01"),
+      },
+      {
+        id: "event-2",
+        userId: "user-1",
+        savedJobId: "job-1",
+        type: "status_changed",
+        fromStatus: "applied",
+        toStatus: "interviewing",
+        metadata: null,
+        createdAt: new Date("2024-01-02"),
+      },
+    ];
 
-      const result = await service.update("user-1", "job-1", {
-        status: "applied",
-      });
+    it("retorna somente os eventos da vaga do usuário", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
+      tx.query.applicationEvents.findMany.mockResolvedValue(events);
 
-      expect(result.status).toBe("applied");
-      expect(tx.insert).toHaveBeenCalledOnce();
-      expect(notificationValues).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: "user-1",
-          channel: "notification",
-          type: "job_applied",
-          entityType: "job",
-          entityId: updatedJob.id,
-          metadata: expect.objectContaining({
-            previousStatus: "saved",
-            status: "applied",
-          }),
-        }),
+      const result = await service.getEvents("user-1", "job-1");
+
+      expect(result).toEqual(events);
+
+      const options = tx.query.applicationEvents.findMany.mock.calls[0][0];
+      const operators = {
+        and: (...conditions: unknown[]) => conditions,
+        eq: (column: unknown, value: unknown) => ({ column, value }),
+      };
+      const table = {
+        userId: "applicationEvents.userId",
+        savedJobId: "applicationEvents.savedJobId",
+      };
+
+      expect(options.where(table, operators)).toEqual([
+        { column: "applicationEvents.userId", value: "user-1" },
+        { column: "applicationEvents.savedJobId", value: "job-1" },
+      ]);
+    });
+
+    it("ordena do evento mais antigo para o mais recente", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(mockJob);
+      tx.query.applicationEvents.findMany.mockResolvedValue(events);
+
+      await service.getEvents("user-1", "job-1");
+
+      const options = tx.query.applicationEvents.findMany.mock.calls[0][0];
+      const asc = vi.fn((column) => ({ direction: "asc", column }));
+      const order = options.orderBy(
+        {
+          createdAt: "applicationEvents.createdAt",
+          id: "applicationEvents.id",
+        },
+        { asc },
       );
+
+      expect(order).toEqual([
+        {
+          direction: "asc",
+          column: "applicationEvents.createdAt",
+        },
+        {
+          direction: "asc",
+          column: "applicationEvents.id",
+        },
+      ]);
+    });
+
+    it("não lista eventos de vaga que não pertence ao usuário", async () => {
+      tx.query.savedJobs.findFirst.mockResolvedValue(undefined);
+
+      await expect(
+        service.getEvents("user-2", "job-1"),
+      ).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        statusCode: 404,
+      });
+
+      expect(tx.query.applicationEvents.findMany).not.toHaveBeenCalled();
     });
   });
 

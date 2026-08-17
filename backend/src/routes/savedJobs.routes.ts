@@ -17,6 +17,9 @@ router.get("/", (req, res, next) => {
 router.get("/:id", (req, res, next) => {
   controller.getById(req, res).catch(next);
 });
+router.get("/:id/events", (req, res, next) => {
+  controller.getEvents(req, res).catch(next);
+});
 router.post("/", validate({ body: createSavedJobSchema }), (req, res, next) => {
   controller.create(req, res).catch(next);
 });

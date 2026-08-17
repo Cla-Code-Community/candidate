@@ -55,6 +55,18 @@ export class SavedJobsController {
     return res.json(job);
   }
 
+  // GET /saved-jobs/:id/events
+  async getEvents(req: Request, res: Response) {
+    const userId = await this.requireUserId(req, res);
+
+    const events = await this.service.getEvents(
+      userId,
+      req.params.id as string,
+    );
+
+    return res.json(events);
+  }
+
   // DELETE /api/saved-jobs/:id
   async delete(req: Request, res: Response) {
     const userId = await this.requireUserId(req, res);

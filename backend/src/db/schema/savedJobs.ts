@@ -26,7 +26,10 @@ export const savedJobs = pgTable("saved_jobs", {
   source: text("source"),
   keyword: text("keyword"),
 
-  status: varchar("status", { length: 50 }).default("saved").notNull(),
+  status: varchar("status", { length: 50 })
+    .$type<JobStatus>()
+    .default("saved")
+    .notNull(),
 
   appliedAt: timestamp("applied_at"),
   notes: text("notes"),
