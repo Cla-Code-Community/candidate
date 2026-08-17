@@ -1,4 +1,5 @@
 export * from "./accounts";
+export * from "./applicationEvents";
 export * from "./auditLogs";
 export * from "./credentials";
 export * from "./keywords";

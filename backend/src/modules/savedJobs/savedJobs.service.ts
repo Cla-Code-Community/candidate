@@ -1,6 +1,12 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../../db/client";
-import { NewSavedJob, SavedJob, savedJobs } from "../../db/schema";
+import {
+  ApplicationEvent,
+  applicationEvents,
+  NewSavedJob,
+  SavedJob,
+  savedJobs,
+} from "../../db/schema";
 import { DB } from "../../db/types/types";
 import { ownedBy } from "../../lib/authorization/ownership";
 import { AppError } from "../../lib/errors";
@@ -48,26 +54,76 @@ export class SavedJobsService {
     jobId: string,
     data: Partial<NewSavedJob>,
   ): Promise<SavedJob> {
-    const previous = await this.getById(userId, jobId);
-    if (!previous) {
+    return this.tx.transaction(async (tx) => {
+      const [currentJob] = await tx
+        .select()
+        .from(savedJobs)
+        .where(
+          and(eq(savedJobs.id, jobId), eq(savedJobs.userId, userId)),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!currentJob) {
+        throw AppError.notFound("Vaga não encontrada");
+      }
+
+      const statusChanged =
+        data.status !== undefined && data.status !== currentJob.status;
+
+      const [updatedJob] = await tx
+        .update(savedJobs)
+        .set({
+          ...data,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(eq(savedJobs.id, jobId), eq(savedJobs.userId, userId)),
+        )
+        .returning();
+
+      if (!updatedJob) {
+        throw AppError.notFound("Vaga não encontrada");
+      }
+
+      if (statusChanged && data.status) {
+        await tx.insert(applicationEvents).values({
+          userId,
+          savedJobId: jobId,
+          type: "status_changed",
+          fromStatus: currentJob.status,
+          toStatus: data.status,
+        });
+
+        await new NotificationsService(tx).createForJobStatusChange(
+          userId,
+          currentJob,
+          updatedJob,
+        );
+      }
+
+      return updatedJob;
+    });
+  }
+
+  async getEvents(
+    userId: string,
+    jobId: string,
+  ): Promise<ApplicationEvent[]> {
+    const job = await this.getById(userId, jobId);
+
+    if (!job) {
       throw AppError.notFound("Vaga não encontrada");
     }
 
-    const result = await this.tx
-      .update(savedJobs)
-      .set({ ...data, updatedAt: new Date() })
-      .where(and(eq(savedJobs.id, jobId), ownedBy(userId, savedJobs.userId)))
-      .returning();
-
-    if (!result[0]) {
-      throw AppError.notFound("Vaga não encontrada");
-    }
-    await new NotificationsService(this.tx).createForJobStatusChange(
-      userId,
-      previous,
-      result[0],
-    );
-    return result[0];
+    return this.tx.query.applicationEvents.findMany({
+      where: (event, { and, eq }) =>
+        and(eq(event.userId, userId), eq(event.savedJobId, jobId)),
+      orderBy: (event, { asc }) => [
+        asc(event.createdAt),
+        asc(event.id),
+      ],
+    });
   }
 
   async delete(userId: string, jobId: string): Promise<void> {
