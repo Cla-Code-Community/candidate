@@ -5,15 +5,16 @@ meta {
 }
 
 get {
-  url: {{base_url}}/jobs/search?location=Brasil&level=Junior
+  url: {{base_url}}/jobs/search?location=Brasil&level=pleno&keywords=node&modality=remota
   body: none
   auth: inherit
 }
 
 params:query {
   location: Brasil
-  level: Junior
-  ~keywords: 
+  level: pleno
+  keywords: node
+  modality: remota
 }
 
 headers {

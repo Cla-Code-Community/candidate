@@ -23,7 +23,7 @@ export const userPreferences = pgTable("user_preferences", {
   searchLocation: text("search_location"),
   searchLanguage: varchar("search_language", { length: 10 }),
 
-  remoteOnly: boolean("remote_only").default(true),
+  remoteOnly: boolean("remote_only").default(false),
   jobTypes: text("job_types").array().default([]),
 
   emailNotifications: boolean("email_notifications").default(false),

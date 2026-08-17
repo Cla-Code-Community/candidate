@@ -40,8 +40,10 @@ const fixtureSession = {
   destroy: vi.fn().mockResolvedValue(undefined),
 };
 
+const fixtureJobId = "e4b095ff-6439-4112-b837-024a50f838b0";
+
 const fixtureJob = {
-  id: "job-1",
+  id: fixtureJobId,
   userId: "user_abc",
   jobLink: "https://example.com/job/1",
   jobTitle: "Engenheiro de Software",
@@ -157,24 +159,26 @@ describe("Integration - SavedJobs Routes", () => {
 
   describe("GET /:id", () => {
     it("retorna 200 e a vaga encontrada", async () => {
-      const res = await request(app).get(`${BASE}/job-1`).expect(200);
+      const res = await request(app).get(`${BASE}/${fixtureJobId}`).expect(200);
 
-      expect(res.body).toHaveProperty("id", "job-1");
+      expect(res.body).toHaveProperty("id", fixtureJobId);
     });
 
     it("chama getById com userId e jobId corretos", async () => {
-      await request(app).get(`${BASE}/job-1`);
+      await request(app).get(`${BASE}/${fixtureJobId}`);
 
       expect(mockSavedJobsService.getById).toHaveBeenCalledWith(
         "user_abc",
-        "job-1",
+        fixtureJobId,
       );
     });
 
     it("retorna 404 quando vaga não existe", async () => {
       mockSavedJobsService.getById.mockResolvedValueOnce(undefined);
 
-      await request(app).get(`${BASE}/inexistente`).expect(404);
+      await request(app)
+        .get(`${BASE}/11111111-1111-4111-8111-111111111111`)
+        .expect(404);
     });
 
     it("retorna 401 quando sessão não tem userId", async () => {
@@ -182,7 +186,7 @@ describe("Integration - SavedJobs Routes", () => {
         userId: undefined,
       } as any);
 
-      await request(app).get(`${BASE}/job-1`).expect(401);
+      await request(app).get(`${BASE}/${fixtureJobId}`).expect(401);
     });
   });
 
@@ -242,7 +246,7 @@ describe("Integration - SavedJobs Routes", () => {
     it("cria vaga e retorna 201", async () => {
       const res = await request(app).post(BASE).send(createPayload).expect(201);
 
-      expect(res.body).toHaveProperty("id", "job-1");
+      expect(res.body).toHaveProperty("id", fixtureJobId);
     });
 
     it("chama create com userId e body parseado pelo Zod", async () => {
@@ -333,7 +337,7 @@ describe("Integration - SavedJobs Routes", () => {
 
     it("retorna 200 e a vaga com status atualizado", async () => {
       const res = await request(app)
-        .patch(`${BASE}/job-1`)
+        .patch(`${BASE}/${fixtureJobId}`)
         .send(updatePayload)
         .expect(200);
 
@@ -341,35 +345,40 @@ describe("Integration - SavedJobs Routes", () => {
     });
 
     it("chama update com userId, jobId e body corretos", async () => {
-      await request(app).patch(`${BASE}/job-1`).send(updatePayload);
+      await request(app)
+        .patch(`${BASE}/${fixtureJobId}`)
+        .send(updatePayload);
 
       expect(mockSavedJobsService.update).toHaveBeenCalledWith(
         "user_abc",
-        "job-1",
+        fixtureJobId,
         expect.objectContaining({ status: "applied" }),
       );
     });
 
     it("retorna 400 para status fora do enum", async () => {
       await request(app)
-        .patch(`${BASE}/job-1`)
+        .patch(`${BASE}/${fixtureJobId}`)
         .send({ status: "nao-existe" })
         .expect(400);
     });
 
     it("retorna 400 para jobLink inválido no update", async () => {
       await request(app)
-        .patch(`${BASE}/job-1`)
+        .patch(`${BASE}/${fixtureJobId}`)
         .send({ jobLink: "nao-e-url" })
         .expect(400);
     });
 
     it("aceita body vazio (todos os campos são opcionais no updateJobSchema)", async () => {
-      await request(app).patch(`${BASE}/job-1`).send({}).expect(200);
+      await request(app)
+        .patch(`${BASE}/${fixtureJobId}`)
+        .send({})
+        .expect(200);
 
       expect(mockSavedJobsService.update).toHaveBeenCalledWith(
         "user_abc",
-        "job-1",
+        fixtureJobId,
         {},
       );
     });
@@ -380,7 +389,7 @@ describe("Integration - SavedJobs Routes", () => {
       );
 
       const res = await request(app)
-        .patch(`${BASE}/job-1`)
+        .patch(`${BASE}/${fixtureJobId}`)
         .send(updatePayload)
         .expect(404);
 
@@ -395,7 +404,10 @@ describe("Integration - SavedJobs Routes", () => {
         userId: undefined,
       } as any);
 
-      await request(app).patch(`${BASE}/job-1`).send(updatePayload).expect(401);
+      await request(app)
+        .patch(`${BASE}/${fixtureJobId}`)
+        .send(updatePayload)
+        .expect(401);
     });
   });
 
@@ -403,17 +415,19 @@ describe("Integration - SavedJobs Routes", () => {
 
   describe("DELETE /:id", () => {
     it("retorna 204 sem body", async () => {
-      const res = await request(app).delete(`${BASE}/job-1`).expect(204);
+      const res = await request(app)
+        .delete(`${BASE}/${fixtureJobId}`)
+        .expect(204);
 
       expect(res.text).toBe("");
     });
 
     it("chama delete com userId e jobId corretos", async () => {
-      await request(app).delete(`${BASE}/job-1`);
+      await request(app).delete(`${BASE}/${fixtureJobId}`);
 
       expect(mockSavedJobsService.delete).toHaveBeenCalledWith(
         "user_abc",
-        "job-1",
+        fixtureJobId,
       );
     });
 
@@ -422,13 +436,19 @@ describe("Integration - SavedJobs Routes", () => {
         userId: undefined,
       } as any);
 
-      await request(app).delete(`${BASE}/job-1`).expect(401);
+      await request(app).delete(`${BASE}/${fixtureJobId}`).expect(401);
+    });
+
+    it("retorna 400 quando id não é um UUID válido", async () => {
+      await request(app).delete(`${BASE}/${fixtureJobId}%22`).expect(400);
+
+      expect(mockSavedJobsService.delete).not.toHaveBeenCalled();
     });
 
     it("retorna 500 quando delete lança erro", async () => {
       mockSavedJobsService.delete.mockRejectedValueOnce(new Error("db error"));
 
-      await request(app).delete(`${BASE}/job-1`).expect(500);
+      await request(app).delete(`${BASE}/${fixtureJobId}`).expect(500);
     });
   });
 });

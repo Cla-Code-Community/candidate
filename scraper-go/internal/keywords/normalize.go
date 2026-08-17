@@ -7,7 +7,7 @@ func NormalizeKeywords(keywords []string) []string {
 	var result []string
 
 	for _, k := range keywords {
-		k = strings.TrimSpace(k)
+		k = strings.ToLower(strings.TrimSpace(k))
 
 		if k == "" {
 			continue

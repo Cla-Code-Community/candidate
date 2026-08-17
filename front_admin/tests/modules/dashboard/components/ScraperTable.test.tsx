@@ -6,9 +6,14 @@ import { ScraperTable } from "../../../../src/modules/dashboard/components/Runni
 describe("ScraperTable", () => {
   it("renders empty state and active rows", async () => {
     const onToggle = vi.fn();
+    const onConfigure = vi.fn();
     const { rerender } = render(
       <NotificationProvider>
-        <ScraperTable scrapers={[]} onToggle={onToggle} />
+        <ScraperTable
+          scrapers={[]}
+          onToggle={onToggle}
+          onConfigure={onConfigure}
+        />
       </NotificationProvider>,
     );
 
@@ -28,6 +33,7 @@ describe("ScraperTable", () => {
             },
           ]}
           onToggle={onToggle}
+          onConfigure={onConfigure}
         />
       </NotificationProvider>,
     );
@@ -35,8 +41,7 @@ describe("ScraperTable", () => {
     fireEvent.click(screen.getByTitle("Iniciar Scraper"));
     expect(onToggle).toHaveBeenCalledWith("s1");
 
-    fireEvent.click(screen.getByRole("button", { name: "" }));
-    expect(await screen.findByText("Configurações em desenvolvimento"))
-      .toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Ver detalhes de Scraper"));
+    expect(onConfigure).toHaveBeenCalledWith("s1");
   });
 });

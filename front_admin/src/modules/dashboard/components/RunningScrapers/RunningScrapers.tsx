@@ -25,7 +25,11 @@ export function RunningScrapers({
             {activeCount}/{scrapers.length} ativos
           </span>
         </div>
-        <ScraperTable scrapers={scrapers} onToggle={onToggle} />
+        <ScraperTable
+          scrapers={scrapers}
+          onToggle={onToggle}
+          onConfigure={onViewAll}
+        />
       </div>
 
       <button

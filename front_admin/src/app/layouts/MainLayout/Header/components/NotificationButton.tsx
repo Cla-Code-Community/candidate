@@ -1,6 +1,8 @@
 import { AlertTriangle, Bell, CheckCircle2, XCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNotifications } from "../../../../../components/notifications/useNotifications";
+import { dashboardApi } from "../../../../../lib/api/dashboard.api";
+import type { DashboardOverview } from "../../../../../lib/api/types";
 
 interface Notification {
   tone: "success" | "warning" | "error";
@@ -8,27 +10,6 @@ interface Notification {
   description: string;
   timeAgo: string;
 }
-
-const NOTIFICATIONS: Notification[] = [
-  {
-    tone: "success",
-    title: "LinkedIn Scraper atingiu a meta",
-    description: "2.543 vagas processadas com sucesso hoje.",
-    timeAgo: "Há 2 minutos",
-  },
-  {
-    tone: "warning",
-    title: "SLA do Go Scraper normalizado",
-    description: "Retornou ao estado operacional ideal (98.7%).",
-    timeAgo: "Há 15 minutos",
-  },
-  {
-    tone: "error",
-    title: "Falha de auditoria detectada",
-    description: "A tabela audit_logs ainda não foi criada no banco.",
-    timeAgo: "Há 28 minutos",
-  },
-];
 
 const NOTIFICATION_STYLES: Record<
   Notification["tone"],
@@ -63,9 +44,130 @@ const NOTIFICATION_STYLES: Record<
   },
 };
 
+const SERVICE_LABELS = {
+  postgres: "Postgres",
+  valkey: "Valkey",
+  scraper: "Scraper",
+} as const;
+
+function formatSnapshot(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Snapshot recente";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(date);
+}
+
+function buildNotifications(overview: DashboardOverview): Notification[] {
+  const notifications: Notification[] = [];
+  const timeAgo = `Snapshot ${formatSnapshot(overview.generatedAt)}`;
+
+  for (const [key, service] of Object.entries(overview.services.services)) {
+    if (service.status === "ok") continue;
+
+    const label = SERVICE_LABELS[key as keyof typeof SERVICE_LABELS] ?? key;
+    notifications.push({
+      tone: service.status === "down" ? "error" : "warning",
+      title: `${label} ${service.status === "down" ? "indisponível" : "degradado"}`,
+      description: service.error
+        ? service.error
+        : `Latência atual: ${service.latencyMs ?? 0}ms.`,
+      timeAgo,
+    });
+  }
+
+  for (const scraper of overview.scrapers) {
+    if (scraper.running) {
+      notifications.push({
+        tone: "success",
+        title: `${scraper.name} em execução`,
+        description: "O scraper está rodando neste momento.",
+        timeAgo,
+      });
+    } else if (scraper.status === "down") {
+      notifications.push({
+        tone: "error",
+        title: `${scraper.name} indisponível`,
+        description: "O backend não conseguiu consultar o scraper.",
+        timeAgo,
+      });
+    }
+  }
+
+  if (notifications.length === 0) {
+    notifications.push({
+      tone: "success",
+      title: "Operação saudável",
+      description: `${overview.stats.totalCollectedJobs.toLocaleString("pt-BR")} vagas no índice e serviços online.`,
+      timeAgo,
+    });
+  }
+
+  return notifications.slice(0, 5);
+}
+
 export function NotificationButton() {
   const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [hasUnread, setHasUnread] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const { notify } = useNotifications();
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (!containerRef.current?.contains(target)) setIsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let ignore = false;
+    setIsLoading(true);
+
+    dashboardApi
+      .getOverview()
+      .then((overview) => {
+        if (!ignore) {
+          setNotifications(buildNotifications(overview));
+          setHasUnread(false);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setNotifications([
+            {
+              tone: "error",
+              title: "Dashboard indisponível",
+              description: "Não foi possível carregar notificações reais agora.",
+              timeAgo: "Agora",
+            },
+          ]);
+          setHasUnread(false);
+        }
+      })
+      .finally(() => {
+        if (!ignore) setIsLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [isOpen]);
 
   const openNotification = (notification: Notification) => {
     notify({
@@ -76,14 +178,21 @@ export function NotificationButton() {
   };
 
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() =>
+          setIsOpen((current) => {
+            if (!current) setHasUnread(false);
+            return !current;
+          })
+        }
         className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg relative transition-all"
         aria-label="Abrir notificações"
       >
         <Bell size={20} />
-        <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#0f131a]" />
+        {hasUnread && (
+          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white dark:border-[#0f131a]" />
+        )}
       </button>
 
       {isOpen && (
@@ -91,11 +200,11 @@ export function NotificationButton() {
           <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-white flex justify-between items-center">
             <span>Notificações</span>
             <span className="text-[10px] bg-rose-100 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300 px-1.5 py-0.5 rounded-full">
-              {NOTIFICATIONS.length} Novas
+              {isLoading ? "Carregando" : `${notifications.length} reais`}
             </span>
           </div>
           <div className="max-h-60 overflow-y-auto">
-            {NOTIFICATIONS.map((n, i) => (
+            {notifications.map((n, i) => (
               <button
                 key={i}
                 type="button"

@@ -25,6 +25,16 @@ vi.mock("../logger", () => ({
   },
 }));
 
+const metricMocks = vi.hoisted(() => ({
+  cacheInc: vi.fn(),
+}));
+
+vi.mock("../../../src/metrics/metrics", () => ({
+  cacheOperationsTotal: {
+    inc: metricMocks.cacheInc,
+  },
+}));
+
 // Mock do pacote redis
 vi.mock("redis", () => {
   const mockClient = {
@@ -89,12 +99,28 @@ describe("Valkey Cache Lib", () => {
 
       expect(mockClientInstance.get).toHaveBeenCalledWith("user:profile:123");
       expect(result).toEqual({ id: 1, name: "Test" });
+      expect(metricMocks.cacheInc).toHaveBeenCalledWith({
+        operation: "get",
+        result: "hit",
+      });
     });
 
     it("deve retornar uma string pura se falhar no JSON.parse", async () => {
       mockClientInstance.get.mockResolvedValue("string_pura");
       const result = await cacheGet("profile:123");
       expect(result).toBe("string_pura");
+    });
+
+    it("deve registrar miss no cacheGet quando a chave nao existir", async () => {
+      mockClientInstance.get.mockResolvedValue(null);
+
+      const result = await cacheGet("profile:missing");
+
+      expect(result).toBeNull();
+      expect(metricMocks.cacheInc).toHaveBeenCalledWith({
+        operation: "get",
+        result: "miss",
+      });
     });
 
     it("deve salvar com TTL se fornecido", async () => {
@@ -104,6 +130,10 @@ describe("Valkey Cache Lib", () => {
         JSON.stringify({ role: "developer" }),
         { EX: 60 },
       );
+      expect(metricMocks.cacheInc).toHaveBeenCalledWith({
+        operation: "set",
+        result: "ok",
+      });
     });
 
     it("deve salvar sem TTL se o valor for menor ou igual a 0", async () => {
@@ -117,6 +147,10 @@ describe("Valkey Cache Lib", () => {
     it("deve deletar uma chave no cacheDel", async () => {
       await cacheDel("profile:123");
       expect(mockClientInstance.del).toHaveBeenCalledWith("user:profile:123");
+      expect(metricMocks.cacheInc).toHaveBeenCalledWith({
+        operation: "delete",
+        result: "ok",
+      });
     });
   });
 
@@ -169,9 +203,17 @@ describe("Valkey Cache Lib", () => {
       // "UX/UI Designer" -> "ux ui designer"
       expect(mockClientInstance.sUnion).toHaveBeenCalledWith([
         "scraper:jobs:keyword:ux ui designer",
+        "scraper:jobs:technology:ux ui designer",
+        "scraper:jobs:family:ux ui designer",
         "scraper:jobs:keyword:ux",
+        "scraper:jobs:technology:ux",
+        "scraper:jobs:family:ux",
         "scraper:jobs:keyword:ui",
+        "scraper:jobs:technology:ui",
+        "scraper:jobs:family:ui",
         "scraper:jobs:keyword:designer",
+        "scraper:jobs:technology:designer",
+        "scraper:jobs:family:designer",
       ]);
       expect(result).toEqual(["job_1"]);
     });
@@ -183,8 +225,14 @@ describe("Valkey Cache Lib", () => {
 
       expect(mockClientInstance.sUnion).toHaveBeenCalledWith([
         "scraper:jobs:keyword:go",
+        "scraper:jobs:technology:go",
+        "scraper:jobs:family:go",
         "scraper:jobs:keyword:c#",
+        "scraper:jobs:technology:c#",
+        "scraper:jobs:family:c#",
         "scraper:jobs:keyword:c",
+        "scraper:jobs:technology:c",
+        "scraper:jobs:family:c",
       ]);
       expect(result).toEqual(["job_1", "job_2"]);
     });
@@ -194,12 +242,18 @@ describe("Valkey Cache Lib", () => {
     it("deve montar chaves normalizadas para filtros estruturados", () => {
       expect(
         cacheJobIndexKeys({
+          family: "Front-end",
+          technology: "React Native",
+          seniority: "Sênior",
           level: "Júnior",
           location: "Brasil",
           type: "Híbrido",
           contract: "PJ",
         }),
       ).toEqual([
+        "scraper:jobs:family:front end",
+        "scraper:jobs:technology:react native",
+        "scraper:jobs:seniority:senior",
         "scraper:jobs:level:junior",
         "scraper:jobs:location:brasil",
         "scraper:jobs:model:hibrido",
@@ -241,10 +295,20 @@ describe("Valkey Cache Lib", () => {
         "SUNIONSTORE",
         expect.stringMatching(/^scraper:jobs:search:/),
         "scraper:jobs:keyword:node.js",
+        "scraper:jobs:technology:node.js",
+        "scraper:jobs:family:node.js",
         "scraper:jobs:keyword:node js",
+        "scraper:jobs:technology:node js",
+        "scraper:jobs:family:node js",
         "scraper:jobs:keyword:nodejs",
+        "scraper:jobs:technology:nodejs",
+        "scraper:jobs:family:nodejs",
         "scraper:jobs:keyword:node",
+        "scraper:jobs:technology:node",
+        "scraper:jobs:family:node",
         "scraper:jobs:keyword:js",
+        "scraper:jobs:technology:js",
+        "scraper:jobs:family:js",
       ]);
       expect(mockClientInstance.sendCommand).toHaveBeenNthCalledWith(2, [
         "SINTER",
@@ -270,7 +334,11 @@ describe("Valkey Cache Lib", () => {
         "SUNIONSTORE",
         expect.stringMatching(/^scraper:jobs:search:/),
         "scraper:jobs:keyword:react",
+        "scraper:jobs:technology:react",
+        "scraper:jobs:family:react",
         "scraper:jobs:keyword:node",
+        "scraper:jobs:technology:node",
+        "scraper:jobs:family:node",
       ]);
       expect(mockClientInstance.expire).toHaveBeenCalledWith(
         expect.stringMatching(/^scraper:jobs:search:/),

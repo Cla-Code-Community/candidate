@@ -105,7 +105,10 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <PlatformOverview points={chartPoints} lastUpdatedAt={lastUpdatedAt} />
-        <ServiceStatus services={services} />
+        <ServiceStatus
+          services={services}
+          onViewAll={() => navigate(ROUTES.observability)}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

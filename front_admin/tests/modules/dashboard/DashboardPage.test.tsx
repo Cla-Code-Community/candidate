@@ -24,10 +24,10 @@ const dashboardState = {
     {
       id: "adzuna",
       name: "Adzuna",
-      status: "Online",
+      status: "Disponivel",
       lastRun: "Hoje",
       collected24h: 1540,
-      active: true,
+      active: false,
     },
   ],
   chartPoints: [
@@ -63,13 +63,13 @@ describe("DashboardPage", () => {
 
     expect(screen.getByText("Monitoramento em tempo real")).toBeInTheDocument();
     expect(screen.getByText("Total de Usuários")).toBeInTheDocument();
-    expect(screen.getByText("Visão Geral da Plataforma")).toBeInTheDocument();
+    expect(screen.getByText("Crescimento do índice")).toBeInTheDocument();
     expect(screen.getByText("Status dos Serviços")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(dashboardState.refresh).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByTitle("Pausar Scraper"));
+    fireEvent.click(screen.getByTitle("Iniciar Scraper"));
     expect(dashboardState.toggleScraper).toHaveBeenCalledWith("adzuna");
   });
 

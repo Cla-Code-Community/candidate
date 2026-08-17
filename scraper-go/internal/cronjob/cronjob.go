@@ -11,6 +11,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 )
 
 type Config struct {
@@ -30,30 +31,34 @@ func DefaultConfig() Config {
 		SearchLocation: "Brasil",
 		JobTypes:       "C,F",
 		TimeFilter:     "r604800",
-		RemoteOnly:     true,
-		MaxConcurrency: 150,
+		RemoteOnly:     false,
+		MaxConcurrency: 40,
 	}
 }
 
 type Scheduler struct {
-	cfg        Config
-	kwStore    *keywords.Store
-	jobStore   *jobstore.Store
-	rdb        *redis.Client
-	OnComplete func(keywords []string, scraped, saved int, duration time.Duration)
-	mu         sync.Mutex
-	running    bool
-	stop       chan struct{}
+	cfg         Config
+	kwStore     *keywords.Store
+	jobStore    *jobstore.Store
+	adapterList []ports.JobSource
+	rdb         *redis.Client
+	OnComplete  func(keywords []string, scraped, saved int, duration time.Duration)
+	mu          sync.Mutex
+	running     bool
+	lastRunAt   time.Time
+	lastJobs    int
+	stop        chan struct{}
 }
 
-func New(cfg Config, kwStore *keywords.Store, jobStore *jobstore.Store, rdb *redis.Client) *Scheduler {
+func New(cfg Config, kwStore *keywords.Store, jobStore *jobstore.Store, adapterList []ports.JobSource, rdb *redis.Client) *Scheduler {
 	return &Scheduler{
-		cfg:        cfg,
-		kwStore:    kwStore,
-		jobStore:   jobStore,
-		rdb:        rdb,
-		OnComplete: nil,
-		stop:       make(chan struct{}),
+		cfg:         cfg,
+		kwStore:     kwStore,
+		jobStore:    jobStore,
+		adapterList: adapterList,
+		rdb:         rdb,
+		OnComplete:  nil,
+		stop:        make(chan struct{}),
 	}
 }
 
@@ -103,6 +108,12 @@ func (s *Scheduler) IsRunning() bool {
 	return s.running
 }
 
+func (s *Scheduler) Snapshot() (running bool, lastRunAt time.Time, jobsCollected int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.running, s.lastRunAt, s.lastJobs
+}
+
 func (s *Scheduler) run(ctx context.Context) {
 	s.mu.Lock()
 	if s.running {
@@ -140,7 +151,7 @@ func (s *Scheduler) run(ctx context.Context) {
 		MaxConcurrency: s.cfg.MaxConcurrency,
 	}
 
-	jobs, err := pipeline.ScrapeAllSources(scrapeCtx, config, s.rdb)
+	jobs, err := pipeline.ScrapeAllSources(scrapeCtx, config, s.adapterList, s.rdb)
 	if err != nil {
 		slog.Error("cronjob: scrape falhou", "error", err)
 		return
@@ -155,6 +166,11 @@ func (s *Scheduler) run(ctx context.Context) {
 
 	// ✅ Constrói o índice invertido para buscas por keyword
 	pipeline.IndexJobsInValkey(scrapeCtx, s.rdb, jobs, kws)
+
+	s.mu.Lock()
+	s.lastRunAt = time.Now()
+	s.lastJobs = len(jobs)
+	s.mu.Unlock()
 
 	slog.Info("cronjob: execução concluída",
 		"duration", time.Since(start).Round(time.Second),

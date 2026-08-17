@@ -127,8 +127,13 @@ export class SavedJobsService {
   }
 
   async delete(userId: string, jobId: string): Promise<void> {
-    await this.tx
+    const result = await this.tx
       .delete(savedJobs)
-      .where(and(eq(savedJobs.id, jobId), ownedBy(userId, savedJobs.userId)));
+      .where(and(eq(savedJobs.id, jobId), ownedBy(userId, savedJobs.userId)))
+      .returning({ id: savedJobs.id });
+
+    if (!result[0]) {
+      throw AppError.notFound("Vaga não encontrada");
+    }
   }
 }

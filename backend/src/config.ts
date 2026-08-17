@@ -65,7 +65,7 @@ export function getConfig(): AppConfig {
     searchLocation: process.env.SEARCH_LOCATION ?? "Brasil",
     searchGeoId: process.env.SEARCH_GEO_ID ?? "106057199",
     searchLanguage: process.env.SEARCH_LANGUAGE ?? "pt",
-    remoteOnly: parseBoolean(process.env.REMOTE_ONLY, true),
+    remoteOnly: parseBoolean(process.env.REMOTE_ONLY, false),
     jobTypes: process.env.JOB_TYPES ?? "C,F",
     timeFilter: parseTimeFilter(process.env.TIME_FILTER, "r604800"),
     databaseUrl: process.env.DATABASE_URL?.trim() ?? "",

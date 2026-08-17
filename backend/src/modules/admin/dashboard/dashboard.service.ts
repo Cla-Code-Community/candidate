@@ -91,7 +91,7 @@ export class DashboardService {
         status: status.running ? "running" : "idle",
         running: status.running,
         lastRunAt: status.lastRunAt ?? null,
-        jobsCollected: status.jobsCollected ?? count?.total ?? null,
+        jobsCollected: count?.total ?? status.jobsCollected ?? null,
       };
     } catch {
       return {

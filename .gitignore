@@ -9,6 +9,8 @@ dist/
 build/
 output/
 backend/output/
+data/
+tools/
 npm-debug.log
 yarn-error.log
 yarn-debug.log

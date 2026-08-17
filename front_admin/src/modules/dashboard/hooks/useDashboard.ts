@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNotifications } from "../../../components/notifications/useNotifications";
+import { ApiError } from "../../../lib/api/client";
 import type {
   DashboardChartPoint,
   DashboardStats,
@@ -71,6 +73,7 @@ function appendChartPoint(
 }
 
 export function useDashboard() {
+  const { notify } = useNotifications();
   const [state, setState] = useState<DashboardState>(INITIAL_STATE);
   const mountedRef = useRef(true);
 
@@ -132,7 +135,35 @@ export function useDashboard() {
     const scraper = state.scrapers.find((item) => item.id === id);
     if (!scraper) return;
 
-    void dashboardService.toggleScraper(id, !scraper.active);
+    void dashboardService
+      .toggleScraper(id, !scraper.active)
+      .then(async () => {
+        notify({
+          tone: "success",
+          title: "Scraper iniciado",
+          description: `${scraper.name} começou a executar.`,
+        });
+        await refresh(true);
+      })
+      .catch((error) => {
+        if (error instanceof ApiError && error.status === 409) {
+          notify({
+            tone: "warning",
+            title: "Scraper já em execução",
+            description: "A execução atual ainda não terminou.",
+          });
+          void refresh(true);
+          return;
+        }
+
+        notify({
+          tone: "error",
+          title: scraper.active ? "Pausa indisponível" : "Erro ao iniciar scraper",
+          description: scraper.active
+            ? "Ainda não existe endpoint real para cancelar uma execução em andamento."
+            : `Não foi possível iniciar ${scraper.name}.`,
+        });
+      });
   };
 
   return {

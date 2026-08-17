@@ -494,7 +494,9 @@ describe("SavedJobsService", () => {
   describe("delete", () => {
     it("executa delete sem lançar erro", async () => {
       tx.delete.mockReturnValue({
-        where: vi.fn().mockResolvedValue(undefined),
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([{ id: "job-1" }]),
+        }),
       });
 
       await expect(service.delete("user-1", "job-1")).resolves.toBeUndefined();
@@ -502,7 +504,9 @@ describe("SavedJobsService", () => {
     });
 
     it("deleta usando jobId e userId para impedir remoção cross-user", async () => {
-      const whereMock = vi.fn().mockResolvedValue(undefined);
+      const whereMock = vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: "job-1" }]),
+      });
       tx.delete.mockReturnValue({ where: whereMock });
 
       await service.delete("user-1", "job-1");
@@ -511,6 +515,19 @@ describe("SavedJobsService", () => {
         { column: expect.anything(), value: "job-1" },
         { column: expect.anything(), value: "user-1" },
       ]);
+    });
+
+    it("lança NOT_FOUND quando nenhuma vaga é removida", async () => {
+      tx.delete.mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([]),
+        }),
+      });
+
+      await expect(service.delete("user-1", "job-1")).rejects.toMatchObject({
+        code: "NOT_FOUND",
+        message: "Vaga não encontrada",
+      });
     });
   });
 });
