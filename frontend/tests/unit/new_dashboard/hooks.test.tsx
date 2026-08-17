@@ -258,6 +258,8 @@ describe("useDashboardJobs", () => {
             item: expect.objectContaining({
               text: expect.stringContaining("Sua candidatura para"),
               type: "success",
+              jobId: "tracked-1",
+              isRead: false,
             }),
           }),
         }),
@@ -327,4 +329,156 @@ describe("useDashboardJobs", () => {
     expect(dashboardApiMock.createDashboardSavedJob).not.toHaveBeenCalled();
     expect(dashboardApiMock.updateDashboardSavedJob).not.toHaveBeenCalled();
   });
+
+  it("mantém vagas do cache quando busca de salvas falha, e reporta erro combinado", async () => {
+    const onError = vi.fn();
+    localStorage.setItem(
+      "new-dashboard-tracked-jobs:user-1",
+      JSON.stringify([trackedJob]),
+    );
+    dashboardApiMock.getDashboardSavedJobs.mockRejectedValueOnce(
+      new Error("falha ao buscar salvas"),
+    );
+
+    dashboardApiMock.searchDashboardJobs.mockRejectedValueOnce(
+      new Error("falha ao buscar recomendadas"),
+    );
+
+    const stableRecommendationSearch = { keywords: [], filters: {} };
+
+    const { result } = renderHook(() =>
+      useDashboardJobs(user, {
+        onError,
+        initialRecommendationSearch: stableRecommendationSearch,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoadingJobs).toBe(false);
+    });
+
+    expect(result.current.trackedJobs).toEqual([trackedJob]);
+    expect(onError).toHaveBeenCalledWith(
+      "Não foi possível carregar suas vagas salvas. Não foi possível atualizar as vagas recomendadas.",
+    );
+  });
+
+  it("retorna null ao tentar mudar status de vaga inexistente", async () => {
+    dashboardApiMock.getDashboardSavedJobs.mockResolvedValue([]);
+    dashboardApiMock.searchDashboardJobs.mockResolvedValue({
+      jobs: [],
+      pagination: {
+        total: 0,
+        page: 1,
+        limit: 50,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    });
+
+    const { result } = renderHook(() => useDashboardJobs(user));
+
+    await waitFor(() => {
+      expect(result.current.isLoadingJobs).toBe(false);
+    });
+
+    let response;
+    await act(async () => {
+      response = await result.current.changeJobStatus("id-inexistente", "applied");
+    });
+
+    expect(response).toBeNull();
+    expect(dashboardApiMock.updateDashboardSavedJob).not.toHaveBeenCalled();
+    expect(dashboardApiMock.createDashboardSavedJob).not.toHaveBeenCalled();
+  });
+
+  it("não busca recomendações quando initialRecommendationSearch é nulo", async () => {
+    dashboardApiMock.getDashboardSavedJobs.mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useDashboardJobs(user, { initialRecommendationSearch: null }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoadingJobs).toBe(false);
+    });
+
+    expect(dashboardApiMock.searchDashboardJobs).not.toHaveBeenCalled();
+    expect(result.current.recommendedJobs).toEqual([]);
+  });
+
+  it("reaproveita vaga existente sem chamar update quando status já é igual ao solicitado", async () => {
+    dashboardApiMock.getDashboardSavedJobs.mockResolvedValueOnce([]);
+    dashboardApiMock.searchDashboardJobs.mockResolvedValue({
+      jobs: [recommendedJob],
+      pagination: {
+        total: 1,
+        page: 1,
+        limit: 50,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: false,
+      },
+    });
+    dashboardApiMock.createDashboardSavedJob.mockRejectedValueOnce(
+      new ApiError("CONFLICT", "duplicada", 409),
+    );
+    dashboardApiMock.getDashboardSavedJobs.mockResolvedValueOnce([
+      { ...recommendedJob, id: "existing-1", status: "saved" },
+    ]);
+
+    const { result } = renderHook(() => useDashboardJobs(user));
+
+    await waitFor(() => {
+      expect(result.current.isLoadingJobs).toBe(false);
+    });
+
+    let response;
+    await act(async () => {
+      response = await result.current.changeJobStatus(
+        recommendedJob.id,
+        "saved",
+      );
+    });
+
+    expect(response).toMatchObject({ id: "existing-1", status: "saved" });
+    expect(dashboardApiMock.updateDashboardSavedJob).not.toHaveBeenCalled();
+  });
+
+  it("usa mensagem padrão quando o erro rejeitado não é uma instância de Error", async () => {
+    dashboardApiMock.getDashboardSavedJobs.mockResolvedValue([]);
+    dashboardApiMock.searchDashboardJobs
+      .mockResolvedValueOnce({
+        jobs: [],
+        pagination: {
+          total: 0,
+          page: 1,
+          limit: 50,
+          totalPages: 1,
+          hasNext: false,
+          hasPrev: false,
+        },
+      })
+      .mockRejectedValueOnce("falha sem instância de Error");
+
+    const onError = vi.fn();
+    const { result } = renderHook(() =>
+      useDashboardJobs(user, { onError }),
+    );
+
+    await waitFor(() => {
+      expect(result.current.isLoadingJobs).toBe(false);
+    });
+
+    await expect(
+      result.current.refreshRecommendations(["React"], {}, 1, 50),
+    ).rejects.toBe("falha sem instância de Error");
+
+    expect(onError).toHaveBeenCalledWith(
+      "Não foi possível procurar novas vagas.",
+    );
+  });
+
+  
 });

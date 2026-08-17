@@ -10,6 +10,8 @@ const ApiNotificationSchema = z.object({
   message: z.string(),
   readAt: z.string().nullable().optional(),
   createdAt: z.string(),
+  entityType: z.string().nullable().optional(),
+  entityId: z.string().nullable().optional(),
 });
 
 const ApiNotificationsResponseSchema = z.object({
@@ -70,6 +72,8 @@ function toNotification(item: ApiNotification): Notification {
     text: item.message,
     type: notificationType(item.type),
     date: formatNotificationDate(item.createdAt),
+    jobId: item.entityType === "job" ? item.entityId ?? undefined : undefined,
+    isRead: Boolean(item.readAt)
   };
 }
 
@@ -112,6 +116,10 @@ export async function markDashboardNotificationsRead(channel: NotificationChanne
   await api.patch("/notifications/read-all", null, {
     params: { channel },
   });
+}
+
+export async function markSingleNotificationRead(notificationId: string) {
+  await api.patch(`/notifications/${notificationId}/read`);
 }
 
 export async function clearDashboardNotifications(channel: NotificationChannel) {

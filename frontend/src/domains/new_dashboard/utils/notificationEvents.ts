@@ -11,6 +11,8 @@ export type DashboardNotificationsRefreshDetail = {
     date: string;
     sender?: string;
     origin?: "recruiter" | "mentor" | "system";
+    jobId?: string;
+    isRead?: boolean;
   };
 };
 
