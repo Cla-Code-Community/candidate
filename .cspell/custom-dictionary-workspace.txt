@@ -28,6 +28,7 @@ abstração
 abstraído
 absurdventures
 acabar
+acabou
 ação
 accela
 Accela
@@ -47,12 +48,15 @@ Aceable
 aceita
 aceitar
 aceitas
+aceitava
 aceitável
 Aceite
 acentos
 acentria
 Acentria
+Acessando
 Acessibilidade
+acessíveis
 acessível
 acesso
 acessos
@@ -60,6 +64,7 @@ achar
 acidental
 acilearning
 aciona
+Acione
 acluinternships
 aclunc
 acog
@@ -92,6 +97,7 @@ Adelphi
 adelphigrouplimited
 adelphiresearch
 adequa
+adequadamente
 adfinternational
 adias
 adicionada
@@ -128,6 +134,7 @@ aestudio
 AEVEX
 aevexaerospace
 afetada
+afetado
 affinidi
 Affinidi
 affinitiv
@@ -257,6 +264,7 @@ altera
 alteração
 alterar
 alternativa
+Alternativas
 alternativo
 altium
 Altium
@@ -386,6 +394,7 @@ aplicável
 apogeetherapeutics
 apolloio
 apontando
+apontar
 aponte
 Apothe
 apothecom
@@ -554,6 +563,7 @@ atualização
 atualizações
 atualizada
 atualizadas
+Atualize
 atualmente
 Atwell
 atwellgroup
@@ -575,6 +585,7 @@ Austrália
 autentica
 autenticada
 autenticados
+autenticam
 authenticbrandsgroup
 authenticinsurance
 autods
@@ -590,6 +601,7 @@ automática
 automaticamente
 automático
 automatizadas
+automatizados
 automatticcareers
 automind
 Automind
@@ -969,6 +981,7 @@ cadência
 cadrehospice
 cadvisor
 cafortune
+cair
 cais
 CAIS
 caixa
@@ -1233,6 +1246,8 @@ clientes
 climateai
 climatecabinet
 clockworksystems
+Clonando
+clonar
 cloudbeds
 Cloudbeds
 cloudbedsthirdpartyboard
@@ -1386,6 +1401,7 @@ consensys
 Consensys
 considere
 consistência
+consolidada
 consolidadas
 consomem
 constantcontact
@@ -1510,6 +1526,7 @@ crfamilyofcompanies
 criação
 criada
 criadas
+criados
 criamos
 Criei
 Criem
@@ -1523,6 +1540,7 @@ crítica
 criticalmass
 criticalmassgroup
 críticas
+crítico
 críticos
 crmbonus
 crocodilecloth
@@ -1660,6 +1678,7 @@ denverbroncosteamllc
 departamento
 Departamentos
 depende
+dependem
 dependência
 dependendo
 depender
@@ -1723,6 +1742,7 @@ dhpace
 diabolocom
 Diabolocom
 diacríticos
+Dialeto
 dialpad
 Dialpad
 dianahealth
@@ -1784,6 +1804,7 @@ distrito
 distrokid
 Divco
 divcowest
+divergir
 diversas
 dkatalislabs
 dkbcodefactory
@@ -1799,6 +1820,7 @@ Docugami
 documentação
 documentadas
 documentado
+documentados
 Documentar
 Dodgshun
 dodgshunmedlin
@@ -1883,6 +1905,7 @@ edição
 edita
 editadas
 editados
+Edite
 edmentum
 Edmentum
 edobestsandbox
@@ -2067,6 +2090,7 @@ escopo
 escreve
 escrever
 escribers
+escrito
 escritorio
 Escritórios
 Escuro
@@ -2092,6 +2116,7 @@ espelhando
 espelhar
 espera
 esperada
+esperadas
 esperado
 esperados
 esperar
@@ -2099,6 +2124,7 @@ espirita
 Espirita
 esqueci
 essa
+essas
 essenceit
 essencialnutricao
 estabilidade
@@ -2164,6 +2190,7 @@ Everlaw
 everway
 Everway
 evgspecialtynetwork
+Evidências
 evio
 Evio
 evismart
@@ -2188,8 +2215,10 @@ Exames
 exatamente
 exati
 Exati
+exatos
 excecao
 exceções
+excedentes
 Excelente
 excelsportsmanagement
 Excluir
@@ -2203,6 +2232,7 @@ executar
 exemplos
 exibida
 exibido
+exibidos
 Exibindo
 exige
 exigem
@@ -2490,8 +2520,10 @@ fulano
 Fulano
 funciona
 funcional
+Funcionalidade
 funcionalidades
 funcionando
+funcionar
 funga
 Funga
 funil
@@ -2573,6 +2605,7 @@ Gerdau
 gerencia
 gerenciadas
 gerenciado
+gerenciador
 Gerenciando
 gerenciar
 Gerente
@@ -2966,6 +2999,7 @@ inchargeenergy
 incluem
 inclui
 incluído
+incluir
 incode
 incognia
 incompleto
@@ -3040,6 +3074,7 @@ innodatainc
 innogames
 innoveahub
 insere
+inserir
 insiderstore
 inspecionam
 inspiraeducation
@@ -3507,9 +3542,11 @@ Mantemos
 mantendo
 Mantenha
 manter
+mantida
 mantido
 mantl
 mantrahealth
+manuais
 manualmente
 manychat
 Mapa
@@ -3651,6 +3688,7 @@ midihealth
 midpenhousing
 midpointmarkets
 mightynetworks
+migração
 Migrações
 milhares
 milissegundos
@@ -3736,6 +3774,7 @@ monsterenergy
 monstro
 montá
 montada
+montadas
 montar
 monumentalsports
 monzo
@@ -3804,6 +3843,7 @@ naturesbakery
 naughtydog
 navapbc
 navegável
+Navegue
 navierboat
 navtechnologies
 navvis
@@ -3943,7 +3983,11 @@ obexp
 objetivo
 obrienveterinarygroup
 obrigatória
+obrigatórias
+Obrigatórias
 obrigatório
+obrigatórios
+Obrigatórios
 observabilidade
 Observação
 Observações
@@ -4104,6 +4148,7 @@ pacificlegalfoundation
 packardculliganwater
 pacnyc
 pacote
+pacotes
 Pactual
 pacvue
 padronizar
@@ -4134,6 +4179,7 @@ panthalassa
 pantheonpublic
 pantherlabs
 papéis
+papel
 paperlessparts
 papo
 parachutehealth
@@ -4218,6 +4264,7 @@ permissivo
 permite
 permitida
 permitidas
+permitido
 permitidos
 permitindo
 permitir
@@ -4225,6 +4272,7 @@ perpay
 perscholashires
 persefoniaiinc
 persiste
+persistem
 persistência
 persistente
 persistentes
@@ -4365,6 +4413,7 @@ precisionmedicinegroup
 precisionvehicleholdings
 preciso
 predictiveindex
+Preencha
 preenche
 Preenchendo
 preenchida
@@ -4410,6 +4459,7 @@ Priner
 printou
 Prioridade
 Priorização
+priorize
 pris
 Pris
 privateequityinsights
@@ -4470,6 +4520,7 @@ proteinqureinc
 protillionbiosciences
 protonai
 Protótipo
+provedores
 provisionados
 próximas
 próximo
@@ -4534,6 +4585,7 @@ quberesearchandtechnologies
 Quebrada
 quebrado
 quebrados
+quebrar
 queracomputinginc
 Quero
 querodelivery
@@ -4592,6 +4644,7 @@ rebag
 rebelliondefense
 rebtel
 rebuildmanufacturing
+recarregar
 recebe
 recebendo
 receber
@@ -4628,6 +4681,7 @@ Recurso
 recursos
 recusou
 redcellpartners
+redirecionam
 redpartners
 redpeak
 reduz
@@ -4639,6 +4693,7 @@ redwoodsoftware
 Reescrever
 refatorado
 referência
+Referências
 referralsuseonly
 refletem
 refugeerights
@@ -4649,6 +4704,7 @@ registros
 regra
 regras
 Regressão
+regressões
 regscale
 reidopitaco
 reindexação
@@ -4675,6 +4731,7 @@ relaygraduateschoolofeducation
 relaypayments
 relaypro
 relaytherapeutics
+relevante
 relevantes
 relishworks
 relname
@@ -4715,6 +4772,7 @@ repositórios
 Representação
 reprocessamento
 reproductivefreedomforall
+reproduzir
 reprofreedomforallinternships
 repropaga
 requisições
@@ -4821,6 +4879,7 @@ rotacionado
 rotativo
 rotativos
 Roteamento
+roteiro
 rothesaygraduates
 rothesaylife
 rslave
@@ -4893,6 +4952,7 @@ seattlesoundersfc
 seazone
 Seazone
 Seção
+Seções
 secondharvest
 secreta
 secretariatadvisorsllc
@@ -5243,6 +5303,7 @@ suficiente
 sufixo
 sugerido
 sugeridos
+suíte
 sujar
 sumário
 sumir
@@ -5266,6 +5327,7 @@ Superlógica
 supersod
 suportar
 Suporte
+suposição
 supplyhouse
 supportingstrategies
 surefirecyber
@@ -5387,6 +5449,7 @@ terzo
 tesseratherapeutics
 testall
 testamos
+Testando
 testar
 teste
 testlio
@@ -5519,6 +5582,7 @@ transmarketgroup
 trás
 trase
 trata
+tratado
 tratados
 tratam
 tratamento
@@ -5750,8 +5814,10 @@ veristainc
 veritasvetpartners
 verkada
 verramobility
+Versão
 versaterm
 versionada
+versionadas
 versionado
 versionados
 versionar

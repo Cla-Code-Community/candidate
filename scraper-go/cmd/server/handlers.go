@@ -111,7 +111,9 @@ func handleSaveKeywords(kwStore *keywords.Store) http.HandlerFunc {
 			return
 		}
 
-		if err := kwStore.Save(r.Context(), body.Keywords); err != nil {
+		expanded := keywords.GenerateSearchKeywords(body.Keywords)
+
+		if err := kwStore.Save(r.Context(), expanded); err != nil {
 			http.Error(w, "erro ao salvar keywords", http.StatusInternalServerError)
 			return
 		}
@@ -119,7 +121,7 @@ func handleSaveKeywords(kwStore *keywords.Store) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"ok":       true,
-			"keywords": body.Keywords,
+			"keywords": expanded,
 		})
 	}
 }

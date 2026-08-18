@@ -10,6 +10,7 @@ vi.mock("iron-session", () => ({
 const mockService = {
   getAll: vi.fn(),
   getById: vi.fn(),
+  getEvents: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
@@ -161,6 +162,58 @@ describe("SavedJobsController", () => {
       await expect(
         controller.update(
           { params: { id: "1" }, body: { notes: "x" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toMatchObject({ code: "NOT_FOUND", statusCode: 404 });
+    });
+  });
+
+  describe("getEvents", () => {
+    it("lança UNAUTHORIZED quando não autenticado", async () => {
+      (getIronSession as any).mockResolvedValue({});
+
+      await expect(
+        controller.getEvents(
+          { params: { id: "job-1" } } as any,
+          createMockResponse(),
+        ),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED", statusCode: 401 });
+    });
+
+    it("lista eventos da vaga do usuário autenticado", async () => {
+      const events = [
+        {
+          id: "event-1",
+          fromStatus: "saved",
+          toStatus: "applied",
+        },
+      ];
+
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.getEvents.mockResolvedValue(events);
+      const res = createMockResponse();
+
+      await controller.getEvents(
+        { params: { id: "job-1" } } as any,
+        res,
+      );
+
+      expect(mockService.getEvents).toHaveBeenCalledWith(
+        "user-1",
+        "job-1",
+      );
+      expect(res.json).toHaveBeenCalledWith(events);
+    });
+
+    it("propaga NOT_FOUND quando a vaga não pertence ao usuário", async () => {
+      (getIronSession as any).mockResolvedValue({ userId: "user-1" });
+      mockService.getEvents.mockRejectedValue(
+        AppError.notFound("Vaga não encontrada"),
+      );
+
+      await expect(
+        controller.getEvents(
+          { params: { id: "job-2" } } as any,
           createMockResponse(),
         ),
       ).rejects.toMatchObject({ code: "NOT_FOUND", statusCode: 404 });

@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { AddJobModal } from "@/domains/new_dashboard/components/jobs/AddJobModal";
 import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
 import { JobFilter } from "@/domains/new_dashboard/components/jobs/JobFilter";
+import { FormattedJobDescription } from "@/domains/new_dashboard/components/jobs/FormattedJobDescription";
 import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
 import { JobTab } from "@/domains/new_dashboard/components/jobs/JobTab";
 import { JobTable } from "@/domains/new_dashboard/components/jobs/JobTable";
@@ -338,6 +339,55 @@ describe("new_dashboard job components", () => {
     expect(container.querySelector("script")).not.toBeInTheDocument();
     expect(screen.queryByText(/alert\('xss'\)/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/&lt;h3&gt;/i)).not.toBeInTheDocument();
+  });
+
+  it("renderiza texto puro, tags semânticas e links inseguros da descrição", () => {
+    const plainRender = render(
+      <FormattedJobDescription description={"Linha 1\nLinha 2"} />,
+    );
+
+    expect(screen.getByText(/linha 1/i)).toBeInTheDocument();
+    expect(screen.getByText(/linha 2/i)).toBeInTheDocument();
+    expect(plainRender.container.querySelector("p")).toHaveClass(
+      "whitespace-pre-wrap",
+    );
+
+    plainRender.unmount();
+
+    const { container } = render(
+      <FormattedJobDescription
+        description={[
+          "<h1>Título principal</h1>",
+          "<h2>Subtítulo</h2>",
+          "<h4>Grupo</h4>",
+          "<blockquote>Citação</blockquote>",
+          "<pre><code>npm test</code></pre>",
+          "<hr>",
+          '<a href="javascript:alert(1)">Link bloqueado</a>',
+          '<a href="/vaga">Link relativo seguro</a>',
+          "<img src=x onerror=alert(1)>",
+          "<div><span>Conteúdo preservado</span></div>",
+        ].join("")}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Título principal", level: 1 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Subtítulo", level: 2 }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Grupo", level: 4 }),
+    ).toBeInTheDocument();
+    expect(container.querySelector("blockquote")).toHaveTextContent("Citação");
+    expect(container.querySelector("pre")).toHaveTextContent("npm test");
+    expect(container.querySelector("hr")).toBeInTheDocument();
+    expect(screen.getByText("Link bloqueado").tagName).toBe("SPAN");
+    expect(screen.getByRole("link", { name: "Link relativo seguro" }))
+      .toHaveAttribute("href", "http://localhost:3000/vaga");
+    expect(container.querySelector("img")).not.toBeInTheDocument();
+    expect(screen.getByText("Conteúdo preservado")).toBeInTheDocument();
   });
 
   it("valida e salva uma vaga manual nova", () => {

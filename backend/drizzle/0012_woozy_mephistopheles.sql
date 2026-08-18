@@ -1,0 +1,2 @@
+-- Baseline para sincronizar os snapshots do Drizzle com o schema atual.
+-- Nenhuma alteração no banco é necessária nesta migration.

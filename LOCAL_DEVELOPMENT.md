@@ -234,13 +234,13 @@ Como criar usuário para testes:
 
 ## 7.1 Subir stack completa (recomendado para onboarding)
 
-1. Criar rede:
+1; Criar rede:
 
 ```bash
 docker network create vagas-net
 ```
 
-2. Subir infra + app + migrate:
+2; Subir infra + app + migrate:
 
 ```bash
 docker compose -f docker-compose.infra.yml -f docker-compose.yml -f docker-compose.migrate.yml up --build -d
@@ -298,10 +298,10 @@ Use o comando da seção de Docker.
 
 Portas esperadas:
 
-- frontend: http://localhost:5173
-- front_admin: http://localhost:5174
-- backend: http://localhost:3001
-- scraper-go: http://localhost:8081
+- frontend: <http://localhost:5173>
+- front_admin: <http://localhost:5174>
+- backend: <http://localhost:3001>
+- scraper-go: <http://localhost:8081>
 
 ## Caminho B: Node local (frontend + backend)
 
@@ -345,27 +345,27 @@ Observação importante para o Caminho B:
 
 URLs principais:
 
-- App principal: http://localhost:5173
-- Login: http://localhost:5173/login
-- Cadastro: http://localhost:5173/register
+- App principal: <http://localhost:5173>
+- Login: <http://localhost:5173/login>
+- Cadastro: <http://localhost:5173/register>
 - Dashboard app: /home, /dashboard, /vagas, /mentoria, /perfil, /ajuda
 - Callback OAuth: /auth/callback
 
 Backend:
 
-- Health: http://localhost:3001/health
-- Swagger: http://localhost:3001/docs
-- Metrics: http://localhost:3001/metrics
+- Health: <http://localhost:3001/health>
+- Swagger: <http://localhost:3001/docs>
+- Metrics: <http://localhost:3001/metrics>
 
 Scraper:
 
-- Health: http://localhost:8081/health
-- Metrics: http://localhost:8081/metrics
-- Admin jobs count: http://localhost:8081/admin/jobs/count
+- Health: <http://localhost:8081/health>
+- Metrics: <http://localhost:8081/metrics>
+- Admin jobs count: <http://localhost:8081/admin/jobs/count>
 
 Front admin:
 
-- http://localhost:5174
+- <http://localhost:5174>
 - rota de login: /login
 - rotas principais: /dashboard, /users, /scrapers, /observability, /audit, /permissions, /settings
 
@@ -430,7 +430,7 @@ Abaixo, os testes manuais sugeridos para os módulos principais.
 
 Passos:
 
-1. Acesse http://localhost:5173/login
+1. Acesse <http://localhost:5173/login>
 2. Tente enviar vazio
 3. Informe credenciais inválidas
 4. Informe credenciais válidas
@@ -445,7 +445,7 @@ Resultado esperado:
 
 Passos:
 
-1. Acesse http://localhost:5173/register
+1. Acesse <http://localhost:5173/register>
 2. Preencha campos obrigatórios
 3. Teste telefone opcional vazio
 4. Teste telefone válido
@@ -500,7 +500,7 @@ Resultado esperado:
 
 Passos:
 
-1. Acesse http://localhost:5174/login
+1. Acesse <http://localhost:5174/login>
 2. Faça login com conta com permissão
 3. Navegue por dashboard/users/scrapers/observability/audit/permissions/settings
 

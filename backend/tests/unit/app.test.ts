@@ -122,6 +122,7 @@ const DEFAULT_PAGINATED = (ids: string[]) => ({
 describe("jobsApiApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.KWSYNC_ENABLED = "false";
 
     mocks.parsePagination.mockReturnValue(DEFAULT_PAGINATION);
     mocks.paginate.mockImplementation((ids: string[]) =>
@@ -709,6 +710,8 @@ describe("jobsApiApp", () => {
   });
 
   it("POST /keywords enfileira keyword e retorna 202", async () => {
+    process.env.KWSYNC_ENABLED = "true";
+
     const app = createJobsApiApp();
     const res = await request(app)
       .post("/keywords")
@@ -733,7 +736,26 @@ describe("jobsApiApp", () => {
     });
   });
 
+  it("POST /keywords retorna 403 quando kwsync está desabilitado", async () => {
+    const app = createJobsApiApp();
+
+    const res = await request(app)
+      .post("/keywords")
+      .send({ keyword: "Rust" })
+      .expect(403);
+
+    expect(res.body).toEqual({
+      ok: false,
+      message: "Submissão de keywords por usuário está desabilitada.",
+    });
+    expect(mocks.dbInsert).not.toHaveBeenCalled();
+    expect(mocks.getCache).not.toHaveBeenCalled();
+    expect(mocks.publish).not.toHaveBeenCalled();
+  });
+
   it("POST /keywords retorna 400 quando keyword está ausente", async () => {
+    process.env.KWSYNC_ENABLED = "true";
+
     const app = createJobsApiApp();
 
     const res = await request(app).post("/keywords").send({}).expect(400);
@@ -745,6 +767,8 @@ describe("jobsApiApp", () => {
   });
 
   it("POST /keywords retorna 400 quando keyword é string vazia", async () => {
+    process.env.KWSYNC_ENABLED = "true";
+
     const app = createJobsApiApp();
 
     const res = await request(app)
@@ -758,6 +782,8 @@ describe("jobsApiApp", () => {
   });
 
   it("POST /keywords retorna 400 quando keyword não é string", async () => {
+    process.env.KWSYNC_ENABLED = "true";
+
     // Arrays não são strings — a rota rejeita com 400 se keyword.trim() não existir
     // ou com 500 se explodir antes. Ajusta a expectativa ao comportamento real da rota:
     // req.body?.keyword?.trim() em um array retorna undefined → cai no if → 400
