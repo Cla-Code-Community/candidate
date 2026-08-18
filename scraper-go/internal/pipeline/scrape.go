@@ -27,7 +27,7 @@ type SearchConfig struct {
 }
 
 func normalizeSearchConfig(config SearchConfig) SearchConfig {
-	config.Keywords = keywords.NormalizeKeywords(config.Keywords)
+	config.Keywords = keywords.GenerateSearchKeywords(config.Keywords)
 	return config
 }
 

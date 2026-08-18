@@ -22,7 +22,8 @@ WORKDIR /app
 
 COPY --from=builder /go-scraper /go-scraper
 
-COPY --from=builder /app/internal/keywords/keywords.json  ./internal/keywords/keywords.json
+COPY --from=builder /app/internal/keywords/keywords.json   ./internal/keywords/keywords.json
+COPY --from=builder /app/internal/keywords/generator.json  ./internal/keywords/generator.json
 COPY --from=builder /app/internal/interfaces              ./internal/interfaces
 
 EXPOSE 8081

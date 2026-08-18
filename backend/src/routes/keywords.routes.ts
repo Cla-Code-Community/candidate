@@ -4,6 +4,7 @@ import { keywords } from "../db/schema";
 import { ownedBy } from "../lib/authorization/ownership";
 import { getCache } from "../lib/cache";
 import { publish } from "../lib/kwsync";
+import { getConfig } from "../config";
 
 export const keywordsRoutes = Router();
 
@@ -55,12 +56,21 @@ keywordsRoutes.get("/", async (req, res) => {
  *     responses:
  *       202:
  *         description: Keyword enfileirada — o Go decide se persiste
+ *       403:
+ *         description: Submissão de keywords por usuário desabilitada
  *       400:
  *         description: Dados inválidos
  */
 keywordsRoutes.post("/", async (req, res) => {
   const userId = req.session?.userId;
   if (!userId) return res.status(401).json({ message: "Não autenticado." });
+
+  if (!getConfig().kwsyncEnabled) {
+    return res.status(403).json({
+      ok: false,
+      message: "Submissão de keywords por usuário está desabilitada.",
+    });
+  }
 
   const raw = req.body?.keyword;
   const keyword = typeof raw === "string" ? raw.trim() : "";

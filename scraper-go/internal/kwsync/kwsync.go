@@ -38,6 +38,11 @@ func NewConsumer(rdb *redis.Client, kwStore *keywords.Store) *Consumer {
 // Start inicia o polling em background.
 // Cancela quando ctx for cancelado (shutdown do servidor).
 func (c *Consumer) Start(ctx context.Context) {
+	if !enabled() {
+		slog.Info("kwsync: consumer desabilitado", "env", "KWSYNC_ENABLED")
+		return
+	}
+
 	slog.Info("kwsync: consumer iniciado", "interval", pollInterval)
 
 	go func() {
@@ -56,6 +61,15 @@ func (c *Consumer) Start(ctx context.Context) {
 			}
 		}
 	}()
+}
+
+func enabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("KWSYNC_ENABLED"))) {
+	case "1", "true", "yes", "y", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 // process drena a fila inteira e processa cada keyword.

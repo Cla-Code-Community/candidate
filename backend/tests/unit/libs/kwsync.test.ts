@@ -28,7 +28,20 @@ function getCall(client: ReturnType<typeof makeClient>, index = 0) {
 }
 
 describe("publish", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.KWSYNC_ENABLED = "true";
+  });
+
+  it("ignora publicação quando KWSYNC_ENABLED=false", async () => {
+    process.env.KWSYNC_ENABLED = "false";
+
+    const client = makeClient();
+    await publish(client as any, "React");
+
+    expect(client.lPush).not.toHaveBeenCalled();
+    expect(mocks.loggerInfo).toHaveBeenCalledOnce();
+  });
 
   it("chama lPush com a chave correta", async () => {
     const client = makeClient();
@@ -79,12 +92,25 @@ describe("publish", () => {
 });
 
 describe("publishBatch", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.KWSYNC_ENABLED = "true";
+  });
 
   it("nao chama lPush quando keywords e array vazio", async () => {
     const client = makeClient();
     await publishBatch(client as any, []);
     expect(client.lPush).not.toHaveBeenCalled();
+  });
+
+  it("ignora lote quando KWSYNC_ENABLED=false", async () => {
+    process.env.KWSYNC_ENABLED = "false";
+
+    const client = makeClient();
+    await publishBatch(client as any, ["Java", "Node.js"]);
+
+    expect(client.lPush).not.toHaveBeenCalled();
+    expect(mocks.loggerInfo).toHaveBeenCalledOnce();
   });
 
   it("chama lPush uma unica vez com array de payloads", async () => {
