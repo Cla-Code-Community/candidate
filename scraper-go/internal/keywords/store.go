@@ -34,13 +34,13 @@ func (s *Store) Load(ctx context.Context) ([]string, error) {
 		return fallback, nil
 	}
 
-	return NormalizeKeywords(raw), nil
+	return GenerateSearchKeywords(raw), nil
 }
 
 // Save persiste as keywords no Valkey sem expiração (TTL=0).
 // Keywords são configuração, não cache — não devem expirar automaticamente.
 func (s *Store) Save(ctx context.Context, keywords []string) error {
-	normalized := NormalizeKeywords(keywords)
+	normalized := GenerateSearchKeywords(keywords)
 
 	if err := s.cache.Set(ctx, cacheKey, normalized, 0); err != nil {
 		return err

@@ -1,4 +1,5 @@
 import type { RedisClientType } from "redis";
+import { getConfig } from "../config";
 import { logger } from "../logger";
 
 // Chave absoluta global. O Go lerá exatamente esse namespace.
@@ -21,6 +22,14 @@ export async function publish(
   source: KeywordEvent["source"] = "user",
   userId?: string,
 ): Promise<void> {
+  if (!getConfig().kwsyncEnabled) {
+    logger.info(
+      { keyword, source, userId },
+      "kwsync: publicação ignorada porque KWSYNC_ENABLED=false",
+    );
+    return;
+  }
+
   const event: KeywordEvent = {
     keyword,
     source,
@@ -53,6 +62,13 @@ export async function publishBatch(
   source: KeywordEvent["source"] = "user",
 ): Promise<void> {
   if (keywords.length === 0) return;
+  if (!getConfig().kwsyncEnabled) {
+    logger.info(
+      { count: keywords.length, source },
+      "kwsync: lote ignorado porque KWSYNC_ENABLED=false",
+    );
+    return;
+  }
 
   const now = new Date().toISOString();
   const payloads = keywords.map((keyword) =>

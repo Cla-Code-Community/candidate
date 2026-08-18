@@ -22,6 +22,7 @@ export interface AppConfig {
   emailFromAddress: string;
   emailFromName: string;
   emailQueueAttempts: number;
+  kwsyncEnabled: boolean;
 }
 
 function parseBoolean(value: string | undefined, fallback: boolean): boolean {
@@ -75,5 +76,6 @@ export function getConfig(): AppConfig {
     emailFromAddress: process.env.EMAIL_FROM_ADDRESS?.trim() ?? "",
     emailFromName: process.env.EMAIL_FROM_NAME?.trim() ?? "",
     emailQueueAttempts: parseNumber(process.env.EMAIL_QUEUE_ATTEMPTS, 3),
+    kwsyncEnabled: parseBoolean(process.env.KWSYNC_ENABLED, false),
   };
 }

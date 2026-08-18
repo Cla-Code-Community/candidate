@@ -9,7 +9,7 @@ import (
 )
 
 func BuildCacheKey(config SearchConfig) string {
-	normalizedKeywords := keywords.NormalizeKeywords(config.Keywords)
+	normalizedKeywords := keywords.GenerateSearchKeywords(config.Keywords)
 	sort.Strings(normalizedKeywords)
 
 	sources := normalizeCacheValues(config.Sources)

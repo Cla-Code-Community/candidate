@@ -31,7 +31,7 @@ func LoadDefaultKeywords() []string {
 			return []string{}
 		}
 
-		normalized := NormalizeKeywords(parsed.Keywords)
+		normalized := GenerateSearchKeywords(parsed.Keywords)
 		slog.Info("keywords: loaded from file", "path", p, "count", len(normalized))
 		return normalized
 	}
