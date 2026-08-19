@@ -58,7 +58,10 @@ func ScrapeAllSources(
 		MaxConcurrency:        config.MaxConcurrency,
 	}
 
-	jobs := Run(ctx, adapterList, req)
+	jobs, err := Run(ctx, adapterList, req)
+	if err != nil {
+		return nil, err
+	}
 
 	slog.Info("scrape finished",
 		"total_jobs", len(jobs),

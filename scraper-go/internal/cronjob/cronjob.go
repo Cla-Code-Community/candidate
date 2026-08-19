@@ -8,6 +8,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
@@ -32,7 +33,7 @@ func DefaultConfig() Config {
 		JobTypes:       "C,F",
 		TimeFilter:     "r604800",
 		RemoteOnly:     false,
-		MaxConcurrency: 40,
+		MaxConcurrency: config.DefaultMaxConcurrency,
 	}
 }
 
@@ -66,7 +67,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	slog.Info("cronjob: scheduler iniciado", "interval", s.cfg.Interval)
 
 	go func() {
-		s.run(ctx)
+		s.run(ctx, "cron")
 
 		ticker := time.NewTicker(s.cfg.Interval)
 		defer ticker.Stop()
@@ -74,7 +75,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ticker.C:
-				s.run(ctx)
+				s.run(ctx, "cron")
 			case <-s.stop:
 				slog.Info("cronjob: scheduler encerrado")
 				return
@@ -98,7 +99,7 @@ func (s *Scheduler) RunNow(ctx context.Context) error {
 	}
 	s.mu.Unlock()
 
-	go s.run(ctx)
+	go s.run(ctx, "admin_manual")
 	return nil
 }
 
@@ -114,7 +115,7 @@ func (s *Scheduler) Snapshot() (running bool, lastRunAt time.Time, jobsCollected
 	return s.running, s.lastRunAt, s.lastJobs
 }
 
-func (s *Scheduler) run(ctx context.Context) {
+func (s *Scheduler) run(ctx context.Context, origin string) {
 	s.mu.Lock()
 	if s.running {
 		s.mu.Unlock()
@@ -131,8 +132,6 @@ func (s *Scheduler) run(ctx context.Context) {
 	}()
 
 	start := time.Now()
-	slog.Info("cronjob: iniciando execução")
-
 	scrapeCtx, cancel := context.WithTimeout(ctx, s.cfg.ScrapeTimeout)
 	defer cancel()
 
@@ -142,14 +141,14 @@ func (s *Scheduler) run(ctx context.Context) {
 		return
 	}
 
-	config := pipeline.SearchConfig{
-		Keywords:       kws,
-		SearchLocation: s.cfg.SearchLocation,
-		JobTypes:       s.cfg.JobTypes,
-		TimeFilter:     s.cfg.TimeFilter,
-		RemoteOnly:     s.cfg.RemoteOnly,
-		MaxConcurrency: s.cfg.MaxConcurrency,
-	}
+	config := s.searchConfig(kws)
+	slog.Info("scraper execução iniciada",
+		"origin", origin,
+		"max_concurrency_configured", s.cfg.MaxConcurrency,
+		"max_concurrency_effective", config.MaxConcurrency,
+		"keywords", len(kws),
+		"adapters", len(s.adapterList),
+	)
 
 	jobs, err := pipeline.ScrapeAllSources(scrapeCtx, config, s.adapterList, s.rdb)
 	if err != nil {
@@ -182,6 +181,17 @@ func (s *Scheduler) run(ctx context.Context) {
 
 	if s.OnComplete != nil {
 		s.OnComplete(kws, len(jobs), saved, time.Since(start))
+	}
+}
+
+func (s *Scheduler) searchConfig(kws []string) pipeline.SearchConfig {
+	return pipeline.SearchConfig{
+		Keywords:       kws,
+		SearchLocation: s.cfg.SearchLocation,
+		JobTypes:       s.cfg.JobTypes,
+		TimeFilter:     s.cfg.TimeFilter,
+		RemoteOnly:     s.cfg.RemoteOnly,
+		MaxConcurrency: s.cfg.MaxConcurrency,
 	}
 }
 

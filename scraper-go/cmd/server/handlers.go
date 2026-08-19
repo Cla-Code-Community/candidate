@@ -9,6 +9,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cache"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
@@ -20,7 +21,7 @@ const (
 	scrapeTimeout = 15 * time.Minute
 )
 
-func handleScrape(adapterList []ports.JobSource, kwStore *keywords.Store, c cache.Cache, rdb *redis.Client) http.HandlerFunc {
+func handleScrape(adapterList []ports.JobSource, kwStore *keywords.Store, c cache.Cache, rdb *redis.Client, runtimeCfg config.RuntimeConfig) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req domain.ScrapeRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -40,25 +41,12 @@ func handleScrape(adapterList []ports.JobSource, kwStore *keywords.Store, c cach
 		ctx, cancel := context.WithTimeout(r.Context(), scrapeTimeout)
 		defer cancel()
 
-		config := pipeline.SearchConfig{
-			Keywords:              req.Keywords,
-			SearchLocation:        req.SearchLocation,
-			SearchGeoID:           req.SearchGeoID,
-			SearchLanguage:        req.SearchLanguage,
-			JobTypes:              req.JobTypes,
-			TimeFilter:            req.TimeFilter,
-			RemoteOnly:            req.RemoteOnly,
-			Sources:               req.Sources,
-			ResultsPerPage:        req.ResultsPerPage,
-			MaxPagesPerKeyword:    req.MaxPagesPerKeyword,
-			WaitBetweenSearchesMs: req.WaitBetweenSearchesMs,
-			PageTimeoutMs:         req.PageTimeoutMs,
-			MaxConcurrency:        req.MaxConcurrency,
-		}
+		searchConfig := searchConfigFromRequest(req, runtimeCfg.MaxConcurrency)
+		slogScrapeStart("public_endpoint", runtimeCfg.MaxConcurrency, req.MaxConcurrency, searchConfig.MaxConcurrency, len(searchConfig.Keywords), len(adapterList))
 
 		start := time.Now()
 
-		result, err := pipeline.SearchJobs(ctx, c, config, adapterList, scrapeTTL, rdb)
+		result, err := pipeline.SearchJobs(ctx, c, searchConfig, adapterList, scrapeTTL, rdb)
 		if err != nil {
 			http.Error(w, "Erro ao buscar vagas.", http.StatusInternalServerError)
 			return
@@ -73,6 +61,24 @@ func handleScrape(adapterList []ports.JobSource, kwStore *keywords.Store, c cach
 			Total:    result.Total,
 			CachedAt: result.CachedAt.UTC().Format(time.RFC3339),
 		})
+	}
+}
+
+func searchConfigFromRequest(req domain.ScrapeRequest, globalMaxConcurrency int) pipeline.SearchConfig {
+	return pipeline.SearchConfig{
+		Keywords:              req.Keywords,
+		SearchLocation:        req.SearchLocation,
+		SearchGeoID:           req.SearchGeoID,
+		SearchLanguage:        req.SearchLanguage,
+		JobTypes:              req.JobTypes,
+		TimeFilter:            req.TimeFilter,
+		RemoteOnly:            req.RemoteOnly,
+		Sources:               req.Sources,
+		ResultsPerPage:        req.ResultsPerPage,
+		MaxPagesPerKeyword:    req.MaxPagesPerKeyword,
+		WaitBetweenSearchesMs: req.WaitBetweenSearchesMs,
+		PageTimeoutMs:         req.PageTimeoutMs,
+		MaxConcurrency:        config.ResolveEffectiveConcurrency(req.MaxConcurrency, globalMaxConcurrency),
 	}
 }
 

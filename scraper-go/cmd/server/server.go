@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cache"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
@@ -19,7 +20,7 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-func run(adapterList []ports.JobSource) {
+func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	addr := os.Getenv("GO_SCRAPER_ADDR")
 	if addr == "" {
 		addr = ":8081"
@@ -44,6 +45,7 @@ func run(adapterList []ports.JobSource) {
 
 	// ── Scheduler (cronjob) ──
 	schedulerCfg := cronjob.DefaultConfig()
+	schedulerCfg.MaxConcurrency = runtimeCfg.MaxConcurrency
 	scheduler := cronjob.New(schedulerCfg, kwStore, jobStore, adapterList, rdb)
 
 	scheduler.OnComplete = func(kws []string, scraped, saved int, duration time.Duration) {
@@ -54,7 +56,7 @@ func run(adapterList []ports.JobSource) {
 	mux := http.NewServeMux()
 
 	// Públicas
-	mux.Handle("POST /scrape", handleScrape(adapterList, kwStore, c, rdb))
+	mux.Handle("POST /scrape", handleScrape(adapterList, kwStore, c, rdb, runtimeCfg))
 	mux.Handle("GET /health", handleHealth(c))
 	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("GET /api/keywords", handleGetKeywords(kwStore))

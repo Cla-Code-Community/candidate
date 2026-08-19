@@ -4,6 +4,8 @@ services:
       context: ./scraper-go
       dockerfile: Dockerfile
     container_name: vagas-scraper-go
+    cpus: 1.5
+    mem_limit: 2g
     env_file:
       - ./.env
     volumes:
@@ -11,6 +13,9 @@ services:
     environment:
       - GO_SCRAPER_ADDR=:8081
       - VALKEY_URL=redis://valkey:6379/0
+      - SCRAPER_MAX_CONCURRENCY=${SCRAPER_MAX_CONCURRENCY-12}
+      - GOMAXPROCS=${GOMAXPROCS:-2}
+      - GOMEMLIMIT=${GOMEMLIMIT:-1500MiB}
       - GUPY_ENABLED=${GUPY_ENABLED:-true}
       - GUPY_RAW_DISCOVERY_ENABLED=${GUPY_RAW_DISCOVERY_ENABLED:-true}
       - GUPY_FULL_SWEEP_ENABLED=${GUPY_FULL_SWEEP_ENABLED:-true}
