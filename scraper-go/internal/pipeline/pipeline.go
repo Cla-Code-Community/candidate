@@ -21,7 +21,7 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-const defaultMaxConcurrency = 40
+var errInvalidMaxConcurrency = fmt.Errorf("pipeline: max concurrency must be greater than zero")
 
 type result struct {
 	jobs []domain.Job
@@ -34,12 +34,12 @@ type adapterTask struct {
 	batch    bool
 }
 
-func Run(ctx context.Context, adapterList []ports.JobSource, req domain.ScrapeRequest) []domain.Job {
+func Run(ctx context.Context, adapterList []ports.JobSource, req domain.ScrapeRequest) ([]domain.Job, error) {
 	pipelineStart := time.Now()
 
 	maxConcurrency := req.MaxConcurrency
 	if maxConcurrency <= 0 {
-		maxConcurrency = defaultMaxConcurrency
+		return nil, errInvalidMaxConcurrency
 	}
 
 	tasks := make([]adapterTask, 0, len(adapterList)*len(req.Keywords))
@@ -116,7 +116,7 @@ func Run(ctx context.Context, adapterList []ports.JobSource, req domain.ScrapeRe
 	metrics.PipelineRunDuration.Observe(time.Since(pipelineStart).Seconds())
 	metrics.PipelineJobsTotal.Observe(float64(len(classified)))
 
-	return classified
+	return classified, nil
 }
 
 func runAdapterTask(ctx context.Context, t adapterTask, req domain.ScrapeRequest) ([]domain.Job, error) {

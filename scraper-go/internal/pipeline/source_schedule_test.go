@@ -89,11 +89,35 @@ func TestShouldRunJoobleAllowsWhenRedisUnavailable(t *testing.T) {
 func TestRunUsesBatchAdapterOnceForAllKeywords(t *testing.T) {
 	adapter := &batchRunTestAdapter{}
 
-	Run(context.Background(), []adapters.Adapter{adapter}, domain.ScrapeRequest{
-		Keywords: []string{"go", "java", "python"},
+	_, err := Run(context.Background(), []adapters.Adapter{adapter}, domain.ScrapeRequest{
+		Keywords:       []string{"go", "java", "python"},
+		MaxConcurrency: 1,
 	})
+	require.NoError(t, err)
 
 	assert.Equal(t, 0, adapter.searchCalls)
 	assert.Equal(t, 1, adapter.batchCalls)
 	assert.Equal(t, []string{"go", "java", "python"}, adapter.keywords)
+}
+
+func TestRunRejectsInvalidMaxConcurrency(t *testing.T) {
+	_, err := Run(context.Background(), []adapters.Adapter{&batchRunTestAdapter{}}, domain.ScrapeRequest{
+		Keywords: []string{"go"},
+	})
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "max concurrency")
+}
+
+func TestRunExecutesWithValidMaxConcurrency(t *testing.T) {
+	adapter := &batchRunTestAdapter{}
+
+	jobs, err := Run(context.Background(), []adapters.Adapter{adapter}, domain.ScrapeRequest{
+		Keywords:       []string{"go"},
+		MaxConcurrency: 1,
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, jobs)
+	assert.Equal(t, 1, adapter.batchCalls)
 }
