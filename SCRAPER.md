@@ -195,6 +195,26 @@ Docker: há um `Dockerfile` em `scraper-go/`. No Docker Compose, configure `VALK
 
 No Compose da raiz, o serviço escuta em <http://localhost:8081>.
 
+### Limites globais de execução
+
+O scraper possui um orçamento global de concorrência por execução controlado por `SCRAPER_MAX_CONCURRENCY`.
+
+- Padrão interno: `12`, usado quando a variável não está definida.
+- Valor válido: inteiro positivo.
+- Valores inválidos explícitos (`""`, `0`, negativo ou não numérico) fazem a aplicação falhar no startup, sem fallback silencioso.
+- Cron e `POST /admin/scrape` usam o limite global configurado.
+- `POST /scrape` preserva o contrato atual: quando `maxConcurrency` não é informado, ou vem como `0`/negativo, usa o limite global; quando vem positivo abaixo do teto, usa o valor solicitado; quando vem acima do teto, usa o teto global.
+- A concorrência efetiva é calculada antes da chave de cache e é o mesmo valor usado pelo pipeline, logs e semáforo.
+
+O semáforo global atual é criado uma vez por chamada do pipeline. Portanto, o limite é por execução: duas execuções simultâneas ainda podem possuir dois semáforos independentes com a mesma capacidade. Lock entre cron/manual, prevenção de simultaneidade e limites por provider pertencem às próximas sub-issues.
+
+No Docker Compose de produção, o serviço `scraper-go` também define:
+
+- `GOMAXPROCS=2`: limita a quantidade de threads do Go executando código simultaneamente.
+- `GOMEMLIMIT=1500MiB`: define uma meta de memória para o runtime e influencia o garbage collector.
+- `mem_limit: 2g`: limite externo do container. `GOMEMLIMIT` não substitui esse limite; ele fica abaixo de `2g` para preservar margem operacional.
+- `cpus: 1.5`: limita o container a 1,5 CPU.
+
 ## Endpoints HTTP
 
 O serviço expõe endpoints HTTP (implementação em `cmd/server` e arquivos associados). Principais rotas:
@@ -271,6 +291,7 @@ Fluxo principal:
 Concorrência e resiliência:
 
 - Semáforos por adaptador (ex.: LinkedIn usa um semáforo de 5 simultâneos para proteção).
+- Orçamento global por execução via `SCRAPER_MAX_CONCURRENCY`, aplicado antes do cache e do pipeline.
 - Tratamento de status 429 com backoff; aborta apenas a keyword afetada em caso de falhas persistentes.
 - Uso de `inflight` para evitar que múltiplas requisições idênticas disparem scrapes simultâneos.
 - Slots rotativos reduzem o número de keywords/queries por rodada em fontes caras, preservando cobertura progressiva em execuções futuras.
@@ -319,10 +340,24 @@ Boas práticas nos adaptadores:
 
 - Há testes e fixtures (ex.: `internal/keywords/keywords.test.json`) para validar normalização.
 - Recomenda-se executar `go test ./...` dentro de `scraper-go`.
+- Para validar a configuração final do Compose, execute na raiz:
+
+```bash
+docker compose \
+  -f docker-compose.infra.yml \
+  -f docker-compose.yml \
+  -f docker-compose.migrate.yml \
+  config
+```
+
+Confirme no serviço `scraper-go` os equivalentes de `SCRAPER_MAX_CONCURRENCY=12`, `GOMAXPROCS=2`, `GOMEMLIMIT=1500MiB`, `cpus: 1.5` e `mem_limit: 2g`.
 
 ## Variáveis de ambiente importantes
 
 - `VALKEY_URL` — conexão Redis/Valkey. Em Docker Compose, use `redis://valkey:6379/0`; em execução local fora do Docker, use uma URL acessível pelo host, por exemplo `redis://localhost:6379/0`.
+- `SCRAPER_MAX_CONCURRENCY` — teto global de concorrência por execução. Padrão: `12`. Configuração explícita inválida impede a inicialização.
+- `GOMAXPROCS` — limite efetivo de threads executando código Go simultaneamente. Valor inicial no Compose: `2`.
+- `GOMEMLIMIT` — meta de memória do runtime/GC. Valor inicial no Compose: `1500MiB`; não substitui `mem_limit` do container.
 - `JOOBLE_API_KEY` — Jooble integration.
 - `ADZUNA_APP_ID` / `ADZUNA_APP_KEY` — Adzuna API.
 - `LINKEDIN_KEYWORD_SLOT_SIZE` — quantidade máxima de keywords do LinkedIn por execução quando a busca vier com uma lista grande. Padrão: `30`.

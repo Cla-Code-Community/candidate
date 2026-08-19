@@ -1,6 +1,9 @@
 package pipeline
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestBuildCacheKeyNormalizesAndDeduplicatesKeywords(t *testing.T) {
 	a := BuildCacheKey(SearchConfig{
@@ -75,5 +78,17 @@ func TestBuildCacheKeyNormalizesSourcesOrder(t *testing.T) {
 
 	if a != b {
 		t.Fatalf("expected equivalent source sets to share cache key, got %q and %q", a, b)
+	}
+}
+
+func TestBuildCacheKeyUsesEffectiveMaxConcurrency(t *testing.T) {
+	key := BuildCacheKey(SearchConfig{
+		Keywords:       []string{"go"},
+		SearchLocation: "Brasil",
+		MaxConcurrency: 12,
+	})
+
+	if !strings.HasSuffix(key, ":12") {
+		t.Fatalf("expected cache key to contain effective max concurrency, got %q", key)
 	}
 }
