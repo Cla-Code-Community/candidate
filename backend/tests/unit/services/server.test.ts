@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   logWarn: vi.fn(),
   swaggerServe: vi.fn(),
   swaggerSetup: vi.fn(() => vi.fn()),
+  startEmailWorker: vi.fn(),
+  stopEmailWorker: vi.fn(async () => {}),
+  closeEmailQueue: vi.fn(async () => {}),
+  closeCache: vi.fn(async () => {}),
 }));
 
 mocks.createJobsApiApp.mockReturnValue({
@@ -40,6 +44,19 @@ vi.mock("../../../src/swagger.js", () => ({
   default: {},
 }));
 
+vi.mock("../../../src/modules/email/email.worker.js", () => ({
+  startEmailWorker: mocks.startEmailWorker,
+  stopEmailWorker: mocks.stopEmailWorker,
+}));
+
+vi.mock("../../../src/modules/email/email.queue.js", () => ({
+  closeEmailQueue: mocks.closeEmailQueue,
+}));
+
+vi.mock("../../../src/lib/cache.js", () => ({
+  closeCache: mocks.closeCache,
+}));
+
 async function importServerEntry() {
   await import("../../../src/server.js");
   await vi.dynamicImportSettled();
@@ -65,6 +82,7 @@ describe("server entry", () => {
 
     expect(mocks.createJobsApiApp).toHaveBeenCalledTimes(1);
     expect(mocks.set).toHaveBeenCalledWith("trust proxy", 1);
+    expect(mocks.startEmailWorker).toHaveBeenCalledTimes(1);
     expect(mocks.listen).toHaveBeenCalled();
     expect(mocks.listen.mock.calls[0][0]).toBe(3100);
   });
