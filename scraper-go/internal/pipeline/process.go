@@ -26,6 +26,7 @@ type processConfig struct {
 	RDB                     *redis.Client
 	Persist                 persistBatchFn
 	Index                   indexBatchFn
+	IndexSession            *indexSession
 }
 
 type ProcessStats struct {
@@ -40,6 +41,10 @@ type ProcessStats struct {
 	Updated    int
 	Indexed    int
 	Failed     int
+}
+
+func (s ProcessStats) Saved() int {
+	return s.Inserted + s.Updated
 }
 
 func defaultProcessConfig() processConfig {
@@ -64,12 +69,16 @@ func processIncomingJobs(
 	if cfg.IndexBatchSize <= 0 {
 		cfg.IndexBatchSize = config.DefaultIndexBatchSize
 	}
+	if cfg.Index == nil && cfg.RDB != nil && cfg.IndexSession == nil {
+		cfg.IndexSession = newIndexSession(cfg.RunID)
+	}
 
-	// seen holds only the current classification window. flushed stores compact
-	// identity keys for the rest of the run so cross-batch duplicates are
-	// skipped without retaining full job payloads.
+	// seen holds only the current classification window. flushed maps identity
+	// keys to persisted IDs so cross-batch duplicates can merge with the
+	// document already written in this run.
 	seen := make(map[string]*domain.Job)
-	flushed := make(map[string]struct{})
+	flushed := make(map[string]string)
+	persistedByID := make(map[string]domain.Job)
 	pending := make([]*domain.Job, 0, cfg.ClassificationBatchSize)
 	indexBuf := make([]domain.Job, 0, cfg.IndexBatchSize)
 	approved := make([]domain.Job, 0)
@@ -78,11 +87,11 @@ func processIncomingJobs(
 	windowDuplicates := 0
 	var terminalErr error
 
-	markFlushed := func(job *domain.Job) {
-		for _, key := range dedup.Keys(job) {
-			flushed[key] = struct{}{}
-			delete(seen, key)
+	discardIndexes := func() {
+		if cfg.IndexSession == nil || cfg.RDB == nil {
+			return
 		}
+		_ = cfg.IndexSession.Discard(context.WithoutCancel(ctx), cfg.RDB)
 	}
 
 	flushIndexBuffer := func(force bool) error {
@@ -110,8 +119,52 @@ func processIncomingJobs(
 		if len(persisted) == 0 || !canIndex(cfg) {
 			return nil
 		}
-		indexBuf = append(indexBuf, persisted...)
+		for _, job := range persisted {
+			if job.ID == "" {
+				if cfg.Index == nil {
+					continue
+				}
+				indexBuf = append(indexBuf, job)
+				continue
+			}
+			replaced := false
+			for i := range indexBuf {
+				if indexBuf[i].ID == job.ID {
+					indexBuf[i] = job
+					replaced = true
+					break
+				}
+			}
+			if !replaced {
+				indexBuf = append(indexBuf, job)
+			}
+		}
 		return flushIndexBuffer(false)
+	}
+
+	rememberPersisted := func(jobs []domain.Job) {
+		for _, job := range jobs {
+			if job.ID == "" {
+				job.ID = jobstore.StableID(&job)
+			}
+			if job.ID == "" {
+				continue
+			}
+			if _, exists := persistedByID[job.ID]; !exists {
+				approved = append(approved, job)
+			} else {
+				for i := range approved {
+					if approved[i].ID == job.ID {
+						approved[i] = job
+						break
+					}
+				}
+			}
+			persistedByID[job.ID] = job
+			for _, key := range dedup.Keys(&job) {
+				flushed[key] = job.ID
+			}
+		}
 	}
 
 	flushPending := func(force bool) error {
@@ -131,14 +184,13 @@ func processIncomingJobs(
 				continue
 			}
 			jobs = append(jobs, *job)
-			markFlushed(job)
 		}
 		pending = pending[:0]
 		batchDuplicates := windowDuplicates
 		windowDuplicates = 0
 		persisted, err := processStageBatch(ctx, cfg, batchNo, jobs, &stats, batchDuplicates)
 		if len(persisted) > 0 {
-			approved = append(approved, persisted...)
+			rememberPersisted(persisted)
 			if indexErr := enqueuePersisted(persisted); indexErr != nil {
 				if err == nil {
 					err = indexErr
@@ -153,6 +205,49 @@ func processIncomingJobs(
 			}
 		}
 		return err
+	}
+
+	mergeFlushed := func(incoming domain.Job, id string) error {
+		existing, ok := persistedByID[id]
+		if !ok && cfg.Store != nil {
+			found, err := cfg.Store.GetByIDs(ctx, []string{id})
+			if err != nil {
+				return err
+			}
+			if len(found) > 0 {
+				existing = found[0]
+				ok = true
+			}
+		}
+		if !ok {
+			slog.Warn("scraper late duplicate has no persisted document",
+				"run_id", cfg.RunID,
+				"id", id,
+			)
+			return nil
+		}
+
+		merged := dedup.Merge(&existing, &incoming)
+		classification := classifier.Classify(*merged)
+		merged.Classification = &classification
+		if !classification.InScope && existing.Classification != nil {
+			merged.Classification = existing.Classification
+		}
+
+		persisted := []domain.Job{*merged}
+		if cfg.Persist != nil || cfg.Store != nil {
+			result, inserted, updated, err := persistJobs(ctx, cfg, batchNo, []domain.Job{*merged}, &stats)
+			if err != nil {
+				return err
+			}
+			stats.Inserted += inserted
+			stats.Updated += updated
+			if len(result) > 0 {
+				persisted = result
+			}
+		}
+		rememberPersisted(persisted)
+		return enqueuePersisted(persisted)
 	}
 
 	for {
@@ -177,7 +272,14 @@ func processIncomingJobs(
 				}
 			}
 			if terminalErr != nil {
+				discardIndexes()
 				return approved, stats, terminalErr
+			}
+			if cfg.IndexSession != nil && cfg.RDB != nil {
+				if err := cfg.IndexSession.Publish(ctx, cfg.RDB); err != nil {
+					discardIndexes()
+					return approved, stats, err
+				}
 			}
 			slog.Info("scraper process complete",
 				"run_id", cfg.RunID,
@@ -190,6 +292,7 @@ func processIncomingJobs(
 				"rejected", stats.Rejected,
 				"inserted", stats.Inserted,
 				"updated", stats.Updated,
+				"saved", stats.Saved(),
 				"indexed", stats.Indexed,
 				"failed", stats.Failed,
 			)
@@ -207,9 +310,11 @@ func processIncomingJobs(
 		stats.Received++
 		job = normalizeCollectedJob(job)
 		keys := dedup.Keys(&job)
-		if hasAnyKey(flushed, keys) {
+		if id, found := flushedID(flushed, keys); found {
 			stats.Duplicates++
-			windowDuplicates++
+			if err := mergeFlushed(job, id); err != nil {
+				terminalErr = err
+			}
 			continue
 		}
 		if existing := findSeen(seen, keys); existing != nil {
@@ -238,13 +343,13 @@ func canIndex(cfg processConfig) bool {
 	return cfg.RDB != nil && (cfg.Store != nil || cfg.Persist != nil)
 }
 
-func hasAnyKey(index map[string]struct{}, keys []string) bool {
+func flushedID(index map[string]string, keys []string) (string, bool) {
 	for _, key := range keys {
-		if _, ok := index[key]; ok {
-			return true
+		if id, ok := index[key]; ok && id != "" {
+			return id, true
 		}
 	}
-	return false
+	return "", false
 }
 
 func findSeen(seen map[string]*domain.Job, keys []string) *domain.Job {
@@ -308,40 +413,17 @@ func processStageBatch(
 	batchUpdated := 0
 	var persistErr error
 	if cfg.Persist != nil || cfg.Store != nil {
-		written := make([]domain.Job, 0, len(approved))
-		for start := 0; start < len(approved); start += cfg.PersistBatchSize {
-			if cause := context.Cause(ctx); cause != nil {
-				persistErr = cause
-				break
-			}
-			end := min(start+cfg.PersistBatchSize, len(approved))
-			chunk := approved[start:end]
-			var result jobstore.SaveResult
-			var err error
-			if cfg.Persist != nil {
-				result, err = cfg.Persist(ctx, chunk)
-			} else {
-				result, err = cfg.Store.SaveBatch(ctx, chunk)
-			}
-			if err != nil {
-				stats.Failed++
-				slog.Error("scraper persist batch failed",
-					"run_id", cfg.RunID,
-					"stage", "persist",
-					"batch", batchNo,
-					"size", len(chunk),
-					"error", err,
-				)
-				persistErr = err
-				break
-			}
-			batchInserted += result.Inserted
-			batchUpdated += result.Updated
-			stats.Inserted += result.Inserted
-			stats.Updated += result.Updated
-			written = append(written, result.Persisted...)
-		}
+		var written []domain.Job
+		written, batchInserted, batchUpdated, persistErr = persistJobs(ctx, cfg, batchNo, approved, stats)
+		stats.Inserted += batchInserted
+		stats.Updated += batchUpdated
 		persisted = written
+	} else {
+		for i := range persisted {
+			if persisted[i].ID == "" {
+				persisted[i].ID = jobstore.StableID(&persisted[i])
+			}
+		}
 	}
 
 	slog.Info("scraper stage batch",
@@ -360,6 +442,47 @@ func processStageBatch(
 		"duration", time.Since(started).Round(time.Millisecond),
 	)
 	return persisted, persistErr
+}
+
+func persistJobs(
+	ctx context.Context,
+	cfg processConfig,
+	batchNo int,
+	jobs []domain.Job,
+	stats *ProcessStats,
+) ([]domain.Job, int, int, error) {
+	written := make([]domain.Job, 0, len(jobs))
+	inserted := 0
+	updated := 0
+	for start := 0; start < len(jobs); start += cfg.PersistBatchSize {
+		if cause := context.Cause(ctx); cause != nil {
+			return written, inserted, updated, cause
+		}
+		end := min(start+cfg.PersistBatchSize, len(jobs))
+		chunk := jobs[start:end]
+		var result jobstore.SaveResult
+		var err error
+		if cfg.Persist != nil {
+			result, err = cfg.Persist(ctx, chunk)
+		} else {
+			result, err = cfg.Store.SaveBatch(ctx, chunk)
+		}
+		if err != nil {
+			stats.Failed++
+			slog.Error("scraper persist batch failed",
+				"run_id", cfg.RunID,
+				"stage", "persist",
+				"batch", batchNo,
+				"size", len(chunk),
+				"error", err,
+			)
+			return written, inserted, updated, err
+		}
+		inserted += result.Inserted
+		updated += result.Updated
+		written = append(written, result.Persisted...)
+	}
+	return written, inserted, updated, nil
 }
 
 func indexPersistedChunk(
@@ -385,7 +508,7 @@ func indexPersistedChunk(
 	if cfg.Index != nil {
 		err = cfg.Index(ctx, jobs)
 	} else {
-		commands, err = IndexJobsInValkeyBatched(ctx, cfg.RDB, jobs, cfg.Keywords, cfg.IndexBatchSize)
+		commands, err = indexJobsInValkeyBatched(ctx, cfg.RDB, jobs, cfg.Keywords, cfg.IndexBatchSize, cfg.IndexSession)
 	}
 	if err != nil {
 		stats.Failed++
@@ -399,7 +522,7 @@ func indexPersistedChunk(
 		if cfg.Store == nil || cfg.RDB == nil || len(ids) == 0 {
 			return err
 		}
-		if reconErr := ReindexPersistedJobs(ctx, cfg.Store, cfg.RDB, ids, cfg.Keywords, cfg.IndexBatchSize); reconErr != nil {
+		if reconErr := reindexPersistedJobs(ctx, cfg.Store, cfg.RDB, ids, cfg.Keywords, cfg.IndexBatchSize, cfg.IndexSession); reconErr != nil {
 			slog.Error("scraper index reconcile failed",
 				"run_id", cfg.RunID,
 				"stage", "index_reconcile",

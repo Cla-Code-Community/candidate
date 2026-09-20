@@ -91,7 +91,7 @@ func TestReindexPersistedJobsIsIdempotent(t *testing.T) {
 	assert.Equal(t, []string{saved.Persisted[0].ID}, members)
 }
 
-func TestIndexJobsInValkeyKeepsExistingKeywordMembers(t *testing.T) {
+func TestIndexJobsInValkeyReplacesMembersWithCurrentExecution(t *testing.T) {
 	rdb, _ := newTestRedis(t)
 	ctx := context.Background()
 	first := []domain.Job{classifiedJob(0)}
@@ -102,8 +102,81 @@ func TestIndexJobsInValkeyKeepsExistingKeywordMembers(t *testing.T) {
 
 	members, err := rdb.SMembers(ctx, "scraper:jobs:keyword:go").Result()
 	require.NoError(t, err)
-	assert.Len(t, members, 2)
+	assert.Equal(t, []string{classifiedJob(1).ID}, members)
 	nextExists, err := rdb.Exists(ctx, "scraper:jobs:keyword:go:next").Result()
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), nextExists)
+}
+
+func TestIndexJobsInValkeyRemovesStaleKeywordMembers(t *testing.T) {
+	rdb, _ := newTestRedis(t)
+	ctx := context.Background()
+	job := classifiedJob(0)
+	job.Description = "Golang go python APIs microservices"
+	keywords := []string{"go", "python"}
+
+	require.NoError(t, pipeline.IndexJobsInValkey(ctx, rdb, []domain.Job{job}, keywords))
+	pythonMembers, err := rdb.SMembers(ctx, "scraper:jobs:keyword:python").Result()
+	require.NoError(t, err)
+	assert.Equal(t, []string{job.ID}, pythonMembers)
+
+	job.Description = "Golang go APIs microservices postgresql redis kafka"
+	require.NoError(t, pipeline.IndexJobsInValkey(ctx, rdb, []domain.Job{job}, keywords))
+
+	goMembers, err := rdb.SMembers(ctx, "scraper:jobs:keyword:go").Result()
+	require.NoError(t, err)
+	assert.Equal(t, []string{job.ID}, goMembers)
+	pythonAfter, err := rdb.SMembers(ctx, "scraper:jobs:keyword:python").Result()
+	require.NoError(t, err)
+	assert.NotContains(t, pythonAfter, job.ID)
+}
+
+func TestIndexJobsInValkeyRemovesStaleClassificationMembers(t *testing.T) {
+	rdb, _ := newTestRedis(t)
+	ctx := context.Background()
+	job := classifiedJob(0)
+	job.Classification = &domain.Classification{
+		PrimaryFamily: "backend",
+		Technologies:  []string{"go"},
+		Seniority:     "senior",
+		InScope:       true,
+	}
+
+	require.NoError(t, pipeline.IndexJobsInValkey(ctx, rdb, []domain.Job{job}, []string{"go"}))
+	for _, key := range []string{
+		"scraper:jobs:family:backend",
+		"scraper:jobs:technology:go",
+		"scraper:jobs:seniority:senior",
+	} {
+		members, err := rdb.SMembers(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Contains(t, members, job.ID, key)
+	}
+
+	job.Classification = &domain.Classification{
+		PrimaryFamily: "frontend",
+		Technologies:  []string{"react"},
+		Seniority:     "junior",
+		InScope:       true,
+	}
+	require.NoError(t, pipeline.IndexJobsInValkey(ctx, rdb, []domain.Job{job}, []string{"go"}))
+
+	for _, key := range []string{
+		"scraper:jobs:family:backend",
+		"scraper:jobs:technology:go",
+		"scraper:jobs:seniority:senior",
+	} {
+		members, err := rdb.SMembers(ctx, key).Result()
+		require.NoError(t, err)
+		assert.NotContains(t, members, job.ID, key)
+	}
+	for _, key := range []string{
+		"scraper:jobs:family:frontend",
+		"scraper:jobs:technology:react",
+		"scraper:jobs:seniority:junior",
+	} {
+		members, err := rdb.SMembers(ctx, key).Result()
+		require.NoError(t, err)
+		assert.Contains(t, members, job.ID, key)
+	}
 }

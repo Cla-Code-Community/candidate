@@ -50,7 +50,7 @@ func ScrapeAllSources(
 	config SearchConfig,
 	adapterList []ports.JobSource,
 	rdb *redis.Client,
-) ([]domain.Job, error) {
+) ([]domain.Job, ProcessStats, error) {
 	config = normalizeSearchConfig(config)
 	slog.Info("starting scrape", "keywords", config.Keywords)
 	slog.Info("scraper concurrency budget",
@@ -105,7 +105,7 @@ func ScrapeAllSources(
 		processCfg.Store = jobstore.New(rdb)
 	}
 
-	jobs, err := runWithConcurrency(
+	jobs, stats, err := runWithConcurrency(
 		ctx,
 		adapterList,
 		req,
@@ -114,16 +114,21 @@ func ScrapeAllSources(
 		processCfg,
 	)
 	if err != nil {
-		return nil, err
+		return jobs, stats, err
 	}
 
 	slog.Info("scrape finished",
 		"total_jobs", len(jobs),
+		"received", stats.Received,
+		"inserted", stats.Inserted,
+		"updated", stats.Updated,
+		"saved", stats.Saved(),
+		"failed", stats.Failed,
 		"keywords", len(config.Keywords),
 		"adapters", len(adapterList),
 	)
 
-	return jobs, nil
+	return jobs, stats, nil
 }
 
 func formatProviderOverrides(overrides map[ports.ProviderID]int) string {

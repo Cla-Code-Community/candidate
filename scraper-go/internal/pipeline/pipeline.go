@@ -32,7 +32,8 @@ type adapterTask struct {
 }
 
 func Run(ctx context.Context, adapterList []ports.JobSource, req domain.ScrapeRequest) ([]domain.Job, error) {
-	return runWithConcurrency(ctx, adapterList, req, 2, nil, defaultProcessConfig())
+	jobs, _, err := runWithConcurrency(ctx, adapterList, req, 2, nil, defaultProcessConfig())
+	return jobs, err
 }
 
 func runWithConcurrency(
@@ -42,15 +43,15 @@ func runWithConcurrency(
 	defaultProviderConcurrency int,
 	providerOverrides map[ports.ProviderID]int,
 	processCfg processConfig,
-) ([]domain.Job, error) {
+) ([]domain.Job, ProcessStats, error) {
 	pipelineStart := time.Now()
 
 	maxConcurrency := req.MaxConcurrency
 	if maxConcurrency <= 0 {
-		return nil, errInvalidMaxConcurrency
+		return nil, ProcessStats{}, errInvalidMaxConcurrency
 	}
 	if err := validateSources(adapterList); err != nil {
-		return nil, err
+		return nil, ProcessStats{}, err
 	}
 
 	budget, err := newConcurrencyBudget(
@@ -59,7 +60,7 @@ func runWithConcurrency(
 		providerOverrides,
 	)
 	if err != nil {
-		return nil, err
+		return nil, ProcessStats{}, err
 	}
 
 	queueCapacity := max(1, maxConcurrency*2)
@@ -91,11 +92,12 @@ func runWithConcurrency(
 
 	var processWg sync.WaitGroup
 	var processed []domain.Job
+	var processStats ProcessStats
 	var processErr error
 	processWg.Add(1)
 	go func() {
 		defer processWg.Done()
-		processed, _, processErr = processIncomingJobs(ctx, incoming, processCfg)
+		processed, processStats, processErr = processIncomingJobs(ctx, incoming, processCfg)
 	}()
 
 	var closeIncoming sync.Once
@@ -123,16 +125,16 @@ func runWithConcurrency(
 	gatherWg.Wait()
 	logProviderRunStats(runStats)
 	if processErr != nil {
-		return nil, processErr
+		return processed, processStats, processErr
 	}
 	if cause := context.Cause(ctx); cause != nil {
-		return nil, cause
+		return processed, processStats, cause
 	}
 
 	metrics.PipelineRunDuration.Observe(time.Since(pipelineStart).Seconds())
 	metrics.PipelineJobsTotal.Observe(float64(len(processed)))
 
-	return processed, nil
+	return processed, processStats, nil
 }
 
 type taskCursor struct {

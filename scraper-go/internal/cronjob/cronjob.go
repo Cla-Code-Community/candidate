@@ -256,7 +256,7 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 		"adapters", len(s.adapterList),
 	)
 
-	jobs, err := pipeline.ScrapeAllSources(scrapeCtx, config, s.adapterList, s.rdb)
+	jobs, stats, err := pipeline.ScrapeAllSources(scrapeCtx, config, s.adapterList, s.rdb)
 	if err != nil {
 		slog.Error("cronjob: scrape falhou", "error", err)
 		return fmt.Errorf("cronjob: scrape: %w", err)
@@ -265,20 +265,28 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 		return err
 	}
 
+	scraped := stats.Received
+	saved := stats.Saved()
 	s.mu.Lock()
 	s.lastRunAt = time.Now()
-	s.lastJobs = len(jobs)
+	s.lastJobs = saved
 	s.mu.Unlock()
 
 	slog.Info("cronjob: execução concluída",
 		"duration", time.Since(start).Round(time.Second),
-		"scraped", len(jobs),
+		"scraped", scraped,
+		"saved", saved,
+		"returned", len(jobs),
+		"inserted", stats.Inserted,
+		"updated", stats.Updated,
+		"duplicates", stats.Duplicates,
+		"failed", stats.Failed,
 		"run_id", lease.RunID(),
 		"next_run", time.Now().Add(s.cfg.Interval).Format(time.Kitchen),
 	)
 
 	if s.OnComplete != nil {
-		s.OnComplete(kws, len(jobs), len(jobs), time.Since(start))
+		s.OnComplete(kws, scraped, saved, time.Since(start))
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package cronjob
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -306,4 +307,68 @@ func waitForAdapterStart(t *testing.T, adapter *blockingAdapter) {
 	case <-time.After(time.Second):
 		t.Fatal("adapter did not start")
 	}
+}
+
+type onceJobsAdapter struct {
+	provider ports.ProviderID
+	jobs     []domain.Job
+	once     sync.Once
+}
+
+func (a *onceJobsAdapter) SourceName() string {
+	return string(a.provider)
+}
+
+func (a *onceJobsAdapter) Capabilities() ports.SourceCapabilities {
+	return ports.SourceCapabilities{Provider: a.provider, Mode: ports.DiscoveryKeyword}
+}
+
+func (a *onceJobsAdapter) Search(
+	_ context.Context,
+	_ string,
+	_ domain.ScrapeRequest,
+) ([]domain.Job, error) {
+	var out []domain.Job
+	a.once.Do(func() {
+		out = append([]domain.Job(nil), a.jobs...)
+	})
+	return out, nil
+}
+
+func TestOnCompleteUsesPersistCounters(t *testing.T) {
+	scheduler, _, _ := newConcurrentTestScheduler(t)
+	scheduler.cfg.ClassificationBatchSize = 1
+	scheduler.cfg.PersistBatchSize = 1
+	scheduler.cfg.IndexBatchSize = 1
+	scheduler.cfg.ScrapeTimeout = 15 * time.Second
+
+	first := schedulerTestJob()
+	first.Source = "gupy"
+	duplicate := schedulerTestJob()
+	duplicate.Source = "linkedin"
+	duplicate.Description = first.Description + " complementary details from another board"
+	other := schedulerTestJob()
+	other.Company = "OtherCo"
+	other.URL = "https://example.com/other-backend"
+
+	scheduler.adapterList = []ports.JobSource{&onceJobsAdapter{
+		provider: ports.ProviderGupy,
+		jobs:     []domain.Job{first, duplicate, other},
+	}}
+
+	var scraped, saved int
+	var called atomic.Bool
+	scheduler.OnComplete = func(_ []string, scrapedCount, savedCount int, _ time.Duration) {
+		scraped = scrapedCount
+		saved = savedCount
+		called.Store(true)
+	}
+
+	require.NoError(t, scheduler.RunNow(context.Background()))
+	require.Eventually(t, func() bool { return !scheduler.IsRunning() && called.Load() }, 10*time.Second, 20*time.Millisecond)
+
+	assert.Equal(t, 3, scraped)
+	assert.Equal(t, 3, saved)
+	_, _, lastJobs := scheduler.Snapshot()
+	assert.Equal(t, 3, lastJobs)
 }

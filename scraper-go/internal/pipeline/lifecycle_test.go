@@ -34,7 +34,7 @@ func TestRunExecutesMultipleTasksSequentiallyWhenGlobalLimitIsOne(t *testing.T) 
 		},
 	}
 
-	_, err := runWithConcurrency(
+	_, _, err := runWithConcurrency(
 		context.Background(),
 		[]ports.JobSource{adapter},
 		domain.ScrapeRequest{
@@ -69,7 +69,7 @@ func TestRunReleasesPermitsAfterSuccessErrorAndCancellation(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_, err := runWithConcurrency(
+		_, _, err := runWithConcurrency(
 			ctx,
 			[]ports.JobSource{adapter},
 			domain.ScrapeRequest{
@@ -98,7 +98,7 @@ func TestRunReleasesPermitsAfterSuccessErrorAndCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			_, err := runWithConcurrency(
+			_, _, err := runWithConcurrency(
 				ctx,
 				[]ports.JobSource{adapter},
 				domain.ScrapeRequest{
@@ -170,7 +170,7 @@ func TestRunWaitsForProducerAndWorkersAfterSuccessErrorAndCancellation(t *testin
 				cancel(runlock.ErrLost)
 			}
 
-			_, err := runWithConcurrency(
+			_, _, err := runWithConcurrency(
 				ctx,
 				[]ports.JobSource{adapter},
 				domain.ScrapeRequest{
@@ -215,7 +215,7 @@ func TestRunCancelsProducerBlockedByBackpressureWithoutStartingNewTasks(t *testi
 	ctx, cancel := context.WithCancelCause(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := runWithConcurrency(
+		_, _, err := runWithConcurrency(
 			ctx,
 			[]ports.JobSource{adapter},
 			domain.ScrapeRequest{

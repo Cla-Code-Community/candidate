@@ -242,9 +242,9 @@ O catálogo de vagas coletadas vive no Valkey. Os documentos `scraper:job:{id}` 
 
 Persistência: um `MULTI/EXEC` por lote, com upsert. Em conflito pelo ID estável, atualizam-se descrição, URL, salário, datas, modalidade, localização, classificação, fontes e keywords; o ID não muda e campos vazios na nova coleta não apagam dados já persistidos. Falha no lote impede a indexação daquele lote. Retry limitado (3 tentativas) vale só para erros transitórios.
 
-Indexação: `SADD` incremental em pipelines de `SCRAPER_INDEX_BATCH_SIZE` vagas, sem substituir índices existentes via `RENAME`. Se a indexação falhar após o persist, `ReindexPersistedJobs` relê os documentos persistidos e reconstrói os índices, sem repetir a coleta externa.
+Indexação: cada lote grava em chaves isoladas `:next` (ou `:next:{runId}`) em pipelines de `SCRAPER_INDEX_BATCH_SIZE` vagas. Os lotes da mesma execução se acumulam nessas chaves; ao concluir com sucesso, um `RENAME` publica atomicamente os conjuntos finais. Assim os índices invertidos representam o estado atual da execução, sem apagar lotes já processados no meio da corrida e sem deixar associações obsoletas nas chaves reconstruídas. Se a indexação falhar após o persist, `ReindexPersistedJobs` relê os documentos persistidos e reconstrói o lote em `:next`, sem repetir a coleta externa. Falha da execução descarta as chaves `:next` e mantém os índices vivos da corrida anterior.
 
-Deduplicação usa as chaves já existentes no domínio (identificador externo, `title|company|location` e URL canônica) em um mapa de chaves da execução. A janela pendente guarda vagas completas só até o lote de classificação; o restante da execução guarda apenas chaves compactas. Duplicatas tardias após o flush são contabilizadas e não voltam a ser persistidas.
+Deduplicação usa as chaves já existentes no domínio (identificador externo, `title|company|location` e URL canônica) em um mapa de chaves da execução. A janela pendente guarda vagas completas só até o lote de classificação; o restante da execução guarda o ID persistido por chave. Duplicatas tardias após o flush são mescladas com o documento já persistido (URL, descrição, fontes e keywords) e voltam a ser gravadas e indexadas.
 
 A capacidade da fila entre coleta e processamento é `2 * max(lotes)`, sem variável de ambiente extra.
 

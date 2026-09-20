@@ -130,6 +130,19 @@ func Merge(existing, incoming *domain.Job) *domain.Job {
 	merged.Company = longest(existing.Company, incoming.Company)
 	merged.Location = longest(existing.Location, incoming.Location)
 	merged.URL = longestCanonicalURL(existing.URL, incoming.URL)
+	merged.Description = longest(existing.Description, incoming.Description)
+	if strings.TrimSpace(incoming.Salary) != "" {
+		merged.Salary = incoming.Salary
+	}
+	if strings.TrimSpace(incoming.PostedAt) != "" {
+		merged.PostedAt = incoming.PostedAt
+	}
+	if strings.TrimSpace(incoming.Modality) != "" {
+		merged.Modality = incoming.Modality
+	}
+	if incoming.Classification != nil {
+		merged.Classification = incoming.Classification
+	}
 	if strings.TrimSpace(existing.ID) == "" && strings.TrimSpace(incoming.ID) != "" {
 		merged.ID = incoming.ID
 	}

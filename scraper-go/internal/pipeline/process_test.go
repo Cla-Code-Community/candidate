@@ -389,7 +389,7 @@ func TestRunWithConcurrencyCancelUnblocksAndDoesNotLeak(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		_, err := runWithConcurrency(
+		_, _, err := runWithConcurrency(
 			ctx,
 			[]ports.JobSource{adapter},
 			domain.ScrapeRequest{Keywords: []string{"go"}, MaxConcurrency: 1},
@@ -486,6 +486,150 @@ func TestProcessIncomingJobsIndexesSuccessfulPersistBeforeLaterFailure(t *testin
 	assert.Equal(t, 1, stats.Indexed)
 	assert.Equal(t, 1, stats.Failed)
 	assert.NotContains(t, indexed, "")
+}
+
+func TestProcessIncomingJobsMergesDuplicateAfterFlush(t *testing.T) {
+	persistCalls := 0
+	cfg := processConfig{
+		ClassificationBatchSize: 1,
+		PersistBatchSize:        1,
+		IndexBatchSize:          1,
+		Persist: func(_ context.Context, jobs []domain.Job) (jobstore.SaveResult, error) {
+			persistCalls++
+			out := append([]domain.Job(nil), jobs...)
+			for i := range out {
+				if out[i].ID == "" {
+					out[i].ID = jobstore.StableID(&out[i])
+				}
+			}
+			result := jobstore.SaveResult{Persisted: out}
+			if persistCalls == 1 {
+				result.Inserted = len(out)
+			} else {
+				result.Updated = len(out)
+			}
+			return result, nil
+		},
+	}
+
+	first := inScopeJob(1)
+	first.Source = "gupy"
+	first.URL = "https://gupy.example/job-1"
+	first.Description = "Golang go APIs"
+	first.Keyword = "go"
+
+	second := inScopeJob(1)
+	second.Source = "linkedin"
+	second.URL = "https://linkedin.example/jobs/job-1-backend"
+	second.Description = "Golang go APIs microservices postgresql redis kafka"
+	second.Keyword = "golang"
+
+	got, stats, err := processIncomingJobs(context.Background(), feedJobs(first, second), cfg)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, 1, stats.Duplicates)
+	assert.Equal(t, 1, stats.Inserted)
+	assert.Equal(t, 1, stats.Updated)
+	assert.Equal(t, 2, stats.Saved())
+	assert.Equal(t, 2, persistCalls)
+	assert.ElementsMatch(t, []string{"gupy", "linkedin"}, got[0].Sources)
+	assert.ElementsMatch(t, []string{"go", "golang"}, got[0].Keywords)
+	assert.Contains(t, got[0].Description, "kafka")
+	assert.Contains(t, got[0].URL, "linkedin")
+}
+
+func TestProcessIncomingJobsPublishesBatchesAndDropsStaleKeywords(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	t.Cleanup(mr.Close)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	store := jobstore.New(rdb)
+
+	first := inScopeJob(1)
+	first.Source = "gupy"
+	first.Description = "Golang go python APIs microservices"
+	second := inScopeJob(2)
+	second.Description = "Golang go APIs microservices"
+	late := inScopeJob(1)
+	late.Source = "linkedin"
+	late.Description = "Golang go APIs microservices postgresql redis kafka"
+
+	cfg := processConfig{
+		RunID:                   "run-idx",
+		Keywords:                []string{"go", "python"},
+		ClassificationBatchSize: 1,
+		PersistBatchSize:        1,
+		IndexBatchSize:          1,
+		Store:                   store,
+		RDB:                     rdb,
+	}
+
+	got, stats, err := processIncomingJobs(context.Background(), feedJobs(first, second, late), cfg)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, 1, stats.Duplicates)
+	assert.Equal(t, 2, stats.Inserted)
+	assert.Equal(t, 1, stats.Updated)
+
+	var job1ID, job2ID string
+	for _, job := range got {
+		switch job.Company {
+		case "Acme-1":
+			job1ID = job.ID
+			assert.ElementsMatch(t, []string{"gupy", "linkedin"}, job.Sources)
+		case "Acme-2":
+			job2ID = job.ID
+		}
+	}
+	require.NotEmpty(t, job1ID)
+	require.NotEmpty(t, job2ID)
+
+	ctx := context.Background()
+	goMembers, err := rdb.SMembers(ctx, "scraper:jobs:keyword:go").Result()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{job1ID, job2ID}, goMembers)
+
+	pythonMembers, err := rdb.SMembers(ctx, "scraper:jobs:keyword:python").Result()
+	require.NoError(t, err)
+	assert.NotContains(t, pythonMembers, job1ID)
+
+	nextExists, err := rdb.Exists(ctx, "scraper:jobs:keyword:go:next").Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), nextExists)
+	nextRunExists, err := rdb.Exists(ctx, "scraper:jobs:keyword:go:next:run-idx").Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), nextRunExists)
+}
+
+func TestProcessIncomingJobsDoesNotPublishIndexesWhenPersistFails(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	t.Cleanup(mr.Close)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	cfg := processConfig{
+		RunID:                   "run-fail",
+		Keywords:                []string{"go"},
+		ClassificationBatchSize: 1,
+		PersistBatchSize:        1,
+		IndexBatchSize:          1,
+		RDB:                     rdb,
+		Persist: func(context.Context, []domain.Job) (jobstore.SaveResult, error) {
+			return jobstore.SaveResult{}, errors.New("persist failed")
+		},
+	}
+
+	_, stats, err := processIncomingJobs(context.Background(), feedJobs(inScopeJob(1)), cfg)
+	require.Error(t, err)
+	assert.Equal(t, 1, stats.Failed)
+	nextExists, existsErr := rdb.Exists(context.Background(), "scraper:jobs:keyword:go:next:run-fail").Result()
+	require.NoError(t, existsErr)
+	assert.Equal(t, int64(0), nextExists)
+	liveExists, existsErr := rdb.Exists(context.Background(), "scraper:jobs:keyword:go").Result()
+	require.NoError(t, existsErr)
+	assert.Equal(t, int64(0), liveExists)
 }
 
 func TestProcessIncomingJobsDoesNotReconcileWithoutPersistedIDs(t *testing.T) {

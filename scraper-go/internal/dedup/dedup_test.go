@@ -61,6 +61,38 @@ func TestDedupeJobsPreservesOriginalTitle(t *testing.T) {
 	assert.Equal(t, "Engenheiro Go", got[0].Title)
 }
 
+func TestDedupeJobsMergesComplementaryFields(t *testing.T) {
+	jobs := []domain.Job{
+		{
+			Title:       "Dev Go",
+			Company:     "Acme",
+			Location:    "Brasil",
+			URL:         "https://gupy.example/go",
+			Description: "Golang APIs",
+			Source:      "gupy",
+			Keyword:     "go",
+		},
+		{
+			Title:       "Dev Go",
+			Company:     "Acme",
+			Location:    "Brasil",
+			URL:         "https://linkedin.example/jobs/dev-go-backend",
+			Description: "Golang APIs microservices postgresql redis",
+			Source:      "linkedin",
+			Keyword:     "golang",
+			Salary:      "R$ 15k",
+		},
+	}
+
+	got := DedupeJobs(jobs)
+	require.Len(t, got, 1)
+	assert.ElementsMatch(t, []string{"gupy", "linkedin"}, got[0].Sources)
+	assert.ElementsMatch(t, []string{"go", "golang"}, got[0].Keywords)
+	assert.Contains(t, got[0].Description, "postgresql")
+	assert.Contains(t, got[0].URL, "linkedin")
+	assert.Equal(t, "R$ 15k", got[0].Salary)
+}
+
 func TestKeysUsesCanonicalURL(t *testing.T) {
 	a := Keys(&domain.Job{URL: "https://jobs.example.com/go?x=1"})
 	b := Keys(&domain.Job{URL: "https://jobs.example.com/go/"})
