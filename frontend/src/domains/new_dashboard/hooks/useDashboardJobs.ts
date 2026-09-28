@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@/domains/auth/domain/auth.types";
 import { isApiError } from "@/shared/lib/apiError";
 import type { Job, JobStatus, NewJob } from "../types";
@@ -101,6 +101,9 @@ export function useDashboardJobs(
   }>({ keywords: [], filters: {} });
   const [isLoadingJobs, setIsLoadingJobs] = useState(true);
   const [isRefreshingJobs, setIsRefreshingJobs] = useState(false);
+  // Contador compartilhado entre carga inicial e buscas: garante que apenas a
+  // resposta da requisicao mais recente escreva nos estados de recomendacao.
+  const recommendationRequestIdRef = useRef(0);
 
   const loadJobs = useCallback(async () => {
     if (!user) {
@@ -111,6 +114,7 @@ export function useDashboardJobs(
       return;
     }
 
+    const requestId = ++recommendationRequestIdRef.current;
     setIsLoadingJobs(true);
     const cachedTrackedJobs = readCachedTrackedJobs(user.id);
     if (cachedTrackedJobs.length > 0) {
@@ -129,6 +133,8 @@ export function useDashboardJobs(
         : Promise.resolve(null),
     ]);
 
+    const isStale = requestId !== recommendationRequestIdRef.current;
+
     const loadedTrackedJobs =
       savedResult.status === "fulfilled" ? savedResult.value : null;
     const effectiveTrackedJobs =
@@ -143,7 +149,11 @@ export function useDashboardJobs(
       }
     }
 
-    if (recommendedResult.status === "fulfilled" && recommendedResult.value) {
+    if (
+      !isStale &&
+      recommendedResult.status === "fulfilled" &&
+      recommendedResult.value
+    ) {
       const savedLinks = new Set(
         effectiveTrackedJobs.map((job) => job.jobLink),
       );
@@ -160,9 +170,9 @@ export function useDashboardJobs(
     if (recommendedResult.status === "rejected") {
       errors.push("Não foi possível atualizar as vagas recomendadas.");
     }
-    if (errors.length > 0) onError?.(errors.join(" "));
+    if (errors.length > 0 && !isStale) onError?.(errors.join(" "));
 
-    setIsLoadingJobs(false);
+    if (!isStale) setIsLoadingJobs(false);
   }, [initialRecommendationSearch, onError, user]);
 
   useEffect(() => {
@@ -187,22 +197,30 @@ export function useDashboardJobs(
       page = 1,
       limit = recommendedPagination.limit,
     ) => {
+      const requestId = ++recommendationRequestIdRef.current;
       setIsRefreshingJobs(true);
       try {
         setLastRecommendationSearch({ keywords, filters });
         const result = await searchDashboardJobs(keywords, filters, page, limit);
+        // Resposta atrasada de um filtro anterior nao pode sobrescrever a atual.
+        if (requestId !== recommendationRequestIdRef.current) return;
+
         const savedLinks = new Set(trackedJobs.map((job) => job.jobLink));
         setRecommendedJobs(
           result.jobs.filter((job) => !savedLinks.has(job.jobLink)),
         );
         setRecommendedPagination(result.pagination);
       } catch (error) {
+        if (requestId !== recommendationRequestIdRef.current) return;
+
         onError?.(
           errorMessage(error, "Não foi possível procurar novas vagas."),
         );
         throw error;
       } finally {
-        setIsRefreshingJobs(false);
+        if (requestId === recommendationRequestIdRef.current) {
+          setIsRefreshingJobs(false);
+        }
       }
     },
     [onError, recommendedPagination.limit, trackedJobs],

@@ -29,6 +29,7 @@ export function parseJobSearchQuery(
     keywords: queryValues(query.keywords),
     family: queryValues(query.family),
     technology: queryValues(query.technology),
+    company: queryValues(query.company),
     type,
     level: firstQueryValue(query.level),
     seniority: firstQueryValue(query.seniority),
@@ -46,6 +47,10 @@ export function parseJobSearchQuery(
         ? matchSortValue
         : null,
   };
+}
+
+export function hasPostOnlyFilters(filters: ParsedJobSearchQuery): boolean {
+  return filters.company.length > 0;
 }
 
 export function hasStructuredFilters(filters: ParsedJobSearchQuery): boolean {

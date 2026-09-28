@@ -33,7 +33,6 @@ import {
 } from "./utils/locationFilters";
 import {
   getModelFilterFromJobTypes,
-  modelFilterMatchesJob,
   modelFilterToApiFilter,
 } from "./utils/jobModelFilters";
 import { parseSearchKeywords } from "./utils/searchKeywords";
@@ -238,18 +237,18 @@ export default function NewDashboardPage() {
   );
   const matchedRecommendedJobs = useMemo(
     () =>
+      // O backend ja calcula o match com o mesmo perfil; so recalculamos aqui
+      // quando a API nao devolveu score (usuario sem perfil carregado).
       recommendedJobs.map((job) =>
-        scoreJobWithTechnologies(job, userProfile.technologyExperiences),
+        job.matchScore > 0
+          ? job
+          : scoreJobWithTechnologies(job, userProfile.technologyExperiences),
       ),
     [recommendedJobs, userProfile.technologyExperiences],
   );
-  const displayedRecommendedJobs = useMemo(
-    () =>
-      matchedRecommendedJobs.filter((job) =>
-        modelFilterMatchesJob(job, filterType),
-      ),
-    [filterType, matchedRecommendedJobs],
-  );
+  // O filtro de modelo e aplicado pelo backend (indice do Valkey + pos-filtro).
+  // Refiltrar aqui escondia vagas ja filtradas e quebrava a contagem da pagina.
+  const displayedRecommendedJobs = matchedRecommendedJobs;
   const showPreferenceNotice =
     !hasUserChangedJobFilters &&
     preferredModelFilter !== "Todos" &&

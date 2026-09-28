@@ -444,12 +444,29 @@ Ele não deve ser utilizado para criar dados de produção.
 
 O seed cria:
 
-* 1 usuário comum
+* 1 usuário comum (com perfil técnico preenchido: React, TypeScript, Node.js, PostgreSQL, Docker e AWS)
 * 1 usuário administrador
 * 2 registros de preferências
 * 3 vagas salvas
 * 2 notas privadas
 * 2 eventos de alteração de candidatura
+* 12 vagas de catálogo no Valkey, exibidas na aba `/vagas`
+
+## Vagas da aba `/vagas`
+
+A aba `/vagas` não lê do PostgreSQL: ela consome o catálogo que o scraper grava
+no Valkey (`scraper:job:<id>` mais os índices invertidos `scraper:jobs:*`). Para
+que a tela tenha conteúdo sem rodar o scraper, o seed grava 12 vagas em
+`backend/src/scripts/seedCatalogJobs.ts`, junto com os mesmos índices de
+tecnologia, família, senioridade, nível, modelo, contrato e localidade.
+
+As vagas foram montadas para casar com o perfil técnico do usuário `dev` em
+ordem decrescente de match — de 99% (todas as tecnologias do perfil) a 45%
+(nenhuma tecnologia em comum). Com o filtro **Maior match** na aba, elas
+aparecem exatamente nessa ordem.
+
+Esse trecho é ignorado com um aviso quando `VALKEY_URL` não está definida, e a
+ordenação é coberta por `backend/tests/unit/scripts/seedCatalogJobs.test.ts`.
 
 ---
 
