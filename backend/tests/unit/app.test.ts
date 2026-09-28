@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   cacheSearchJobIds: vi.fn(),
   cacheAbsoluteSMembers: vi.fn(),
   cacheGetJobsByIds: vi.fn(),
+  cacheGetJobsByIdsDetailed: vi.fn(),
+  cacheRemoveJobIndexIds: vi.fn(),
   getCache: vi.fn(),
   publish: vi.fn(),
   logWarn: vi.fn(),
@@ -26,6 +28,8 @@ vi.mock("../../src/lib/cache.js", () => ({
   cacheSearchJobIds: mocks.cacheSearchJobIds,
   cacheAbsoluteSMembers: mocks.cacheAbsoluteSMembers,
   cacheGetJobsByIds: mocks.cacheGetJobsByIds,
+  cacheGetJobsByIdsDetailed: mocks.cacheGetJobsByIdsDetailed,
+  cacheRemoveJobIndexIds: mocks.cacheRemoveJobIndexIds,
   getCache: mocks.getCache,
 }));
 
@@ -135,6 +139,11 @@ describe("jobsApiApp", () => {
       { id: "id-1", title: "Dev Java", company: "ACME" },
       { id: "id-2", title: "Dev Node", company: "Globo" },
     ]);
+    mocks.cacheGetJobsByIdsDetailed.mockImplementation(async (ids: string[]) => ({
+      jobs: await mocks.cacheGetJobsByIds(ids),
+      missingIds: [],
+    }));
+    mocks.cacheRemoveJobIndexIds.mockResolvedValue(0);
     mocks.dbOrderBy.mockResolvedValue([
       { keyword: "Java", source: "user" },
       { keyword: "Node.js", source: "user" },
@@ -633,21 +642,12 @@ describe("jobsApiApp", () => {
   });
 
   it("GET /jobs/search retorna paginação correta", async () => {
+    const ids = Array.from({ length: 15 }, (_, index) => `id-${index + 1}`);
     mocks.parsePagination.mockReturnValue({ page: 2, limit: 10 });
-    mocks.paginate.mockReturnValue({
-      data: ["id-1"],
-      pagination: {
-        total: 15,
-        page: 2,
-        limit: 10,
-        totalPages: 2,
-        hasNext: false,
-        hasPrev: true,
-      },
-    });
-    mocks.cacheGetJobsByIds.mockResolvedValue([
-      { id: "id-1", title: "Dev", company: "ACME" },
-    ]);
+    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
+    mocks.cacheGetJobsByIds.mockImplementation(async (pageIds: string[]) =>
+      pageIds.map((id) => ({ id, title: "Dev", company: "ACME" })),
+    );
 
     const app = createJobsApiApp();
     const res = await request(app)
@@ -658,8 +658,11 @@ describe("jobsApiApp", () => {
     expect(res.body.page).toBe(2);
     expect(res.body.limit).toBe(10);
     expect(res.body.total).toBe(15);
+    expect(res.body.totalPages).toBe(2);
     expect(res.body.hasPrev).toBe(true);
     expect(res.body.hasNext).toBe(false);
+    expect(res.body.jobs).toHaveLength(5);
+    expect(res.body.jobs[0].id).toBe("id-11");
   });
 
   it("GET /jobs/search retorna 500 quando cacheSearchKeywords falha", async () => {

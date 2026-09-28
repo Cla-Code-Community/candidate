@@ -1,19 +1,24 @@
-import "dotenv/config";
 import * as argon2 from "argon2";
+import "dotenv/config";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../db/client";
 import {
-  applicationEvents,
-  credentials,
-  savedJobs,
-  userPreferences,
-  users,
+    applicationEvents,
+    credentials,
+    savedJobs,
+    userPreferences,
+    users,
 } from "../db/schema";
 import type { JobStatus } from "../db/schema/savedJobs";
 import type { UserRole } from "../db/schema/users";
 import { encryptText } from "../lib/security/encryption";
 import { normalizeEmail } from "../lib/security/normalization";
 import { generateSearchableHash } from "../lib/security/searchableHash";
+import {
+    SEED_DEV_TECHNOLOGIES,
+    seedCatalogJobs,
+    type SeedTechnologyExperience,
+} from "./seedCatalogJobs";
 const argonOptions = {
   type: argon2.argon2id,
   memoryCost: 65536,
@@ -27,6 +32,8 @@ type SeedUserSpec = {
   email: string;
   password: string;
   role: UserRole;
+  level?: string;
+  technologies?: SeedTechnologyExperience[];
 };
 
 const SEED_USERS: SeedUserSpec[] = [
@@ -36,6 +43,8 @@ const SEED_USERS: SeedUserSpec[] = [
     email: "dev@localhost.test",
     password: "Dev@123456",
     role: "user",
+    level: "Pleno",
+    technologies: SEED_DEV_TECHNOLOGIES,
   },
   {
     username: "local.admin",
@@ -92,6 +101,21 @@ const SEED_SAVED_JOBS: SeedSavedJobSpec[] = [
   },
 ];
 
+
+function profileValues(spec: SeedUserSpec) {
+  return {
+    technologies: null,
+    technologiesEncrypted: encryptText(
+      JSON.stringify((spec.technologies ?? []).map((item) => item.name)),
+    ),
+    technologyExperiencesEncrypted: encryptText(
+      JSON.stringify(spec.technologies ?? []),
+    ),
+    level: null,
+    levelEncrypted: spec.level ? encryptText(spec.level) : null,
+  };
+}
+
 async function upsertSeedUser(spec: SeedUserSpec): Promise<string> {
   const normalizedEmail = normalizeEmail(spec.email);
   const emailHash = generateSearchableHash(normalizedEmail);
@@ -101,6 +125,14 @@ async function upsertSeedUser(spec: SeedUserSpec): Promise<string> {
   });
 
   if (existingCredential) {
+    if (spec.technologies?.length) {
+      await db
+        .update(users)
+        .set({ ...profileValues(spec), updatedAt: new Date() })
+        .where(eq(users.id, existingCredential.userId));
+      console.log(`~ perfil técnico atualizado: ${spec.email}`);
+    }
+
     console.log(`- usuário já existe, mantendo: ${spec.email}`);
     return existingCredential.userId;
   }
@@ -117,6 +149,7 @@ async function upsertSeedUser(spec: SeedUserSpec): Promise<string> {
         emailHash,
         emailVerified: true,
         role: spec.role,
+        ...profileValues(spec),
       })
       .returning();
 
@@ -202,6 +235,7 @@ async function upsertApplicationEvent(
   console.log(`+ evento criado: ${fromStatus} -> ${toStatus}`);
 }
 
+
 async function main() {
   console.log("Iniciando seed de desenvolvimento local...");
 
@@ -227,6 +261,8 @@ async function main() {
     "applied",
     "interviewing",
   );
+
+  await seedCatalogJobs();
 
   console.log("Seed concluído.");
 }
