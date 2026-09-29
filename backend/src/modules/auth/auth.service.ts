@@ -1,5 +1,5 @@
-import { User } from "../../db/schema/users";
 import { logError } from "../../logger";
+import type { PublicUser } from "../users/users.mapper";
 import { emailService } from "../email/email.service";
 import type {
   AuthCallbackParams,
@@ -27,7 +27,7 @@ export class AuthService {
     state,
     callbackUrl,
   }: AuthCallbackParams): Promise<{
-    user: User;
+    user: PublicUser;
     session: Session;
   }> {
     const profile = await this.getProfileFromProvider({
@@ -63,13 +63,13 @@ export class AuthService {
    * Dispara o e-mail de boas-vindas para um usuário recém-criado via login
    * social. Falha nunca derruba o login (EMAIL-08): erro é apenas logado.
    */
-  private async sendWelcomeEmail(user: User): Promise<void> {
+  private async sendWelcomeEmail(user: PublicUser): Promise<void> {
     if (!user.email) return;
 
     try {
       await emailService.sendWelcome({
         email: user.email,
-        name: user.displayName ?? user.username,
+        name: user.displayName ?? user.username ?? "Usuário",
       });
     } catch (error) {
       logError("Falha ao disparar e-mail de boas-vindas no login social.", {
@@ -100,7 +100,7 @@ export class AuthService {
 
   async createSession(user: {
     id: string;
-    role: User["role"];
+    role: PublicUser["role"];
   }): Promise<Session> {
     return {
       userId: user.id,

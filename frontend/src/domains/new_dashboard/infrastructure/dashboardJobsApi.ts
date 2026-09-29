@@ -63,20 +63,37 @@ const ApiSavedJobEventSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   createdAt: z.string(),
 });
+const ApiApplicationNoteSchema = z.object({
+  id: z.string(),
+  content: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
 
 type ApiSearchJob = z.infer<typeof ApiSearchJobSchema>;
 type ApiSavedJob = z.infer<typeof ApiSavedJobSchema>;
 type ApiSavedJobEvent = z.infer<typeof ApiSavedJobEventSchema>;
 type SearchJobsResponse = z.infer<typeof SearchJobsResponseSchema>;
 
+/**
+ * Espelha os query params aceitos por GET /jobs/search
+ * (backend: src/modules/jobs/parsers/jobSearchQuery.parser.ts).
+ * Listas sao enviadas separadas por virgula, como o backend espera.
+ */
 export type SearchJobFilters = {
   level?: string;
+  seniority?: string;
   location?: string;
   continent?: string;
   country?: string;
+  state?: string;
+  city?: string;
   type?: string;
   model?: string;
   contract?: string;
+  family?: string;
+  technology?: string;
+  company?: string;
   matchSort?: Exclude<MatchSort, "default">;
 };
 
@@ -91,6 +108,7 @@ export type SearchJobsResult = {
     hasPrev: boolean;
   };
 };
+export type ApplicationNote = z.infer<typeof ApiApplicationNoteSchema>;
 
 function normalizeComparable(value: string) {
   return value
@@ -253,10 +271,8 @@ export function toRecommendedJob(job: ApiSearchJob, index: number): Job {
         .join(" "),
     ),
     level: inferLevel(title),
-    matchScore:
-      typeof job.matchScore === "number"
-        ? job.matchScore
-        : stableMatchScore(`${title}:${job.company ?? ""}`),
+    // Sem perfil o backend nao calcula match; nao inventamos um score aqui.
+    matchScore: typeof job.matchScore === "number" ? job.matchScore : 0,
     tags: tags.length > 0 ? tags : ["Geral"],
     posted: formatPublicationDate(job.postedAt),
     status: "saved",
@@ -315,6 +331,40 @@ function toSearchJobsResult(
   };
 }
 
+const FILTER_PARAM_KEYS = [
+  "level",
+  "seniority",
+  "location",
+  "continent",
+  "country",
+  "state",
+  "city",
+  "type",
+  "model",
+  "contract",
+  "family",
+  "technology",
+  "company",
+  "matchSort",
+] as const satisfies ReadonlyArray<keyof SearchJobFilters>;
+
+/**
+ * Remove filtros vazios/nulos para que "limpar filtros" no front realmente
+ * deixe de enviar o parametro em vez de mandar string vazia.
+ */
+export function buildFilterParams(
+  filters: SearchJobFilters,
+): Record<string, string> {
+  const params: Record<string, string> = {};
+
+  for (const key of FILTER_PARAM_KEYS) {
+    const value = filters[key]?.trim();
+    if (value) params[key] = value;
+  }
+
+  return params;
+}
+
 export async function searchDashboardJobs(
   keywords: string[] = [],
   filters: SearchJobFilters = {},
@@ -328,14 +378,7 @@ export async function searchDashboardJobs(
       ...(normalizedKeywords.length > 0
         ? { keywords: normalizedKeywords.join(",") }
         : {}),
-      ...(filters.level ? { level: filters.level } : {}),
-      ...(filters.location ? { location: filters.location } : {}),
-      ...(filters.continent ? { continent: filters.continent } : {}),
-      ...(filters.country ? { country: filters.country } : {}),
-      ...(filters.type ? { type: filters.type } : {}),
-      ...(filters.model ? { model: filters.model } : {}),
-      ...(filters.contract ? { contract: filters.contract } : {}),
-      ...(filters.matchSort ? { matchSort: filters.matchSort } : {}),
+      ...buildFilterParams(filters),
       page,
       limit,
     },
@@ -376,6 +419,25 @@ export async function getDashboardSavedJobs() {
 export async function getDashboardSavedJobEvents(id: string) {
   const { data } = await api.get(`/saved-jobs/${id}/events`);
   return z.array(ApiSavedJobEventSchema).parse(data).map(toDashboardSavedJobEvent);
+}
+
+export async function getDashboardApplicationNotes(id: string) {
+  const { data } = await api.get(`/saved-jobs/${id}/notes`);
+  return z.array(ApiApplicationNoteSchema).parse(data);
+}
+
+export async function createDashboardApplicationNote(id: string, content: string) {
+  const { data } = await api.post(`/saved-jobs/${id}/notes`, { content });
+  return ApiApplicationNoteSchema.parse(data);
+}
+
+export async function updateDashboardApplicationNote(id: string, noteId: string, content: string) {
+  const { data } = await api.patch(`/saved-jobs/${id}/notes/${noteId}`, { content });
+  return ApiApplicationNoteSchema.parse(data);
+}
+
+export async function deleteDashboardApplicationNote(id: string, noteId: string) {
+  await api.delete(`/saved-jobs/${id}/notes/${noteId}`);
 }
 
 export async function createDashboardSavedJob(

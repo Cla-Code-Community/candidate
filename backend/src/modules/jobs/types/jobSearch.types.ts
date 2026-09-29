@@ -5,6 +5,7 @@ export type SearchJob = {
   id?: string;
   title?: string | null;
   jobTitle?: string | null;
+  company?: string | null;
   location?: string | null;
   modality?: string | null;
   description?: string | null;
@@ -25,6 +26,7 @@ export type ParsedJobSearchQuery = {
   keywords: string[];
   family: string[];
   technology: string[];
+  company: string[];
   type: string[];
   level: string;
   seniority: string;

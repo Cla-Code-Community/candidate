@@ -3,7 +3,7 @@ import {
   runScraperRequest,
 } from "@/domains/jobs/infrastructure/jobsApi";
 import type { Job, JobsResponse } from "@/domains/jobs/domain/job.types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 export type JobsPaginationMeta = Omit<JobsResponse, "jobs">;
 
@@ -17,6 +17,9 @@ const EMPTY_META: JobsPaginationMeta = {
 };
 
 export function useJobsData(page: number = 1, limit: number = 5) {
+  // Sequencia as requisicoes: uma resposta antiga que chegue depois de uma
+  // mais recente nao pode sobrescrever a lista exibida.
+  const requestIdRef = useRef(0);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [meta, setMeta] = useState<JobsPaginationMeta>(EMPTY_META);
   const [loading, setLoading] = useState(false);
@@ -24,13 +27,16 @@ export function useJobsData(page: number = 1, limit: number = 5) {
   const [error, setError] = useState("");
 
   const loadJobs = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     setLoading(true);
     setError("");
 
     try {
       const data = await fetchJobsByAPI(page, limit);
+      if (requestId !== requestIdRef.current) return;
+
       setJobs(data.jobs ?? []);
-      
+
       setMeta({
         total: data.total ?? 0,
         hasNext: data.hasNext ?? false,
@@ -40,6 +46,8 @@ export function useJobsData(page: number = 1, limit: number = 5) {
         totalPages: data.totalPages ?? 0,
       });
     } catch (err: unknown) {
+      if (requestId !== requestIdRef.current) return;
+
       setJobs([]);
       setMeta(EMPTY_META);
       setError(
@@ -48,7 +56,7 @@ export function useJobsData(page: number = 1, limit: number = 5) {
           : "Erro inesperado ao carregar vagas.",
       );
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [page, limit]);
 

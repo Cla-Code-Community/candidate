@@ -1,5 +1,9 @@
-# Responsaveis padrao para todos os diretorios do repositorio.
+# Responsáveis gerais pelo repositório.
 * @Benevanio @hltav
 
-# Responsaveis por alteracoes dentro de /frontend.
-/frontend/** @lima300 @nayarakarinesilva
+# Frontend: responsáveis específicos pela área.
+/frontend/** @pedrosilvaadev  @nayarakarinesilva
+
+# Configurações do GitHub e CI/CD.
+ /.github/** @Benevanio
+

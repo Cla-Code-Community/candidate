@@ -6,6 +6,8 @@ import {
   cacheDel,
   cacheGet,
   cacheGetJobsByIds,
+  cacheGetJobsByIdsDetailed,
+  cacheRemoveJobIndexIds,
   cacheJobIndexKeys,
   cacheClearJobs,
   cacheSearchJobIds,
@@ -45,6 +47,7 @@ vi.mock("redis", () => {
     set: vi.fn(),
     del: vi.fn(),
     sMembers: vi.fn(),
+    sRem: vi.fn(),
     sCard: vi.fn(),
     sUnion: vi.fn(),
     sendCommand: vi.fn(),
@@ -407,6 +410,49 @@ describe("Valkey Cache Lib", () => {
       ]);
       // Deve filtrar o nulo e o JSON quebrado mantendo apenas os válidos
       expect(result).toEqual([{ title: "Go Dev" }, { title: "Rust Dev" }]);
+    });
+  });
+
+  describe("cacheGetJobsByIdsDetailed", () => {
+    it("deve reportar os IDs do índice que não possuem documento", async () => {
+      mockClientInstance.mGet.mockResolvedValue([
+        JSON.stringify({ title: "Go Dev" }),
+        null,
+        "invalid-json-data",
+      ]);
+
+      const result = await cacheGetJobsByIdsDetailed(["1", "2", "3"]);
+
+      expect(result.jobs).toEqual([{ title: "Go Dev" }]);
+      expect(result.missingIds).toEqual(["2", "3"]);
+    });
+
+    it("deve retornar vazio sem consultar o Valkey quando não há IDs", async () => {
+      const result = await cacheGetJobsByIdsDetailed([]);
+
+      expect(result).toEqual({ jobs: [], missingIds: [] });
+      expect(mockClientInstance.mGet).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("cacheRemoveJobIndexIds", () => {
+    it("deve remover os IDs órfãos do índice global", async () => {
+      mockClientInstance.sRem.mockResolvedValue(2);
+
+      const removed = await cacheRemoveJobIndexIds(["1", "2"]);
+
+      expect(mockClientInstance.sRem).toHaveBeenCalledWith(
+        "scraper:jobs:index",
+        ["1", "2"],
+      );
+      expect(removed).toBe(2);
+    });
+
+    it("não deve chamar o Valkey quando a lista está vazia", async () => {
+      const removed = await cacheRemoveJobIndexIds([]);
+
+      expect(removed).toBe(0);
+      expect(mockClientInstance.sRem).not.toHaveBeenCalled();
     });
   });
 
