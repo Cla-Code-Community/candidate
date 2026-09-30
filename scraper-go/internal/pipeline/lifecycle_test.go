@@ -34,7 +34,7 @@ func TestRunExecutesMultipleTasksSequentiallyWhenGlobalLimitIsOne(t *testing.T) 
 		},
 	}
 
-	_, err := runWithConcurrency(
+	_, _, err := runWithConcurrency(
 		context.Background(),
 		[]ports.JobSource{adapter},
 		domain.ScrapeRequest{
@@ -43,6 +43,7 @@ func TestRunExecutesMultipleTasksSequentiallyWhenGlobalLimitIsOne(t *testing.T) 
 		},
 		1,
 		nil,
+		defaultProcessConfig(),
 	)
 
 	require.NoError(t, err)
@@ -68,7 +69,7 @@ func TestRunReleasesPermitsAfterSuccessErrorAndCancellation(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
-		_, err := runWithConcurrency(
+		_, _, err := runWithConcurrency(
 			ctx,
 			[]ports.JobSource{adapter},
 			domain.ScrapeRequest{
@@ -77,6 +78,7 @@ func TestRunReleasesPermitsAfterSuccessErrorAndCancellation(t *testing.T) {
 			},
 			1,
 			nil,
+			defaultProcessConfig(),
 		)
 
 		require.NoError(t, err)
@@ -96,7 +98,7 @@ func TestRunReleasesPermitsAfterSuccessErrorAndCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancelCause(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			_, err := runWithConcurrency(
+			_, _, err := runWithConcurrency(
 				ctx,
 				[]ports.JobSource{adapter},
 				domain.ScrapeRequest{
@@ -105,6 +107,7 @@ func TestRunReleasesPermitsAfterSuccessErrorAndCancellation(t *testing.T) {
 				},
 				1,
 				nil,
+				defaultProcessConfig(),
 			)
 			done <- err
 		}()
@@ -167,7 +170,7 @@ func TestRunWaitsForProducerAndWorkersAfterSuccessErrorAndCancellation(t *testin
 				cancel(runlock.ErrLost)
 			}
 
-			_, err := runWithConcurrency(
+			_, _, err := runWithConcurrency(
 				ctx,
 				[]ports.JobSource{adapter},
 				domain.ScrapeRequest{
@@ -176,6 +179,7 @@ func TestRunWaitsForProducerAndWorkersAfterSuccessErrorAndCancellation(t *testin
 				},
 				1,
 				nil,
+				defaultProcessConfig(),
 			)
 			if tc.cancel {
 				require.ErrorIs(t, err, runlock.ErrLost)
@@ -211,7 +215,7 @@ func TestRunCancelsProducerBlockedByBackpressureWithoutStartingNewTasks(t *testi
 	ctx, cancel := context.WithCancelCause(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := runWithConcurrency(
+		_, _, err := runWithConcurrency(
 			ctx,
 			[]ports.JobSource{adapter},
 			domain.ScrapeRequest{
@@ -220,6 +224,7 @@ func TestRunCancelsProducerBlockedByBackpressureWithoutStartingNewTasks(t *testi
 			},
 			1,
 			nil,
+			defaultProcessConfig(),
 		)
 		done <- err
 	}()
