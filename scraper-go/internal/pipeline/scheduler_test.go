@@ -290,7 +290,7 @@ func TestRunUsesFixedWorkersWithoutExceedingConcurrency(t *testing.T) {
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := runWithConcurrency(
+		_, _, err := runWithConcurrency(
 			context.Background(),
 			[]ports.JobSource{adapter},
 			domain.ScrapeRequest{
@@ -299,6 +299,7 @@ func TestRunUsesFixedWorkersWithoutExceedingConcurrency(t *testing.T) {
 			},
 			2,
 			nil,
+			defaultProcessConfig(),
 		)
 		done <- err
 	}()
