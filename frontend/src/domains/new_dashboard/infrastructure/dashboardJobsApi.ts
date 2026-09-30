@@ -75,14 +75,25 @@ type ApiSavedJob = z.infer<typeof ApiSavedJobSchema>;
 type ApiSavedJobEvent = z.infer<typeof ApiSavedJobEventSchema>;
 type SearchJobsResponse = z.infer<typeof SearchJobsResponseSchema>;
 
+/**
+ * Espelha os query params aceitos por GET /jobs/search
+ * (backend: src/modules/jobs/parsers/jobSearchQuery.parser.ts).
+ * Listas sao enviadas separadas por virgula, como o backend espera.
+ */
 export type SearchJobFilters = {
   level?: string;
+  seniority?: string;
   location?: string;
   continent?: string;
   country?: string;
+  state?: string;
+  city?: string;
   type?: string;
   model?: string;
   contract?: string;
+  family?: string;
+  technology?: string;
+  company?: string;
   matchSort?: Exclude<MatchSort, "default">;
 };
 
@@ -260,10 +271,8 @@ export function toRecommendedJob(job: ApiSearchJob, index: number): Job {
         .join(" "),
     ),
     level: inferLevel(title),
-    matchScore:
-      typeof job.matchScore === "number"
-        ? job.matchScore
-        : stableMatchScore(`${title}:${job.company ?? ""}`),
+    // Sem perfil o backend nao calcula match; nao inventamos um score aqui.
+    matchScore: typeof job.matchScore === "number" ? job.matchScore : 0,
     tags: tags.length > 0 ? tags : ["Geral"],
     posted: formatPublicationDate(job.postedAt),
     status: "saved",
@@ -322,6 +331,40 @@ function toSearchJobsResult(
   };
 }
 
+const FILTER_PARAM_KEYS = [
+  "level",
+  "seniority",
+  "location",
+  "continent",
+  "country",
+  "state",
+  "city",
+  "type",
+  "model",
+  "contract",
+  "family",
+  "technology",
+  "company",
+  "matchSort",
+] as const satisfies ReadonlyArray<keyof SearchJobFilters>;
+
+/**
+ * Remove filtros vazios/nulos para que "limpar filtros" no front realmente
+ * deixe de enviar o parametro em vez de mandar string vazia.
+ */
+export function buildFilterParams(
+  filters: SearchJobFilters,
+): Record<string, string> {
+  const params: Record<string, string> = {};
+
+  for (const key of FILTER_PARAM_KEYS) {
+    const value = filters[key]?.trim();
+    if (value) params[key] = value;
+  }
+
+  return params;
+}
+
 export async function searchDashboardJobs(
   keywords: string[] = [],
   filters: SearchJobFilters = {},
@@ -335,14 +378,7 @@ export async function searchDashboardJobs(
       ...(normalizedKeywords.length > 0
         ? { keywords: normalizedKeywords.join(",") }
         : {}),
-      ...(filters.level ? { level: filters.level } : {}),
-      ...(filters.location ? { location: filters.location } : {}),
-      ...(filters.continent ? { continent: filters.continent } : {}),
-      ...(filters.country ? { country: filters.country } : {}),
-      ...(filters.type ? { type: filters.type } : {}),
-      ...(filters.model ? { model: filters.model } : {}),
-      ...(filters.contract ? { contract: filters.contract } : {}),
-      ...(filters.matchSort ? { matchSort: filters.matchSort } : {}),
+      ...buildFilterParams(filters),
       page,
       limit,
     },

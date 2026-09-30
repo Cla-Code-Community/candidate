@@ -141,14 +141,7 @@ export async function cacheAbsoluteSCard(absoluteKey: string): Promise<number> {
   }
 }
 
-/**
- * Realiza uma busca cruzada (Interseção) entre múltiplos índices de palavras-chave no Valkey.
- * Se apenas uma palavra-chave for enviada, retorna os membros dela diretamente.
- *
- * Normalização espelha o Go:
- *   "UX/UI Designer" → "ux ui designer" → chave: scraper:jobs:keyword:ux ui designer
- *   "UI"             → "ui"             → chave: scraper:jobs:keyword:ui
- */
+
 export async function cacheSearchKeywords(
   keywords: string[],
 ): Promise<string[]> {
@@ -376,10 +369,24 @@ export async function cacheSearchJobIds(
   }
 }
 
-export async function cacheGetJobsByIds(ids: string[]): Promise<unknown[]> {
+export type CacheJobsByIdsResult = {
+  /** Vagas encontradas no Valkey. */
+  jobs: unknown[];
+  /** IDs do indice sem documento `scraper:job:<id>` (orfaos). */
+  missingIds: string[];
+};
+
+/**
+ * Hidrata os documentos das vagas a partir dos IDs do indice e informa quais
+ * IDs estao orfaos. O indice global e gravado sem TTL pelo scraper enquanto os
+ * documentos expiram em 9 dias (scraper-go/internal/pipeline/pipeline.go).
+ */
+export async function cacheGetJobsByIdsDetailed(
+  ids: string[],
+): Promise<CacheJobsByIdsResult> {
   const client = await getCache();
 
-  if (ids.length === 0) return [];
+  if (ids.length === 0) return { jobs: [], missingIds: [] };
 
   const keys = ids.map((id) => `scraper:job:${id}`);
   let results: Array<string | null>;
@@ -390,19 +397,47 @@ export async function cacheGetJobsByIds(ids: string[]): Promise<unknown[]> {
     throw error;
   }
 
-  const jobs = results
-    .filter((raw): raw is string => raw !== null)
-    .map((raw) => {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean);
+  const jobs: unknown[] = [];
+  const missingIds: string[] = [];
+
+  results.forEach((raw, index) => {
+    if (raw === null) {
+      missingIds.push(ids[index]);
+      return;
+    }
+
+    try {
+      jobs.push(JSON.parse(raw));
+    } catch {
+      missingIds.push(ids[index]);
+    }
+  });
 
   recordCacheOperation("mget_jobs", jobs.length > 0 ? "hit" : "miss");
+  return { jobs, missingIds };
+}
+
+export async function cacheGetJobsByIds(ids: string[]): Promise<unknown[]> {
+  const { jobs } = await cacheGetJobsByIdsDetailed(ids);
   return jobs;
+}
+
+/**
+ * Remove IDs orfaos do indice global, espelhando o auto-reparo ja feito pelo
+ * scraper Go (jobstore.GetAll/GetSample).
+ */
+export async function cacheRemoveJobIndexIds(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+
+  const client = await getCache();
+  try {
+    const removed = await client.sRem("scraper:jobs:index", ids);
+    recordCacheOperation("srem_orphan_jobs", "ok");
+    return removed;
+  } catch (error) {
+    recordCacheOperation("srem_orphan_jobs", "error");
+    throw error;
+  }
 }
 
 async function cacheDeleteByPattern(pattern: string): Promise<number> {

@@ -1,16 +1,24 @@
 import {
-  cacheAbsoluteSMembers,
-  cacheGetJobsByIds,
-  cacheSearchJobIds,
-  cacheSearchKeywords,
+    cacheAbsoluteSMembers,
+    cacheGetJobsByIds,
+    cacheGetJobsByIdsDetailed,
+    cacheRemoveJobIndexIds,
+    cacheSearchJobIds,
+    cacheSearchKeywords,
 } from "../../../lib/cache";
 import { paginate, parsePagination } from "../../../lib/pagination";
+import { logWarn } from "../../../logger";
 import { filterJobs, sortJobsByMatch } from "../filters/jobSearch.filter";
 import {
-  hasStructuredFilters,
-  parseJobSearchQuery,
+    hasPostOnlyFilters,
+    hasStructuredFilters,
+    parseJobSearchQuery,
 } from "../parsers/jobSearchQuery.parser";
-import type { SearchJobsInput, SearchJobsResult } from "../types/jobSearch.types";
+import type {
+    MatchTechnology,
+    SearchJobsInput,
+    SearchJobsResult,
+} from "../types/jobSearch.types";
 import type { MatchableJob } from "./jobMatch.service";
 import { JobProfileMatchService } from "./jobProfileMatch.service";
 
@@ -28,6 +36,101 @@ async function legacyResolveIds(
     ids: await cacheAbsoluteSMembers("scraper:jobs:index"),
     source: "valkey_global_index",
   };
+}
+
+
+const MAX_HYDRATION_WINDOWS = 10;
+
+async function removeOrphanIds(missingIds: string[]): Promise<void> {
+  if (missingIds.length === 0) return;
+
+  try {
+    await cacheRemoveJobIndexIds(missingIds);
+  } catch (error) {
+    logWarn("Falha ao remover IDs órfãos do índice global de vagas", {
+      error: (error as Error).message,
+      orphans: missingIds.length,
+    });
+  }
+}
+
+async function hydrateIndexPage(
+  ids: string[],
+  { page, limit }: ReturnType<typeof parsePagination>,
+): Promise<{ jobs: unknown[]; meta: ReturnType<typeof paginate>["pagination"] }> {
+  const jobs: unknown[] = [];
+  const missingIds: string[] = [];
+  let cursor = (page - 1) * limit;
+  let windows = 0;
+
+  while (
+    jobs.length < limit &&
+    cursor < ids.length &&
+    windows < MAX_HYDRATION_WINDOWS
+  ) {
+    const window = ids.slice(cursor, cursor + (limit - jobs.length));
+    const hydrated = await cacheGetJobsByIdsDetailed(window);
+
+    jobs.push(...hydrated.jobs);
+    missingIds.push(...hydrated.missingIds);
+    cursor += window.length;
+    windows += 1;
+  }
+
+  await removeOrphanIds(missingIds);
+
+  const total = Math.max(0, ids.length - missingIds.length);
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    jobs,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    },
+  };
+}
+
+async function orderIdsByProfileRelevance(
+  ids: string[],
+  technologies: MatchTechnology[],
+): Promise<{ ids: string[]; matchedIds: number }> {
+  const names = technologies
+    .map((technology) => technology.name?.trim())
+    .filter((name): name is string => Boolean(name));
+
+  if (names.length === 0 || ids.length === 0) {
+    return { ids, matchedIds: 0 };
+  }
+
+  let profileIds: string[];
+  try {
+    profileIds = await cacheSearchKeywords(names);
+  } catch (error) {
+    logWarn("Não foi possível priorizar vagas pelo perfil do candidato", {
+      error: (error as Error).message,
+    });
+    return { ids, matchedIds: 0 };
+  }
+
+  if (profileIds.length === 0) return { ids, matchedIds: 0 };
+
+  const relevant = new Set(profileIds);
+  const preferred: string[] = [];
+  const remaining: string[] = [];
+
+  for (const id of ids) {
+    if (relevant.has(id)) preferred.push(id);
+    else remaining.push(id);
+  }
+
+  if (preferred.length === 0) return { ids, matchedIds: 0 };
+
+  return { ids: [...preferred, ...remaining], matchedIds: preferred.length };
 }
 
 function toSearchResult(
@@ -109,6 +212,18 @@ export class SearchJobsService {
     ids = legacy.ids;
     source = legacy.source;
 
+    if (hasPostOnlyFilters(filters)) {
+      const legacyJobs = await cacheGetJobsByIds(ids);
+      return await this.paginateFilteredJobs(
+        filterJobs(legacyJobs, filters),
+        filters.matchSort,
+        pagination,
+        matchTechnologies,
+        input.userId,
+        `${source}:post_filter`,
+      );
+    }
+
     if (filters.matchSort) {
       const allJobs = await cacheGetJobsByIds(ids);
       const matchedJobs = await this.profileMatchService.enrich(
@@ -128,15 +243,24 @@ export class SearchJobsService {
       return toSearchResult(jobs, meta, `${source}:match_sorted_${filters.matchSort}`);
     }
 
-    const { data: pageIds, pagination: meta } = paginate(ids, pagination);
-    const pageJobs = await cacheGetJobsByIds(pageIds);
+    const relevance = await orderIdsByProfileRelevance(ids, matchTechnologies);
+    const { jobs: pageJobs, meta } = await hydrateIndexPage(
+      relevance.ids,
+      pagination,
+    );
     const jobs = await this.profileMatchService.enrich(
       input.userId,
       pageJobs as MatchableJob[],
       matchTechnologies,
     );
 
-    return toSearchResult(jobs, meta, source);
+    if (relevance.matchedIds === 0) {
+      return toSearchResult(jobs, meta, source);
+    }  return toSearchResult(
+      sortJobsByMatch(jobs, "desc"),
+      meta,
+      `${source}:profile_ranked`,
+    );
   }
 
   private async searchWithPostFilterFallback(
