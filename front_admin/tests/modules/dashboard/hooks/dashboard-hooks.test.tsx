@@ -1,12 +1,13 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationProvider } from "../../../../src/components/notifications/NotificationProvider";
-import { dashboardService } from "../../../../src/modules/dashboard/services/dashboard.service";
+import { ApiError } from "../../../../src/lib/api/client";
 import { useDashboard } from "../../../../src/modules/dashboard/hooks/useDashboard";
 import { useDashboardMetrics } from "../../../../src/modules/dashboard/hooks/useDashboardMetrics";
 import { useDashboardScrapers } from "../../../../src/modules/dashboard/hooks/useDashboardScrapers";
 import { useDashboardServices } from "../../../../src/modules/dashboard/hooks/useDashboardServices";
+import { dashboardService } from "../../../../src/modules/dashboard/services/dashboard.service";
 
 vi.mock("../../../../src/modules/dashboard/services/dashboard.service", () => ({
   dashboardService: {
@@ -46,6 +47,7 @@ function wrapper({ children }: { children: ReactNode }) {
 
 describe("dashboard hooks", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(dashboardService.getOverview).mockResolvedValue({
       stats,
       resources,
@@ -99,6 +101,78 @@ describe("dashboard hooks", () => {
     expect(result.current.error).toBe(
       "Nao foi possivel atualizar as metricas do dashboard.",
     );
+  });
+
+  it("labels invalid snapshots and caps history to the latest 24 points", async () => {
+    let snapshot = 0;
+    vi.mocked(dashboardService.getOverview).mockImplementation(async () => ({
+      stats: {
+        ...stats,
+        totalJobs: { value: snapshot, trend: "ok", positive: true },
+      },
+      resources,
+      services,
+      scrapers,
+      generatedAt:
+        snapshot === 0
+          ? "invalid timestamp"
+          : new Date(Date.UTC(2026, 0, 1, 0, snapshot)).toISOString(),
+    }));
+
+    const { result } = renderHook(() => useDashboard(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.chartPoints[0].label).toBe("--:--");
+
+    for (let index = 1; index <= 25; index += 1) {
+      snapshot = index;
+      await act(async () => {
+        await result.current.refresh();
+      });
+    }
+
+    expect(result.current.chartPoints).toHaveLength(24);
+    expect(result.current.chartPoints[0].totalJobs).toBe(2);
+    expect(result.current.chartPoints.at(-1)?.totalJobs).toBe(25);
+  });
+
+  it("notifies differently for an already-running scraper and other failures", async () => {
+    const { result } = renderHook(() => useDashboard(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    vi.mocked(dashboardService.toggleScraper).mockRejectedValueOnce(
+      new ApiError(409, { message: "already running" }),
+    );
+    act(() => result.current.toggleScraper("adzuna"));
+    expect(await screen.findByText("Scraper já em execução")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(dashboardService.getOverview).toHaveBeenCalledTimes(2),
+    );
+
+    vi.mocked(dashboardService.toggleScraper).mockRejectedValueOnce(
+      new Error("backend unavailable"),
+    );
+    act(() => result.current.toggleScraper("adzuna"));
+    expect(await screen.findByText("Pausa indisponível")).toBeInTheDocument();
+  });
+
+  it("reports a failed start distinctly for an idle scraper", async () => {
+    vi.mocked(dashboardService.getOverview).mockResolvedValueOnce({
+      stats,
+      resources,
+      services,
+      scrapers: [{ ...scrapers[0], active: false }],
+      generatedAt: "2026-01-01T10:00:00.000Z",
+    });
+    const { result } = renderHook(() => useDashboard(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    vi.mocked(dashboardService.toggleScraper).mockRejectedValueOnce(
+      new Error("cannot start"),
+    );
+
+    act(() => result.current.toggleScraper("adzuna"));
+
+    expect(await screen.findByText("Erro ao iniciar scraper")).toBeInTheDocument();
+    expect(screen.getByText("Não foi possível iniciar Adzuna.")).toBeInTheDocument();
   });
 
   it("loads segmented metric, service and scraper hooks", async () => {

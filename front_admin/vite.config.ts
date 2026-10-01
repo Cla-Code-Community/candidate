@@ -9,6 +9,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./tests/setup.ts"],
     include: ["tests/**/*.test.{ts,tsx}"],
+    maxWorkers: 2,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],

@@ -218,4 +218,81 @@ describe("UsersPage", () => {
     );
     expect(adminUsersApi.changeRole).not.toHaveBeenCalled();
   });
+
+  it("filters by username and active status", async () => {
+    renderWithProviders(<UsersPage />);
+
+    await screen.findByText("Ada Lovelace");
+    const search = screen.getByPlaceholderText(
+      "Buscar por nome, email ou username",
+    );
+    fireEvent.change(search, { target: { value: "root.user" } });
+    expect(screen.getByText("root@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("ada@example.com")).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.change(screen.getByDisplayValue("Todos os status"), {
+      target: { value: "active" },
+    });
+    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
+    expect(screen.queryByText("root@example.com")).not.toBeInTheDocument();
+  });
+
+  it("uses fallback name, email, and initials for sparse backend users", async () => {
+    vi.mocked(adminUsersApi.list).mockResolvedValueOnce({
+      data: [
+        {
+          ...backendUsers[0],
+          id: "00000000-0000-4000-8000-000000000003",
+          displayName: null,
+          username: null,
+          email: null,
+          firstName: null,
+          lastName: null,
+          role: "user",
+          isBlocked: false,
+        },
+      ],
+      total: 1,
+      limit: 50,
+      offset: 0,
+    });
+
+    renderWithProviders(<UsersPage />);
+
+    expect(await screen.findByText("Usuario sem nome")).toBeInTheDocument();
+    expect(screen.getByText("sem email")).toBeInTheDocument();
+  });
+
+  it("shows an error if deleting a user fails", async () => {
+    vi.mocked(adminUsersApi.delete).mockRejectedValueOnce(
+      new Error("delete failed"),
+    );
+    renderWithProviders(<UsersPage />);
+
+    await screen.findByText("Ada Lovelace");
+    fireEvent.click(screen.getAllByRole("button", { name: /editar/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Excluir usuário" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar exclusão" }));
+
+    expect(await screen.findByText("Erro ao excluir usuário")).toBeInTheDocument();
+    expect(screen.getAllByText("ada@example.com")).toHaveLength(2);
+  });
+
+  it("shows an error if changing a user's role fails", async () => {
+    vi.mocked(adminUsersApi.changeRole).mockRejectedValueOnce(
+      new Error("role update failed"),
+    );
+    renderWithProviders(<UsersPage />);
+
+    await screen.findByText("Ada Lovelace");
+    fireEvent.click(screen.getAllByRole("button", { name: /editar/i })[0]);
+    fireEvent.change(screen.getByLabelText("Perfil de acesso"), {
+      target: { value: "support" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /salvar alterações/i }));
+
+    expect(await screen.findByText("Erro ao salvar usuário")).toBeInTheDocument();
+    expect(screen.getAllByText("ada@example.com")).toHaveLength(2);
+  });
 });

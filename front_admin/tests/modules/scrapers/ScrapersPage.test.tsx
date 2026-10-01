@@ -1,8 +1,8 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ScrapersPage } from "../../../src/modules/scrapers/ScrapersPage";
 import { useAuth } from "../../../src/modules/auth/hooks/useAuth";
 import { useScrapers } from "../../../src/modules/scrapers/hooks/useScrapers";
+import { ScrapersPage } from "../../../src/modules/scrapers/ScrapersPage";
 import { renderWithProviders } from "../../test-utils";
 
 vi.mock("../../../src/modules/scrapers/hooks/useScrapers", () => ({
@@ -160,5 +160,47 @@ describe("ScrapersPage", () => {
 
     expect(screen.getByText("Carregando scrapers...")).toBeInTheDocument();
     expect(screen.getByText("falha")).toBeInTheDocument();
+  });
+
+  it("renders empty adapters and jobs with no snapshot timestamp", () => {
+    vi.mocked(useScrapers).mockReturnValue({
+      ...scraperState,
+      adapterStats: [],
+      jobPreviews: [],
+      overview: {
+        ...scraperState.overview,
+        lastUpdatedAt: null,
+        adaptersCount: 0,
+        sourcesCount: 0,
+        loadedJobs: 0,
+      },
+    });
+
+    renderWithProviders(<ScrapersPage />);
+
+    expect(screen.getByText(/último snapshot Sem atualização/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhum adapter encontrado no payload de vagas."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Nenhuma vaga carregada do backend ainda."),
+    ).toBeInTheDocument();
+  });
+
+  it("disables cache and refresh actions while each request is pending", () => {
+    vi.mocked(useScrapers).mockReturnValue({
+      ...scraperState,
+      isRefreshing: true,
+      isClearingJobsCache: true,
+    });
+
+    renderWithProviders(<ScrapersPage />);
+
+    expect(
+      screen.getByRole("button", { name: /limpando cache/i }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Recarregar dados" }),
+    ).toBeDisabled();
   });
 });
