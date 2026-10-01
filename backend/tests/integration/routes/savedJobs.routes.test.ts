@@ -13,10 +13,25 @@ const mockSavedJobsService = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
+const mockApplicationNotesService = vi.hoisted(() => ({
+  list: vi.fn(),
+  create: vi.fn(),
+  update: vi.fn(),
+  delete: vi.fn(),
+}));
+
 vi.mock("../../../src/modules/savedJobs/savedJobs.service", () => ({
   SavedJobsService: class {
     constructor() {
       return mockSavedJobsService;
+    }
+  },
+}));
+
+vi.mock("../../../src/modules/savedJobs/applicationNotes.service", () => ({
+  ApplicationNotesService: class {
+    constructor() {
+      return mockApplicationNotesService as any;
     }
   },
 }));
@@ -41,6 +56,7 @@ const fixtureSession = {
 };
 
 const fixtureJobId = "e4b095ff-6439-4112-b837-024a50f838b0";
+const fixtureNoteId = "d3a75656-203f-4c26-a647-2bbbe4d3b304";
 
 const fixtureJob = {
   id: fixtureJobId,
@@ -92,6 +108,15 @@ const fixtureEvents = [
   },
 ];
 
+const fixtureNote = {
+  id: fixtureNoteId,
+  userId: "user_abc",
+  savedJobId: fixtureJobId,
+  content: "Preparar exemplos para entrevista",
+  createdAt: new Date("2024-01-04").toISOString(),
+  updatedAt: new Date("2024-01-04").toISOString(),
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Integration - SavedJobs Routes", () => {
@@ -112,6 +137,13 @@ describe("Integration - SavedJobs Routes", () => {
       status: "applied",
     });
     mockSavedJobsService.delete.mockResolvedValue(undefined);
+    mockApplicationNotesService.list.mockResolvedValue([fixtureNote]);
+    mockApplicationNotesService.create.mockResolvedValue(fixtureNote);
+    mockApplicationNotesService.update.mockResolvedValue({
+      ...fixtureNote,
+      content: "Nota atualizada",
+    });
+    mockApplicationNotesService.delete.mockResolvedValue(undefined);
 
     app = createJobsApiApp();
   });
@@ -449,6 +481,83 @@ describe("Integration - SavedJobs Routes", () => {
       mockSavedJobsService.delete.mockRejectedValueOnce(new Error("db error"));
 
       await request(app).delete(`${BASE}/${fixtureJobId}`).expect(500);
+    });
+  });
+
+  describe("Application notes", () => {
+    it("lista notas da vaga no escopo do usuário autenticado", async () => {
+      const res = await request(app)
+        .get(`${BASE}/${fixtureJobId}/notes`)
+        .expect(200);
+
+      expect(res.body).toEqual([fixtureNote]);
+      expect(mockApplicationNotesService.list).toHaveBeenCalledWith(
+        "user_abc",
+        fixtureJobId,
+      );
+    });
+
+    it("cria nota com conteúdo trimado e retorna 201", async () => {
+      const res = await request(app)
+        .post(`${BASE}/${fixtureJobId}/notes`)
+        .send({ content: "  Preparar exemplos para entrevista  " })
+        .expect(201);
+
+      expect(res.body).toEqual(fixtureNote);
+      expect(mockApplicationNotesService.create).toHaveBeenCalledWith(
+        "user_abc",
+        fixtureJobId,
+        "Preparar exemplos para entrevista",
+      );
+    });
+
+    it("rejeita conteúdo vazio antes de chamar o service", async () => {
+      await request(app)
+        .post(`${BASE}/${fixtureJobId}/notes`)
+        .send({ content: "   " })
+        .expect(400);
+
+      expect(mockApplicationNotesService.create).not.toHaveBeenCalled();
+    });
+
+    it("atualiza nota identificada pela vaga e pelo ID da nota", async () => {
+      const res = await request(app)
+        .patch(`${BASE}/${fixtureJobId}/notes/${fixtureNoteId}`)
+        .send({ content: "Nota atualizada" })
+        .expect(200);
+
+      expect(res.body.content).toBe("Nota atualizada");
+      expect(mockApplicationNotesService.update).toHaveBeenCalledWith(
+        "user_abc",
+        fixtureJobId,
+        fixtureNoteId,
+        "Nota atualizada",
+      );
+    });
+
+    it("retorna 404 ao atualizar nota inexistente", async () => {
+      mockApplicationNotesService.update.mockRejectedValueOnce(
+        AppError.notFound("Nota não encontrada"),
+      );
+
+      const res = await request(app)
+        .patch(`${BASE}/${fixtureJobId}/notes/${fixtureNoteId}`)
+        .send({ content: "Nota atualizada" })
+        .expect(404);
+
+      expect(res.body.message).toBe("Nota não encontrada");
+    });
+
+    it("remove nota e retorna 204", async () => {
+      await request(app)
+        .delete(`${BASE}/${fixtureJobId}/notes/${fixtureNoteId}`)
+        .expect(204);
+
+      expect(mockApplicationNotesService.delete).toHaveBeenCalledWith(
+        "user_abc",
+        fixtureJobId,
+        fixtureNoteId,
+      );
     });
   });
 });

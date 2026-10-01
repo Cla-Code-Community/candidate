@@ -96,4 +96,18 @@ describe("DashboardPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("backend offline")).toBeInTheDocument();
   });
+
+  it("keeps data visible and disables refresh after a background refresh error", () => {
+    vi.mocked(useDashboard).mockReturnValue({
+      ...dashboardState,
+      error: "snapshot temporariamente indisponível",
+      isRefreshing: true,
+    });
+
+    renderWithProviders(<DashboardPage />);
+
+    expect(screen.getByText("Monitoramento em tempo real")).toBeInTheDocument();
+    expect(screen.getByText("snapshot temporariamente indisponível")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Atualizar" })).toBeDisabled();
+  });
 });

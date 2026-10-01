@@ -1,8 +1,8 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { permissionsApi } from "../../../src/lib/api/permissions.api";
-import { PermissionsPage } from "../../../src/modules/permissions/PermissionsPage";
 import { useAuth } from "../../../src/modules/auth/hooks/useAuth";
+import { PermissionsPage } from "../../../src/modules/permissions/PermissionsPage";
 import { renderWithProviders } from "../../test-utils";
 
 vi.mock("../../../src/lib/api/permissions.api", () => ({
@@ -35,6 +35,7 @@ const rules = [
 
 describe("PermissionsPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(useAuth).mockReturnValue({
       isLoggedIn: {
         id: "u1",
@@ -108,5 +109,55 @@ describe("PermissionsPage", () => {
 
     await screen.findByText("Modo leitura. Apenas super admins podem alterar regras.");
     expect(screen.getByRole("button", { name: "Salvar" })).toBeDisabled();
+  });
+
+  it("keeps critical rules immutable and does not save unchanged rules", async () => {
+    renderWithProviders(<PermissionsPage />);
+
+    await screen.findByText("Matriz de Permissões");
+    expect(screen.getByText("imutável")).toBeInTheDocument();
+    expect(screen.getAllByRole("combobox")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Salvar" })).toBeDisabled();
+    expect(permissionsApi.update).not.toHaveBeenCalled();
+  });
+
+  it("reports a backend rejection and exits the saving state", async () => {
+    vi.mocked(permissionsApi.update).mockRejectedValueOnce(
+      new Error("permission denied"),
+    );
+    renderWithProviders(<PermissionsPage />);
+
+    await screen.findByText("Matriz de Permissões");
+    fireEvent.change(screen.getByDisplayValue("Suporte"), {
+      target: { value: "admin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar 1/ }));
+
+    expect(
+      await screen.findByText("Erro ao salvar permissões"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Salvar 1/ })).toBeEnabled();
+  });
+
+  it("shows the pending save state until the API responds", async () => {
+    let finishUpdate!: (value: { rules: typeof rules }) => void;
+    vi.mocked(permissionsApi.update).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishUpdate = resolve;
+      }),
+    );
+    renderWithProviders(<PermissionsPage />);
+
+    await screen.findByText("Matriz de Permissões");
+    fireEvent.change(screen.getByDisplayValue("Suporte"), {
+      target: { value: "admin" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar 1/ }));
+    expect(await screen.findByRole("button", { name: "Salvando..." })).toBeDisabled();
+
+    finishUpdate({
+      rules: [{ ...rules[0], minRole: "admin", customized: true }, rules[1]],
+    });
+    await screen.findByText("Permissões atualizadas");
   });
 });

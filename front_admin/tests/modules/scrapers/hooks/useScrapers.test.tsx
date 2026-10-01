@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationProvider } from "../../../../src/components/notifications/NotificationProvider";
@@ -71,6 +71,7 @@ const jobsPayload = {
 
 describe("useScrapers", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(scrapersApi.list).mockResolvedValue(scraperList);
     vi.mocked(scrapersApi.jobsCount).mockResolvedValue({ total: 2 });
     vi.mocked(scrapersApi.jobs).mockResolvedValue(jobsPayload);
@@ -184,6 +185,136 @@ describe("useScrapers", () => {
     expect(result.current.logs[0].text).toContain("Scraper ja esta em execucao");
   });
 
+  it("does not trigger an active scraper and reports its running state", async () => {
+    vi.mocked(scrapersApi.list).mockResolvedValueOnce({
+      scrapers: [{ ...scraperList.scrapers[0], running: true, status: "running" }],
+    });
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.toggleScraper("Adzuna");
+    });
+
+    expect(scrapersApi.triggerOne).not.toHaveBeenCalled();
+    expect(result.current.logs[0].text).toBe("Adzuna ja esta em execucao.");
+    expect(await screen.findByText("Scraper já em execução")).toBeInTheDocument();
+  });
+
+  it("treats an individual 409 as recoverable and clears the starting state", async () => {
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    vi.mocked(scrapersApi.triggerOne).mockRejectedValueOnce(
+      new ApiError(409, { message: "already running" }),
+    );
+
+    await act(async () => {
+      await result.current.toggleScraper("Adzuna");
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.isStarting).toBe(false);
+    expect(result.current.logs[0].text).toBe("Adzuna ja esta em execucao.");
+    expect(scrapersApi.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses fallback labels for invalid run dates, empty sources and keywords", async () => {
+    vi.mocked(scrapersApi.list).mockResolvedValueOnce({
+      scrapers: [
+        {
+          name: "Custom",
+          status: "idle",
+          running: false,
+          lastRunAt: "invalid date",
+          jobsCollected: null,
+        },
+      ],
+    });
+    vi.mocked(scrapersApi.jobs).mockResolvedValueOnce({
+      total: 2,
+      jobs: [
+        {
+          ...jobsPayload.jobs[0],
+          id: "job-unknown",
+          source: "",
+          sources: [",", "  "],
+          keyword: "",
+          keywords: [],
+          postedAt: "invalid date",
+        },
+        {
+          ...jobsPayload.jobs[1],
+          id: "job-custom",
+          source: "Custom adapter",
+          sources: [],
+          keyword: "",
+          keywords: ["python"],
+          postedAt: "",
+        },
+      ],
+    });
+
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.overview.loadedJobs).toBe(2));
+
+    expect(result.current.scrapers[0].lastRun).toBe("invalid date");
+    expect(result.current.adapterStats.map((adapter) => adapter.name)).toContain(
+      "desconhecido",
+    );
+    expect(result.current.adapterStats.map((adapter) => adapter.name)).toContain(
+      "Custom adapter",
+    );
+    expect(result.current.jobPreviews.map((job) => job.keyword)).toContain(
+      "sem keyword",
+    );
+    expect(result.current.jobPreviews.map((job) => job.keyword)).toContain(
+      "python",
+    );
+  });
+
+  it("maps remaining adapter families and supplies fallback action messages", async () => {
+    vi.mocked(scrapersApi.jobs).mockResolvedValueOnce({
+      total: 4,
+      jobs: ["The Muse", "Jooble", "linkedin", "Unknown"].map(
+        (source, index) => ({
+          ...jobsPayload.jobs[0],
+          id: `family-${index}`,
+          source,
+          sources: [],
+          keyword: "keyword",
+          keywords: [],
+        }),
+      ),
+    });
+    vi.mocked(scrapersApi.trigger).mockResolvedValueOnce({
+      ok: true,
+      message: "",
+    });
+    vi.mocked(scrapersApi.triggerOne).mockResolvedValueOnce({
+      ok: true,
+      message: "",
+      scraper: "Adzuna",
+    });
+
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.overview.loadedJobs).toBe(4));
+
+    expect(result.current.adapterStats.map((adapter) => adapter.name)).toEqual(
+      ["The Muse", "Jooble", "linkedin", "Unknown"],
+    );
+    await act(async () => {
+      await result.current.startAll();
+      await result.current.toggleScraper("Adzuna");
+    });
+
+    expect(result.current.logs.map((entry) => entry.text)).toContain(
+      "Execucao dos scrapers iniciada.",
+    );
+    expect(result.current.logs.map((entry) => entry.text)).toContain(
+      "Adzuna iniciado.",
+    );
+  });
+
   it("handles cache clearing failures", async () => {
     const { result } = renderHook(() => useScrapers(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -214,6 +345,26 @@ describe("useScrapers", () => {
 
     expect(result.current.logs.map((log) => log.text)).toContain(
       "Scheduler reportou execução em andamento.",
+    );
+  });
+
+  it("logs when the scheduler reports that the last running scraper became idle", async () => {
+    vi.mocked(scrapersApi.list)
+      .mockResolvedValueOnce({
+        scrapers: [{ ...scraperList.scrapers[0], running: true, status: "running" }],
+      })
+      .mockResolvedValueOnce({
+        scrapers: [{ ...scraperList.scrapers[0], running: false, status: "idle" }],
+      });
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+
+    expect(result.current.logs.map((entry) => entry.text)).toContain(
+      "Scheduler reportou scraper ocioso.",
     );
   });
 });

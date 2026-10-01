@@ -55,4 +55,32 @@ describe("UserList", () => {
       "https://example.com/ada.png",
     );
   });
+
+  it("falls back to initials when an avatar request fails", () => {
+    render(
+      <UserList
+        users={[{ ...userFixture, avatarUrl: "https://example.com/broken.png" }]}
+        onEditUser={vi.fn()}
+      />,
+    );
+
+    fireEvent.error(screen.getByAltText("Foto de Ada Lovelace"));
+
+    expect(screen.queryByAltText("Foto de Ada Lovelace")).not.toBeInTheDocument();
+    expect(screen.getByText("AL")).toBeInTheDocument();
+  });
+
+  it("uses a neutral date label for missing and invalid login dates", () => {
+    render(
+      <UserList
+        users={[
+          { ...userFixture, id: "missing-date", lastLoginAt: null },
+          { ...userFixture, id: "invalid-date", lastLoginAt: "not-a-date" },
+        ]}
+        onEditUser={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Sem registro")).toHaveLength(2);
+  });
 });

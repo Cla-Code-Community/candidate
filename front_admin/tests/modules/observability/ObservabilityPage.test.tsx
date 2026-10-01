@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ObservabilityPage } from "../../../src/modules/observability/ObservabilityPage";
 import { observabilityApi } from "../../../src/lib/api/observability.api";
+import { ObservabilityPage } from "../../../src/modules/observability/ObservabilityPage";
 import { renderWithProviders } from "../../test-utils";
 
 vi.mock("../../../src/lib/api/observability.api", () => ({
@@ -63,6 +63,7 @@ const dashboardsPayload = {
 
 describe("ObservabilityPage", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.mocked(observabilityApi.health).mockResolvedValue({
       status: "ok",
       timestamp: "2026-01-01T10:00:00.000Z",
@@ -114,5 +115,87 @@ describe("ObservabilityPage", () => {
     expect(
       await screen.findByText(/Sem resposta das series detalhadas/),
     ).toBeInTheDocument();
+  });
+
+  it("shows unavailable metrics, degraded infrastructure, and empty dashboards", async () => {
+    vi.mocked(observabilityApi.health).mockResolvedValueOnce({
+      status: "down",
+      timestamp: "2026-01-01T10:00:00.000Z",
+      services: {
+        postgres: { status: "down", error: "connection refused" },
+        valkey: { status: "degraded" },
+        scraper: { status: "ok", latencyMs: 4 },
+      },
+    });
+    vi.mocked(observabilityApi.metrics).mockResolvedValueOnce({
+      requestRatePerMinute: null,
+      errorRatePct: null,
+      p95LatencyMs: null,
+      cacheHitRatePct: null,
+      activeSessionsCount: null,
+    });
+    vi.mocked(observabilityApi.dashboards).mockResolvedValueOnce({
+      ...dashboardsPayload,
+      dashboards: [],
+    });
+
+    renderWithProviders(<ObservabilityPage />);
+
+    expect(await screen.findAllByText("N/D")).toHaveLength(3);
+    expect(screen.getByText("connection refused")).toBeInTheDocument();
+    expect(screen.getByText("degraded")).toBeInTheDocument();
+    expect(screen.queryByText("Requests/sec")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    await waitFor(() => {
+      expect(observabilityApi.health).toHaveBeenCalledTimes(2);
+      expect(observabilityApi.metrics).toHaveBeenCalledTimes(2);
+      expect(observabilityApi.dashboards).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("marks latency and error metrics above their attention limits", async () => {
+    vi.mocked(observabilityApi.metrics).mockResolvedValueOnce({
+      requestRatePerMinute: 0,
+      errorRatePct: 5,
+      p95LatencyMs: 200,
+      cacheHitRatePct: 0,
+      activeSessionsCount: 0,
+    });
+
+    renderWithProviders(<ObservabilityPage />);
+
+    await screen.findByText("Requisicoes por minuto");
+    const latencyCard = screen.getByText("Latencia p95").parentElement;
+    const errorCard = screen.getByText("Taxa de erro").parentElement;
+    expect(latencyCard).toHaveTextContent("200ms");
+    expect(latencyCard?.querySelector("span.text-rose-600")).not.toBeNull();
+    expect(errorCard).toHaveTextContent("5%");
+    expect(errorCard?.querySelector("span.text-rose-600")).not.toBeNull();
+  });
+
+  it("selects the first available dashboard when the prior selection is absent", async () => {
+    vi.mocked(observabilityApi.dashboards).mockResolvedValueOnce({
+      ...dashboardsPayload,
+      dashboards: [dashboardsPayload.dashboards[1]],
+    });
+
+    renderWithProviders(<ObservabilityPage />);
+
+    expect(await screen.findByText("Infraestrutura")).toBeInTheDocument();
+    expect(screen.getByText("Host")).toBeInTheDocument();
+    expect(screen.queryByText("API Overview")).not.toBeInTheDocument();
+
+    for (const [label, range] of [
+      ["5 min", "5m"],
+      ["15 min", "15m"],
+      ["6 h", "6h"],
+      ["24 h", "24h"],
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      await waitFor(() => {
+        expect(observabilityApi.dashboards).toHaveBeenCalledWith(range);
+      });
+    }
   });
 });
