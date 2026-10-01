@@ -41,5 +41,28 @@ describe("PlatformChart", () => {
     expect(screen.getByText("Estado do índice")).toBeInTheDocument();
     expect(screen.getByText("+1")).toBeInTheDocument();
     expect(container.querySelectorAll("circle")).toHaveLength(0);
+
+    rerender(
+      <PlatformChart
+        points={[
+          { timestamp: "t1", label: "10:00", totalJobs: 10, activeUsers: 4 },
+          { timestamp: "t2", label: "10:01", totalJobs: 10, activeUsers: 3 },
+          { timestamp: "t3", label: "10:02", totalJobs: 10, activeUsers: 3 },
+        ]}
+      />,
+    );
+    expect(screen.getAllByText("0").length).toBeGreaterThan(0);
+    expect(screen.getByText("Todos os intervalos ficaram em 0. O scraper não alterou o total indexado durante esta janela.")).toBeInTheDocument();
+
+    rerender(
+      <PlatformChart
+        points={[
+          { timestamp: "t1", label: "10:00", totalJobs: 20, activeUsers: 4 },
+          { timestamp: "t2", label: "10:01", totalJobs: 10, activeUsers: 3 },
+        ]}
+      />,
+    );
+    expect(screen.getAllByText("-10")).toHaveLength(2);
+    expect(container.querySelector("span.bg-rose-500")).not.toBeNull();
   });
 });

@@ -131,7 +131,7 @@ describe("RigthSide", () => {
   });
 
   it("mostra loading durante requisição", async () => {
-    mockLogin.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 200)));
+    mockLogin.mockImplementation(() => new Promise(() => {}));
     render(<RigthSide />);
     fireEvent.change(screen.getByLabelText(/email/i), { target: { value: "teste@email.com" } });
     fireEvent.change(screen.getByLabelText(/senha/i), { target: { value: "123456" } });
@@ -140,7 +140,7 @@ describe("RigthSide", () => {
   });
 
   it("desabilita inputs durante loading", async () => {
-    mockLogin.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 200)));
+    mockLogin.mockImplementation(() => new Promise(() => {}));
     render(<RigthSide />);
     const emailInput = screen.getByLabelText(/email/i);
     const passwordInput = screen.getByLabelText(/senha/i);

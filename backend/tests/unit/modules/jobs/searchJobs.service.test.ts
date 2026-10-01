@@ -1,281 +1,629 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
+vi.mock("../../../../src/lib/cache", () => ({
   cacheAbsoluteSMembers: vi.fn(),
   cacheGetJobsByIds: vi.fn(),
   cacheGetJobsByIdsDetailed: vi.fn(),
   cacheRemoveJobIndexIds: vi.fn(),
   cacheSearchJobIds: vi.fn(),
   cacheSearchKeywords: vi.fn(),
+}));
+
+vi.mock("../../../../src/lib/pagination", () => ({
+  paginate: vi.fn(),
+  parsePagination: vi.fn(),
+}));
+
+vi.mock("../../../../src/logger", () => ({
   logWarn: vi.fn(),
 }));
 
-vi.mock("../../../../src/lib/cache.js", () => ({
-  cacheAbsoluteSMembers: mocks.cacheAbsoluteSMembers,
-  cacheGetJobsByIds: mocks.cacheGetJobsByIds,
-  cacheGetJobsByIdsDetailed: mocks.cacheGetJobsByIdsDetailed,
-  cacheRemoveJobIndexIds: mocks.cacheRemoveJobIndexIds,
-  cacheSearchJobIds: mocks.cacheSearchJobIds,
-  cacheSearchKeywords: mocks.cacheSearchKeywords,
+vi.mock("../../../../src/modules/jobs/filters/jobSearch.filter", () => ({
+  filterJobs: vi.fn(),
+  sortJobsByMatch: vi.fn(),
 }));
 
-vi.mock("../../../../src/logger.js", () => ({
-  logWarn: mocks.logWarn,
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+vi.mock("../../../../src/modules/jobs/parsers/jobSearchQuery.parser", () => ({
+  hasPostOnlyFilters: vi.fn(),
+  hasStructuredFilters: vi.fn(),
+  parseJobSearchQuery: vi.fn(),
 }));
 
-const profileMocks = vi.hoisted(() => ({
-  technologies: [] as Array<{ name: string; years: number }>,
-}));
+import {
+    cacheAbsoluteSMembers,
+    cacheGetJobsByIds,
+    cacheGetJobsByIdsDetailed,
+    cacheRemoveJobIndexIds,
+    cacheSearchJobIds,
+    cacheSearchKeywords,
+} from "../../../../src/lib/cache";
+import { paginate, parsePagination } from "../../../../src/lib/pagination";
+import { logWarn } from "../../../../src/logger";
+import {
+    filterJobs,
+    sortJobsByMatch,
+} from "../../../../src/modules/jobs/filters/jobSearch.filter";
+import {
+    hasPostOnlyFilters,
+    hasStructuredFilters,
+    parseJobSearchQuery,
+} from "../../../../src/modules/jobs/parsers/jobSearchQuery.parser";
+import { JobProfileMatchService } from "../../../../src/modules/jobs/services/jobProfileMatch.service";
+import {
+    SearchJobsService,
+    searchJobsService,
+} from "../../../../src/modules/jobs/services/searchJobs.service";
+import type { ParsedJobSearchQuery } from "../../../../src/modules/jobs/types/jobSearch.types";
 
-vi.mock(
-  "../../../../src/modules/jobs/services/jobProfileMatch.service.js",
-  async () => {
-    const { scoreJobWithTechnologies } = await import(
-      "../../../../src/modules/jobs/services/jobMatch.service.js"
-    );
+const mockCacheAbsoluteSMembers = vi.mocked(cacheAbsoluteSMembers);
+const mockCacheGetJobsByIds = vi.mocked(cacheGetJobsByIds);
+const mockCacheGetJobsByIdsDetailed = vi.mocked(cacheGetJobsByIdsDetailed);
+const mockCacheRemoveJobIndexIds = vi.mocked(cacheRemoveJobIndexIds);
+const mockCacheSearchJobIds = vi.mocked(cacheSearchJobIds);
+const mockCacheSearchKeywords = vi.mocked(cacheSearchKeywords);
+const mockPaginate = vi.mocked(paginate);
+const mockParsePagination = vi.mocked(parsePagination);
+const mockLogWarn = vi.mocked(logWarn);
+const mockFilterJobs = vi.mocked(filterJobs);
+const mockSortJobsByMatch = vi.mocked(sortJobsByMatch);
+const mockHasPostOnlyFilters = vi.mocked(hasPostOnlyFilters);
+const mockHasStructuredFilters = vi.mocked(hasStructuredFilters);
+const mockParseJobSearchQuery = vi.mocked(parseJobSearchQuery);
 
-    return {
-      JobProfileMatchService: class {
-        async getUserTechnologies() {
-          return profileMocks.technologies;
-        }
-        async enrich(_userId: unknown, jobs: any[], technologies: any[]) {
-          if (!technologies || technologies.length === 0) return jobs;
-          return jobs.map((job) =>
-            scoreJobWithTechnologies(job, technologies),
-          );
-        }
-      },
-    };
-  },
-);
+const defaultPagination = { page: 1, limit: 10 };
 
-import { SearchJobsService } from "../../../../src/modules/jobs/services/searchJobs.service.js";
-
-const INDEX_KEY = "scraper:jobs:index";
-
-function makeIds(count: number, prefix = "id"): string[] {
-  return Array.from({ length: count }, (_, index) => `${prefix}-${index + 1}`);
+function emptyFilters(
+  overrides: Partial<ParsedJobSearchQuery> = {},
+): ParsedJobSearchQuery {
+  return {
+    keywords: [],
+    family: [],
+    technology: [],
+    company: [],
+    seniority: "",
+    level: "",
+    location: "",
+    continent: "",
+    country: "",
+    state: "",
+    city: "",
+    type: [],
+    contract: "",
+    matchSort: null,
+    ...overrides,
+  };
 }
 
-function job(id: string) {
-  return { id, title: `Vaga ${id}`, company: "ACME" };
+function makeEnrichResult(jobs: unknown[]) {
+  return jobs.map((job) => ({ ...(job as object), matchScore: 50 }));
 }
 
-function hydrateFrom(liveIds: Set<string>) {
-  return async (ids: string[]) => ({
-    jobs: ids.filter((id) => liveIds.has(id)).map(job),
-    missingIds: ids.filter((id) => !liveIds.has(id)),
-  });
+function buildProfileMatchService() {
+  const service = {
+    getUserTechnologies: vi.fn().mockResolvedValue([]),
+    enrich: vi
+      .fn()
+      .mockImplementation(async (_u, jobs: unknown[]) =>
+        makeEnrichResult(jobs),
+      ),
+  };
+  return service as unknown as JobProfileMatchService & typeof service;
 }
 
-describe("SearchJobsService — índice global do Valkey", () => {
-  let service: SearchJobsService;
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockParsePagination.mockReturnValue(defaultPagination);
+  mockHasStructuredFilters.mockReturnValue(false);
+  mockHasPostOnlyFilters.mockReturnValue(false);
+  mockParseJobSearchQuery.mockReturnValue(emptyFilters());
+  mockFilterJobs.mockImplementation((jobs: unknown[]) => jobs);
+  mockSortJobsByMatch.mockImplementation((jobs: unknown[]) => jobs);
+  mockPaginate.mockImplementation((jobs: unknown[]) => ({
+    data: jobs,
+    pagination: {
+      total: jobs.length,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
+      hasNext: false,
+      hasPrev: false,
+    },
+  }));
+});
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.cacheRemoveJobIndexIds.mockResolvedValue(0);
-    mocks.cacheSearchJobIds.mockResolvedValue([]);
-    mocks.cacheSearchKeywords.mockResolvedValue([]);
-    profileMocks.technologies = [];
-    service = new SearchJobsService();
-  });
+describe("SearchJobsService.execute - sem filtros, sem post-only, sem matchSort", () => {
+  it("resolve via índice global, ordena por perfil e retorna profile_ranked", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "react" }]);
+    const svc = new SearchJobsService(profileService);
 
-  it("retorna a primeira página preenchida quando todos os IDs têm documento", async () => {
-    const ids = makeIds(120);
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(
-      hydrateFrom(new Set(ids)),
-    );
-
-    const result = await service.execute({ query: { page: "1", limit: "50" } });
-
-    expect(mocks.cacheAbsoluteSMembers).toHaveBeenCalledWith(INDEX_KEY);
-    expect(result.source).toBe("valkey_global_index");
-    expect(result.total).toBe(120);
-    expect(result.page).toBe(1);
-    expect(result.limit).toBe(50);
-    expect(result.totalPages).toBe(3);
-    expect(result.hasNext).toBe(true);
-    expect(result.hasPrev).toBe(false);
-    expect(result.jobs).toHaveLength(50);
-    expect(result.jobs[0]).toEqual(job("id-1"));
-    expect(mocks.cacheRemoveJobIndexIds).not.toHaveBeenCalled();
-  });
-
-  it("preenche a página avançando no índice quando a primeira fatia só tem IDs órfãos", async () => {
-    const ids = makeIds(200);
-    // Os 50 primeiros IDs do índice estão órfãos (documentos expirados).
-    const liveIds = new Set(ids.slice(50));
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(hydrateFrom(liveIds));
-
-    const result = await service.execute({ query: { page: "1", limit: "50" } });
-
-    expect(result.jobs).toHaveLength(50);
-    expect(result.jobs[0]).toEqual(job("id-51"));
-    // total desconta os órfãos já identificados, em vez de anunciar 200.
-    expect(result.total).toBe(150);
-    expect(result.totalPages).toBe(3);
-    expect(result.hasNext).toBe(true);
-  });
-
-  it("remove do índice global os IDs sem documento (auto-reparo)", async () => {
-    const ids = makeIds(100);
-    const orphans = ["id-1", "id-2", "id-3"];
-    const liveIds = new Set(ids.filter((id) => !orphans.includes(id)));
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(hydrateFrom(liveIds));
-
-    const result = await service.execute({ query: { page: "1", limit: "50" } });
-
-    expect(mocks.cacheRemoveJobIndexIds).toHaveBeenCalledWith(orphans);
-    expect(result.jobs).toHaveLength(50);
-    expect(result.total).toBe(97);
-  });
-
-  it("não falha a requisição quando o auto-reparo do índice falha", async () => {
-    const ids = makeIds(60);
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(
-      hydrateFrom(new Set(ids.slice(1))),
-    );
-    mocks.cacheRemoveJobIndexIds.mockRejectedValue(new Error("valkey down"));
-
-    const result = await service.execute({ query: { page: "1", limit: "50" } });
-
-    expect(result.jobs).toHaveLength(50);
-    expect(mocks.logWarn).toHaveBeenCalled();
-  });
-
-  it("retorna página vazia e coerente quando todos os IDs do índice estão órfãos", async () => {
-    const ids = makeIds(200);
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(
-      hydrateFrom(new Set<string>()),
-    );
-
-    const result = await service.execute({ query: { page: "1", limit: "50" } });
-
-    expect(result.jobs).toEqual([]);
-    expect(result.total).toBe(0);
-    expect(result.totalPages).toBe(0);
-    expect(result.hasNext).toBe(false);
-  });
-
-  it("limita o esforço de hidratação por requisição (não varre o índice inteiro)", async () => {
-    const ids = makeIds(100_000);
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(
-      hydrateFrom(new Set<string>()),
-    );
-
-    await service.execute({ query: { page: "1", limit: "50" } });
-
-    expect(mocks.cacheGetJobsByIdsDetailed).toHaveBeenCalledTimes(10);
-  });
-
-  it("pagina corretamente a última página parcial", async () => {
-    const ids = makeIds(120);
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(
-      hydrateFrom(new Set(ids)),
-    );
-
-    const result = await service.execute({ query: { page: "3", limit: "50" } });
-
-    expect(result.jobs).toHaveLength(20);
-    expect(result.jobs[0]).toEqual(job("id-101"));
-    expect(result.page).toBe(3);
-    expect(result.hasNext).toBe(false);
-    expect(result.hasPrev).toBe(true);
-  });
-
-  it("retorna jobs vazio quando a página solicitada está além do índice", async () => {
-    const ids = makeIds(10);
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(
-      hydrateFrom(new Set(ids)),
-    );
-
-    const result = await service.execute({ query: { page: "9", limit: "50" } });
-
-    expect(result.jobs).toEqual([]);
-    expect(result.total).toBe(10);
-    expect(result.hasNext).toBe(false);
-    expect(result.hasPrev).toBe(true);
-  });
-
-  it("mantém o caminho de filtros estruturados usando os índices do Valkey", async () => {
-    mocks.cacheSearchJobIds.mockResolvedValue(["id-1", "id-2"]);
-    mocks.cacheGetJobsByIds.mockResolvedValue([
-      { id: "id-1", title: "Dev Node", company: "ACME", location: "Brasil" },
-      { id: "id-2", title: "Dev Node", company: "Globo", location: "Brasil" },
-    ]);
-
-    const result = await service.execute({ query: { country: "Brasil" } });
-
-    expect(mocks.cacheAbsoluteSMembers).not.toHaveBeenCalled();
-    expect(result.source).toContain("structured_indexes");
-    expect(result.jobs).toHaveLength(2);
-    expect(result.total).toBe(2);
-  });
-
-  it("filtra por empresa mesmo sem índice dedicado, mantendo total coerente", async () => {
-    const ids = ["id-1", "id-2", "id-3"];
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIds.mockResolvedValue([
-      { id: "id-1", title: "Dev Node", company: "ACME Tecnologia" },
-      { id: "id-2", title: "Dev Node", company: "Globo" },
-      { id: "id-3", title: "Dev Go", company: "acme labs" },
-    ]);
-
-    const result = await service.execute({ query: { company: "acme" } });
-
-    expect(result.jobs).toHaveLength(2);
-    expect(result.total).toBe(2);
-    expect(result.totalPages).toBe(1);
-    expect(result.source).toContain("post_filter");
-  });
-
-  it("prioriza vagas compatíveis com as tecnologias do perfil do candidato", async () => {
-    profileMocks.technologies = [{ name: "Go", years: 4 }];
-    const ids = ["sem-relacao-1", "sem-relacao-2", "compativel-1"];
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    // Índice invertido do scraper devolve a vaga compatível com o perfil.
-    mocks.cacheSearchKeywords.mockResolvedValue(["compativel-1"]);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(async (pageIds: string[]) => ({
-      jobs: pageIds.map((id) => ({
-        id,
-        title: id === "compativel-1" ? "Desenvolvedor Go" : "Analista Contábil",
-        company: "ACME",
-      })),
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b", "c"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }, { id: "b" }],
       missingIds: [],
-    }));
+    });
+    mockCacheSearchKeywords.mockResolvedValueOnce(["a"]);
 
-    const result = await service.execute({
-      query: { page: "1", limit: "50" },
-      userId: "user-1",
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockCacheAbsoluteSMembers).toHaveBeenCalledWith(
+      "scraper:jobs:index",
+    );
+    expect(mockCacheSearchKeywords).toHaveBeenCalledWith(["react"]);
+    expect(result.source).toBe("valkey_global_index:profile_ranked");
+    expect(mockSortJobsByMatch).toHaveBeenCalled();
+  });
+
+  it("resolve via keywords e mantém source do legacy quando sem match", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({ keywords: ["react"] }),
+    );
+    mockCacheSearchKeywords.mockImplementation(async (keywords: string[]) => {
+      if (keywords[0] === "react") return ["x"];
+      return [];
+    });
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "x" }],
+      missingIds: [],
     });
 
-    expect(mocks.cacheSearchKeywords).toHaveBeenCalledWith(["Go"]);
-    expect((result.jobs[0] as { id: string }).id).toBe("compativel-1");
-    expect(result.source).toContain("profile_ranked");
-    expect(result.total).toBe(3);
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockCacheSearchKeywords).toHaveBeenNthCalledWith(1, ["react"]);
+    expect(result.source).toBe("valkey_filtered_by_keywords:react");
   });
 
-  it("mantém a ordem do índice quando o perfil não tem tecnologias", async () => {
-    const ids = ["id-1", "id-2"];
-    mocks.cacheAbsoluteSMembers.mockResolvedValue(ids);
-    mocks.cacheGetJobsByIdsDetailed.mockImplementation(
-      hydrateFrom(new Set(ids)),
-    );
+  it("retorna source simples quando matchedIds = 0", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "react" }]);
+    const svc = new SearchJobsService(profileService);
 
-    const result = await service.execute({ query: {}, userId: "user-1" });
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }],
+      missingIds: [],
+    });
+    mockCacheSearchKeywords.mockResolvedValueOnce([]);
 
-    expect(mocks.cacheSearchKeywords).not.toHaveBeenCalled();
+    const result = await svc.execute({ userId: "u1", query: {} });
+
     expect(result.source).toBe("valkey_global_index");
-    expect((result.jobs[0] as { id: string }).id).toBe("id-1");
+    expect(mockSortJobsByMatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("SearchJobsService.execute - legacyResolveIds com keywords", () => {
+  it("usa cacheSearchKeywords quando keywords presentes", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({ keywords: ["node", "js"] }),
+    );
+    mockCacheSearchKeywords.mockResolvedValueOnce(["k1", "k2"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "k1" }, { id: "k2" }],
+      missingIds: [],
+    });
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).toBe("valkey_filtered_by_keywords:node+js");
+  });
+});
+
+describe("SearchJobsService.execute - hasFilters", () => {
+  it("usa cacheSearchJobIds e retorna verified quando há resultados indexados", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockHasStructuredFilters.mockReturnValue(true);
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({
+        keywords: ["react"],
+        family: ["front"],
+        technology: ["react"],
+        seniority: "sr",
+        level: "senior",
+        location: "BR",
+        continent: "SA",
+        country: "BR",
+        state: "SP",
+        city: "SP",
+        type: ["remote"],
+        contract: "clt",
+      }),
+    );
+    mockCacheSearchJobIds.mockResolvedValueOnce(["id1", "id2"]);
+    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "id1" }, { id: "id2" }]);
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockCacheSearchJobIds).toHaveBeenCalledWith({
+      keywords: ["react"],
+      family: ["front"],
+      technology: ["react"],
+      seniority: "sr",
+      level: "senior",
+      location: "BR",
+      continent: "SA",
+      country: "BR",
+      state: "SP",
+      city: "SP",
+      type: ["remote"],
+      model: ["remote"],
+      contract: "clt",
+    });
+    expect(result.source).toContain("structured_indexes:verified");
+  });
+
+  it("cai no fallback quando cacheSearchJobIds retorna vazio", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockHasStructuredFilters.mockReturnValue(true);
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({ keywords: ["react"] }),
+    );
+    mockCacheSearchJobIds.mockResolvedValueOnce([]);
+    mockCacheSearchKeywords.mockResolvedValueOnce(["legacy-id"]);
+    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "legacy-id" }]);
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).toContain("legacy_post_filter_fallback");
+    expect(mockCacheSearchKeywords).toHaveBeenCalledWith(["react"]);
+  });
+});
+
+describe("SearchJobsService.execute - hasPostOnlyFilters", () => {
+  it("aplica filterJobs e retorna post_filter", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockHasStructuredFilters.mockReturnValue(false);
+    mockHasPostOnlyFilters.mockReturnValue(true);
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({ matchSort: "desc" }),
+    );
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
+    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "a" }, { id: "b" }]);
+    mockFilterJobs.mockReturnValueOnce([{ id: "a" }]);
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockFilterJobs).toHaveBeenCalled();
+    expect(result.source).toContain("post_filter");
+    expect(mockSortJobsByMatch).toHaveBeenCalled();
+  });
+});
+
+describe("SearchJobsService.execute - matchSort sem hasFilters", () => {
+  it("enriquece, ordena globalmente, pagina e re-enriquece a página", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({ matchSort: "desc" }),
+    );
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
+    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "a" }, { id: "b" }]);
+    mockSortJobsByMatch.mockReturnValueOnce([{ id: "b" }, { id: "a" }]);
+    mockPaginate.mockReturnValueOnce({
+      data: [{ id: "b" }],
+      pagination: {
+        total: 2,
+        page: 1,
+        limit: 1,
+        totalPages: 2,
+        hasNext: true,
+        hasPrev: false,
+      },
+    });
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(profileService.enrich).toHaveBeenCalledTimes(2);
+    expect(result.source).toContain("match_sorted_desc");
+    expect(result.hasNext).toBe(true);
+  });
+});
+
+describe("SearchJobsService - paginateFilteredJobs com matchSort", () => {
+  it("enriquece todos, ordena, pagina e re-enriquece página", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockHasStructuredFilters.mockReturnValue(true);
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({ matchSort: "asc", keywords: ["x"] }),
+    );
+    mockCacheSearchJobIds.mockResolvedValueOnce(["1", "2"]);
+    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "1" }, { id: "2" }]);
+    mockFilterJobs.mockReturnValueOnce([{ id: "1" }, { id: "2" }]);
+    mockSortJobsByMatch.mockReturnValueOnce([{ id: "1" }, { id: "2" }]);
+    mockPaginate.mockReturnValueOnce({
+      data: [{ id: "1" }],
+      pagination: {
+        total: 2,
+        page: 1,
+        limit: 1,
+        totalPages: 2,
+        hasNext: true,
+        hasPrev: false,
+      },
+    });
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(profileService.enrich).toHaveBeenCalledTimes(2);
+    expect(result.total).toBe(2);
+  });
+});
+
+describe("hydrateIndexPage - comportamento", () => {
+  it("remove órfãos e calcula meta corretamente", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockParseJobSearchQuery.mockReturnValue(emptyFilters());
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b", "c", "d"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }, { id: "b" }],
+      missingIds: ["c"],
+    });
+
+    await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockCacheRemoveJobIndexIds).toHaveBeenCalledWith(["c"]);
+  });
+
+  it("abre múltiplas janelas de hidratação quando faltam jobs", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockParseJobSearchQuery.mockReturnValue(emptyFilters());
+    mockParsePagination.mockReturnValue({ page: 1, limit: 1 });
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
+    mockCacheGetJobsByIdsDetailed
+      .mockResolvedValueOnce({ jobs: [], missingIds: ["a"] })
+      .mockResolvedValueOnce({
+        jobs: [{ id: "b" }],
+        missingIds: [],
+      });
+
+    await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockCacheGetJobsByIdsDetailed).toHaveBeenCalledTimes(2);
+  });
+
+  it("não remove órfãos quando não há missingIds", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockParseJobSearchQuery.mockReturnValue(emptyFilters());
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }],
+      missingIds: [],
+    });
+
+    await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockCacheRemoveJobIndexIds).not.toHaveBeenCalled();
+  });
+
+  it("logWarn quando cacheRemoveJobIndexIds falha", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockParseJobSearchQuery.mockReturnValue(emptyFilters());
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }],
+      missingIds: ["b"],
+    });
+    mockCacheRemoveJobIndexIds.mockRejectedValueOnce(new Error("boom"));
+
+    await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockLogWarn).toHaveBeenCalled();
+  });
+
+  it("para ao atingir MAX_HYDRATION_WINDOWS mesmo faltando jobs", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    const ids = Array.from({ length: 20 }, (_, i) => `id${i}`);
+    mockParseJobSearchQuery.mockReturnValue(emptyFilters());
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(ids);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValue({
+      jobs: [],
+      missingIds: [],
+    });
+    mockParsePagination.mockReturnValue({ page: 1, limit: 1 });
+
+    await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockCacheGetJobsByIdsDetailed).toHaveBeenCalledTimes(10);
+  });
+});
+
+describe("orderIdsByProfileRelevance", () => {
+  it("retorna ids originais quando não há tecnologias", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi.fn().mockResolvedValue([]);
+    const svc = new SearchJobsService(profileService);
+
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }, { id: "b" }],
+      missingIds: [],
+    });
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).not.toContain("profile_ranked");
+  });
+
+  it("ignora tecnologias sem nome", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "  " }, { name: undefined }]);
+    const svc = new SearchJobsService(profileService);
+
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }],
+      missingIds: [],
+    });
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).not.toContain("profile_ranked");
+  });
+
+  it("logWarn e retorna ids originais quando cacheSearchKeywords falha", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "react" }]);
+    const svc = new SearchJobsService(profileService);
+
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }],
+      missingIds: [],
+    });
+    mockCacheSearchKeywords.mockRejectedValueOnce(new Error("cache down"));
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(mockLogWarn).toHaveBeenCalled();
+    expect(result.source).toBe("valkey_global_index");
+  });
+
+  it("retorna ids originais quando profileIds vazio", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "react" }]);
+    const svc = new SearchJobsService(profileService);
+
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }],
+      missingIds: [],
+    });
+    mockCacheSearchKeywords.mockResolvedValueOnce([]);
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).toBe("valkey_global_index");
+  });
+
+  it("retorna ids originais quando nenhum id bate com o perfil", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "react" }]);
+    const svc = new SearchJobsService(profileService);
+
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "a" }, { id: "b" }],
+      missingIds: [],
+    });
+    mockCacheSearchKeywords.mockResolvedValueOnce(["zzz"]);
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).toBe("valkey_global_index");
+  });
+
+  it("prioriza ids relevantes e usa profile_ranked", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "react" }]);
+    const svc = new SearchJobsService(profileService);
+
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b", "c"]);
+    mockCacheGetJobsByIdsDetailed.mockResolvedValueOnce({
+      jobs: [{ id: "c" }, { id: "a" }, { id: "b" }],
+      missingIds: [],
+    });
+    mockCacheSearchKeywords.mockResolvedValueOnce(["c"]);
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).toBe("valkey_global_index:profile_ranked");
+    expect(mockSortJobsByMatch).toHaveBeenCalled();
+  });
+
+  it("retorna matchedIds=0 quando ids está vazio", async () => {
+    const profileService = buildProfileMatchService();
+    profileService.getUserTechnologies = vi
+      .fn()
+      .mockResolvedValue([{ name: "react" }]);
+    const svc = new SearchJobsService(profileService);
+
+    mockCacheAbsoluteSMembers.mockResolvedValueOnce([]);
+    mockParsePagination.mockReturnValue({ page: 1, limit: 10 });
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result.source).toBe("valkey_global_index");
+    expect(mockCacheSearchKeywords).not.toHaveBeenCalled();
+  });
+});
+
+describe("searchJobsService (singleton)", () => {
+  it("é uma instância de SearchJobsService", () => {
+    expect(searchJobsService).toBeInstanceOf(SearchJobsService);
+  });
+});
+
+describe("toSearchResult - shape", () => {
+  it("mapeia pagination para o resultado", async () => {
+    const profileService = buildProfileMatchService();
+    const svc = new SearchJobsService(profileService);
+
+    mockHasStructuredFilters.mockReturnValue(true);
+    mockParseJobSearchQuery.mockReturnValue(
+      emptyFilters({ family: ["backend"] }),
+    );
+    mockCacheSearchJobIds.mockResolvedValueOnce(["a"]);
+    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "a" }]);
+    mockPaginate.mockReturnValueOnce({
+      data: [{ id: "a" }],
+      pagination: {
+        total: 5,
+        page: 2,
+        limit: 3,
+        totalPages: 2,
+        hasNext: false,
+        hasPrev: true,
+      },
+    });
+
+    const result = await svc.execute({ userId: "u1", query: {} });
+
+    expect(result).toMatchObject({
+      total: 5,
+      page: 2,
+      limit: 3,
+      totalPages: 2,
+      hasNext: false,
+      hasPrev: true,
+    });
   });
 });

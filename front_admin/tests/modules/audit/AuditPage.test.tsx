@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AuditPage } from "../../../src/modules/audit/AuditPage";
 import { auditApi } from "../../../src/lib/api/audit.api";
+import { AuditPage } from "../../../src/modules/audit/AuditPage";
 import { renderWithProviders } from "../../test-utils";
 
 vi.mock("../../../src/lib/api/audit.api", () => ({
@@ -99,5 +99,34 @@ describe("AuditPage", () => {
     expect(
       await screen.findByText(/Nao foi possivel carregar auditoria/),
     ).toBeInTheDocument();
+  });
+
+  it("classifies each supported sensitive action as critical", async () => {
+    const criticalLogs = [
+      "users.block",
+      "users.reset_password",
+      "users.change_role",
+      "scrapers.trigger",
+      "scrapers.reprocess",
+      "dashboard.read",
+    ].map((action, index) => ({
+      ...logs[0],
+      id: index + 10,
+      action,
+    }));
+    vi.mocked(auditApi.list).mockResolvedValueOnce({
+      data: criticalLogs,
+      total: criticalLogs.length,
+      limit: 20,
+      offset: 0,
+    });
+
+    renderWithProviders(<AuditPage />);
+
+    await screen.findByText("scrapers.reprocess");
+    expect(
+      screen.getByText("Eventos críticos").parentElement,
+    ).toHaveTextContent("5");
+    expect(screen.getAllByText("dashboard.read")).toHaveLength(2);
   });
 });
