@@ -42,7 +42,7 @@ func TestClassifyJobsMatchesIndividualClassify(t *testing.T) {
 	}
 }
 
-func TestCurrentFamiliesUnchanged(t *testing.T) {
+func TestCurrentFamiliesPreservedAndProductFamiliesAdded(t *testing.T) {
 	got := make([]string, 0, len(familyRules))
 	for _, rule := range familyRules {
 		got = append(got, rule.Family)
@@ -60,7 +60,7 @@ func TestCurrentFamiliesUnchanged(t *testing.T) {
 		"security",
 		"leadership",
 		"software",
+		"product",
+		"product_design",
 	}, got)
-	assert.NotContains(t, got, "product")
-	assert.NotContains(t, got, "product_design")
 }

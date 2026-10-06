@@ -12,21 +12,23 @@ const maxGeneratedCombinations = 200
 type keywordCategory string
 
 const (
-	categoryBackend     keywordCategory = "backend"
-	categoryFrontend    keywordCategory = "frontend"
-	categoryFullstack   keywordCategory = "fullstack"
-	categoryMobile      keywordCategory = "mobile"
-	categoryData        keywordCategory = "data"
-	categoryDevOps      keywordCategory = "devops"
-	categoryPlatform    keywordCategory = "platform"
-	categoryQA          keywordCategory = "qa"
-	categorySecurity    keywordCategory = "security"
-	categoryCRM         keywordCategory = "crm"
-	categoryERP         keywordCategory = "erp"
-	categoryIntegration keywordCategory = "integration"
-	categoryBlockchain  keywordCategory = "blockchain"
-	categoryEmbedded    keywordCategory = "embedded"
-	categoryGame        keywordCategory = "game"
+	categoryBackend       keywordCategory = "backend"
+	categoryFrontend      keywordCategory = "frontend"
+	categoryFullstack     keywordCategory = "fullstack"
+	categoryMobile        keywordCategory = "mobile"
+	categoryData          keywordCategory = "data"
+	categoryDevOps        keywordCategory = "devops"
+	categoryPlatform      keywordCategory = "platform"
+	categoryQA            keywordCategory = "qa"
+	categorySecurity      keywordCategory = "security"
+	categoryCRM           keywordCategory = "crm"
+	categoryERP           keywordCategory = "erp"
+	categoryIntegration   keywordCategory = "integration"
+	categoryBlockchain    keywordCategory = "blockchain"
+	categoryEmbedded      keywordCategory = "embedded"
+	categoryGame          keywordCategory = "game"
+	categoryProduct       keywordCategory = "product"
+	categoryProductDesign keywordCategory = "product_design"
 )
 
 type titleTerm struct {
@@ -96,6 +98,41 @@ var defaultKeywordTitles = []titleTerm{
 	{name: "embedded engineer", categories: []keywordCategory{categoryEmbedded}},
 	{name: "firmware engineer", categories: []keywordCategory{categoryEmbedded}},
 	{name: "game developer", categories: []keywordCategory{categoryGame}},
+	{name: "product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "senior product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "product owner", categories: []keywordCategory{categoryProduct}},
+	{name: "technical product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "associate product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "growth product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "product analyst", categories: []keywordCategory{categoryProduct}},
+	{name: "product operations analyst", categories: []keywordCategory{categoryProduct}},
+	{name: "product operations", categories: []keywordCategory{categoryProduct}},
+	{name: "product lead", categories: []keywordCategory{categoryProduct}},
+	{name: "head of product", categories: []keywordCategory{categoryProduct}},
+	{name: "platform product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "data product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "ai product manager", categories: []keywordCategory{categoryProduct}},
+	{name: "gerente de produto", categories: []keywordCategory{categoryProduct}},
+	{name: "analista de produto", categories: []keywordCategory{categoryProduct}},
+	{name: "especialista de produto", categories: []keywordCategory{categoryProduct}},
+	{name: "líder de produto", categories: []keywordCategory{categoryProduct}},
+	{name: "operações de produto", categories: []keywordCategory{categoryProduct}},
+	{name: "diretor de produto", categories: []keywordCategory{categoryProduct}},
+	{name: "product designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "lead product designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "product design manager", categories: []keywordCategory{categoryProductDesign}},
+	{name: "ux designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "ui designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "ux/ui designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "ux researcher", categories: []keywordCategory{categoryProductDesign}},
+	{name: "ux writer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "content designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "service designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "interaction designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "design system designer", categories: []keywordCategory{categoryProductDesign}},
+	{name: "designer de produto", categories: []keywordCategory{categoryProductDesign}},
+	{name: "pesquisadora ux", categories: []keywordCategory{categoryProductDesign}},
+	{name: "designer de interação", categories: []keywordCategory{categoryProductDesign}},
 }
 
 var defaultKeywordTechnologies = []technologyTerm{
@@ -158,6 +195,10 @@ var defaultKeywordTechnologies = []technologyTerm{
 }
 
 func GenerateSearchKeywords(raw []string) []string {
+	return generateSearchKeywords(raw, loadGeneratorConfig())
+}
+
+func generateSearchKeywords(raw []string, cfg generatorData) []string {
 	base := NormalizeKeywords(raw)
 	result := make([]string, 0, len(base)+maxGeneratedCombinations)
 	seen := make(map[string]struct{}, len(base)+maxGeneratedCombinations)
@@ -166,12 +207,16 @@ func GenerateSearchKeywords(raw []string) []string {
 		addKeyword(&result, seen, keyword)
 	}
 
-	cfg := loadGeneratorConfig()
 	titles := matchingTitles(base, cfg.titles)
 	technologies := matchingTechnologies(base, cfg.technologies)
 	evaluatedCombinations := 0
 
 	for _, title := range titles {
+		// Product roles are direct queries, even if a custom generator assigns
+		// tools the same category. Never synthesize "Figma Product Owner".
+		if categoriesOverlap(title.categories, []keywordCategory{categoryProduct, categoryProductDesign}) {
+			continue
+		}
 		for _, tech := range technologies {
 			if !categoriesOverlap(title.categories, tech.categories) {
 				continue
