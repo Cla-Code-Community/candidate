@@ -2,17 +2,22 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cache"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/catalog"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/catalogops"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobindex"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
@@ -42,7 +47,58 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 
 	// ── Módulos ──
 	kwStore := keywords.NewStore(c)
-	jobStore := jobstore.New(rdb)
+	if strings.TrimSpace(os.Getenv("DATABASE_URL")) == "" {
+		slog.Error("DATABASE_URL is required for the durable job catalog")
+		os.Exit(1)
+	}
+	db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
+	if err != nil {
+		slog.Error("catalog PostgreSQL configuration failed", "error", err)
+		os.Exit(1)
+	}
+	db.SetMaxOpenConns(8)
+	db.SetMaxIdleConns(4)
+	defer db.Close()
+	dbCtx, dbCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	err = db.PingContext(dbCtx)
+	if err == nil {
+		var ready bool
+		err = db.QueryRowContext(dbCtx, "SELECT to_regclass('job_catalog') IS NOT NULL").Scan(&ready)
+		if err == nil && !ready {
+			err = errors.New("job_catalog migration must be applied before Processor startup")
+		}
+	}
+	dbCancel()
+	if err != nil {
+		slog.Error("catalog PostgreSQL unavailable", "error", err)
+		os.Exit(1)
+	}
+	catalogStore := catalog.New(db, runtimeCfg.CatalogLifetime)
+
+	// Do not silently publish a partial bootstrap over an unmigrated catalog.
+	readinessCtx, readinessCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	activeVersion, versionErr := rdb.Get(readinessCtx, jobindex.ActiveKey).Result()
+	if versionErr != nil && versionErr != redis.Nil {
+		readinessCancel()
+		slog.Error("catalog index readiness unavailable")
+		os.Exit(1)
+	}
+	if activeVersion == "" {
+		persisted, countErr := catalogStore.Count(readinessCtx)
+		legacy, legacyErr := rdb.SCard(readinessCtx, "scraper:jobs:index").Result()
+		if countErr != nil || legacyErr != nil {
+			readinessCancel()
+			slog.Error("catalog migration readiness unavailable")
+			os.Exit(1)
+		}
+		if persisted > 0 || legacy > 0 {
+			readinessCancel()
+			slog.Error("explicit catalog backfill/rebuild is required before Processor startup")
+			os.Exit(1)
+		}
+	}
+	readinessCancel()
+	jobStore := jobstore.NewDurable(rdb, catalogStore)
 	runLock, err := runlock.New(runlock.NewValkeyStore(rdb), runlock.Config{
 		TTL:           runtimeCfg.RunLockTTL,
 		RenewInterval: runtimeCfg.RunLockRenewInterval,
@@ -62,6 +118,12 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	schedulerCfg.IndexBatchSize = runtimeCfg.IndexBatchSize
 	scheduler := cronjob.New(schedulerCfg, kwStore, jobStore, adapterList, rdb, runLock)
 
+	scheduler.BeforeRun = func(ctx context.Context) error {
+		ops := catalogops.Maintenance{Store: catalogStore, Index: jobindex.New(rdb), BatchSize: runtimeCfg.IndexBatchSize}
+		_, err := ops.Expire(ctx)
+		return err
+	}
+
 	scheduler.OnComplete = func(kws []string, scraped, saved int, duration time.Duration) {
 		printSummary(len(adapterList), kws, scraped, duration)
 	}
@@ -73,7 +135,7 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	mux := http.NewServeMux()
 
 	// Públicas
-	mux.Handle("POST /scrape", handleScrape(adapterList, kwStore, c, rdb, runLock, runtimeCfg))
+	mux.Handle("POST /scrape", handleScrape(adapterList, kwStore, c, rdb, runLock, runtimeCfg, jobStore))
 	mux.Handle("GET /health", handleHealth(c))
 	mux.Handle("GET /metrics", promhttp.Handler())
 	mux.Handle("GET /api/keywords", handleGetKeywords(kwStore))

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
@@ -14,7 +13,7 @@ import (
 
 const (
 	globalIndexKey  = "scraper:jobs:index"
-	indexTTL        = 9 * 24 * time.Hour
+	indexTTL        = config.DefaultCatalogLifetime
 	indexNextSuffix = ":next"
 	publishChunk    = 100
 )
@@ -490,3 +489,6 @@ func reindexPersistedJobs(
 	_, err = indexJobsInValkeyBatched(ctx, rdb, jobs, keywords, batchSize, session)
 	return err
 }
+
+// IndexKeys is the existing search-index projection reused by maintenance.
+func IndexKeys(job domain.Job, keywords []string) []string { return invertedIndexKeys(job, keywords) }

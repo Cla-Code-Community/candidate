@@ -412,6 +412,10 @@ export async function seedCatalogJobs(): Promise<void> {
   }
 
   try {
+    if (await client.get("scraper:jobs:index-version")) {
+      console.log("! Catálogo durável ativo: seed legado de vagas ignorado; indexação pertence ao Processor.");
+      return;
+    }
     for (const spec of SEED_CATALOG_JOBS) {
       const id = catalogJobId(spec);
 

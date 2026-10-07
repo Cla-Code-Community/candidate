@@ -51,22 +51,20 @@ func TestProductKeywordsRespectDiscoveryModes(t *testing.T) {
 	assert.Equal(t, seed, batch.keywords)
 }
 
-func TestProductClassificationDoesNotCreateFamilyIndexes(t *testing.T) {
+func TestProductClassificationCreatesCanonicalFamilyIndexes(t *testing.T) {
 	for _, title := range []string{"Product Manager", "Product Designer"} {
 		job := domain.Job{Title: title, Description: "SQL"}
 		classification := classifier.Classify(job)
 		require.True(t, classification.InScope)
 		job.Classification = &classification
 		keys := classificationIndexKeys(job)
-		assert.NotContains(t, keys, "scraper:jobs:family:product")
-		assert.NotContains(t, keys, "scraper:jobs:family:product_design")
-		assert.NotContains(t, keys, "scraper:jobs:keyword:product")
-		assert.NotContains(t, keys, "scraper:jobs:keyword:product design")
+		assert.Contains(t, keys, "scraper:jobs:family:"+classification.PrimaryFamily)
+		assert.Contains(t, keys, "scraper:jobs:family:primary:"+classification.PrimaryFamily)
 		assert.Contains(t, invertedIndexKeys(job, []string{title}), "scraper:jobs:keyword:"+normalizeIndexValue(title))
 	}
 	job := domain.Job{Classification: &domain.Classification{PrimaryFamily: "backend", RelatedFamilies: []string{"product", "product_design"}, InScope: true}}
 	assert.Contains(t, classificationIndexKeys(job), "scraper:jobs:family:backend")
-	assert.NotContains(t, classificationIndexKeys(job), "scraper:jobs:family:product")
+	assert.Contains(t, classificationIndexKeys(job), "scraper:jobs:family:related:product")
 }
 
 func TestDiagnosticAndUnknownFamiliesNeverIndexed(t *testing.T) {

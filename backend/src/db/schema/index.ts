@@ -9,3 +9,4 @@ export * from "./savedJobs";
 export * from "./userNotifications";
 export * from "./userPreferences";
 export * from "./users";
+export * from "./jobCatalog";

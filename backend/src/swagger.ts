@@ -241,6 +241,9 @@ const options: swaggerJsdoc.Options = {
             },
             source: { type: "string", example: "LinkedIn" },
             keyword: { type: "string", example: "node" },
+            matchScore: { type: "integer", minimum: 0, maximum: 100, description: "Compatibilidade quando existem evidências no perfil; não é garantida em toda vaga." },
+            matchedTechnologies: { type: "array", items: { type: "string" } },
+            matchReasons: { type: "array", items: { type: "string" }, description: "Razões públicas opcionais para Produto/Design, sem pesos ou dados privados." },
           },
         },
         JobSearchResponse: {
@@ -604,7 +607,7 @@ const options: swaggerJsdoc.Options = {
           summary: "Busca vagas",
           security: auth,
           description:
-            "OR entre famílias; AND com os demais filtros. primary considera somente classification.primaryFamily; any (default) considera principal ou relacionada. Full Stack (fullstack) é independente de backend/frontend; devops e platform são independentes. IDs são case-sensitive; labels, aliases e other não são aceitos. Valores vazios são removidos, mas family presente sem IDs retorna 400. Duplicidades são removidas antes do máximo de 13 famílias únicas e IDs são ordenados. familyMode sem family é validado e não altera a busca. Total e paginação usam o mesmo predicado antes de paginar.",
+            "Índices Valkey versionados com união de famílias e verificação dos demais predicados antes de total/paginação. Match de Produto/Design usa evidências disponíveis sem exigir linguagens; matchReasons é opcional. OR entre famílias; AND com os demais filtros. primary considera somente classification.primaryFamily; any (default) considera principal ou relacionada. Full Stack (fullstack) é independente de backend/frontend; devops e platform são independentes. IDs são case-sensitive; labels, aliases e other não são aceitos. Valores vazios são removidos, mas family presente sem IDs retorna 400. Duplicidades são removidas antes do máximo de 13 famílias únicas e IDs são ordenados. familyMode sem family é validado e não altera a busca. Total e paginação usam o mesmo predicado antes de paginar.",
           parameters: [
             {
               in: "query",

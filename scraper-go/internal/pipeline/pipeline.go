@@ -410,26 +410,12 @@ func classificationIndexKeys(job domain.Job) []string {
 
 	values := make([]string, 0, 1+len(classification.RelatedFamilies)+len(classification.Technologies))
 
-	if indexedClassificationFamily(classification.PrimaryFamily) {
-		normalized := normalizeIndexValue(classification.PrimaryFamily)
-		if normalized != "" {
-			values = append(values,
-				fmt.Sprintf("scraper:jobs:family:%s", normalized),
-				fmt.Sprintf("scraper:jobs:keyword:%s", normalized),
-			)
-		}
+	primary := classification.PrimaryFamily
+	if taxonomy.IsPublic(primary) {
+		values = append(values, "scraper:jobs:family:"+primary, "scraper:jobs:family:primary:"+primary, "scraper:jobs:keyword:"+normalizeIndexValue(primary))
 	}
-	for _, family := range classification.RelatedFamilies {
-		if !indexedClassificationFamily(family) {
-			continue
-		}
-		normalized := normalizeIndexValue(family)
-		if normalized != "" {
-			values = append(values,
-				fmt.Sprintf("scraper:jobs:family:%s", normalized),
-				fmt.Sprintf("scraper:jobs:keyword:%s", normalized),
-			)
-		}
+	for _, family := range taxonomy.Related(primary, classification.RelatedFamilies) {
+		values = append(values, "scraper:jobs:family:"+family, "scraper:jobs:family:related:"+family, "scraper:jobs:keyword:"+normalizeIndexValue(family))
 	}
 	for _, technology := range classification.Technologies {
 		normalized := normalizeIndexValue(technology)

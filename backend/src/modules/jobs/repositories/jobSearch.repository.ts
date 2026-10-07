@@ -1,3 +1,5 @@
+import { searchPageCache } from "../cache/valkeySearchCache.adapter";
+import { openIndexedSearch } from "./valkeyJobSearch.adapter";
 import {
   cacheAbsoluteSMembers,
   cacheGetJobsByIds,
@@ -19,16 +21,42 @@ export class JobSearchRepository {
     filters: ParsedJobSearchQuery,
     pagination: PaginationParams,
     enrich?: (jobs: unknown[]) => Promise<unknown[]>,
+    rankingContext: unknown = null,
+    priorityKeywords: string[] = [],
   ): Promise<{ jobs: unknown[]; total: number }> {
-    const ids = [
-      ...new Set(
-        filters.keywords.length
-          ? await cacheSearchKeywords(filters.keywords)
-          : await cacheAbsoluteSMembers("scraper:jobs:index"),
-      ),
-    ];
+    return searchPageCache.search(
+      filters,
+      pagination,
+      {
+        rankingContext,
+        priorityKeywords: [
+          ...new Set(priorityKeywords.map((x) => x.trim().toLowerCase())),
+        ].sort(),
+      },
+      () => this.query(filters, pagination, enrich, priorityKeywords),
+    );
+  }
+
+  private async query(
+    filters: ParsedJobSearchQuery,
+    pagination: PaginationParams,
+    enrich?: (jobs: unknown[]) => Promise<unknown[]>,
+    priorityKeywords: string[] = [],
+  ): Promise<{ jobs: unknown[]; total: number }> {
+    const indexed = await openIndexedSearch(filters, priorityKeywords);
+    const ids = indexed
+      ? []
+      : [
+          ...new Set(
+            filters.keywords.length
+              ? await cacheSearchKeywords(filters.keywords)
+              : await cacheAbsoluteSMembers("scraper:jobs:index"),
+          ),
+        ];
     const offset = (pagination.page - 1) * pagination.limit;
-    const capacity = Math.min(ids.length, offset + pagination.limit);
+    const capacity = indexed
+      ? offset + pagination.limit
+      : Math.min(ids.length, offset + pagination.limit);
     let total = 0;
     const page: unknown[] = [];
     let ranked: RankedJob[] = [];
@@ -36,36 +64,55 @@ export class JobSearchRepository {
       (filters.matchSort === "asc" ? a.score - b.score : b.score - a.score) ||
       a.rank - b.rank;
 
-    for (let cursor = 0; cursor < ids.length; cursor += BATCH_SIZE) {
-      const matches = filterJobs(
-        await cacheGetJobsByIds(ids.slice(cursor, cursor + BATCH_SIZE)),
-        filters,
-      );
-      if (filters.matchSort && enrich) {
-        const jobs = await enrich(matches);
-        const candidates = jobs.map((job, index) => ({
-          id: String((job as { id: string }).id),
-          rank: total + index,
-          score: (job as { matchScore?: number }).matchScore ?? 0,
-        }));
-        ranked = [...ranked, ...candidates].sort(compare).slice(0, capacity);
-      } else {
-        for (const job of matches) {
-          if (total >= offset && page.length < pagination.limit) page.push(job);
-          total++;
+    async function* legacyBatches() {
+      for (let cursor = 0; cursor < ids.length; cursor += BATCH_SIZE)
+        yield await cacheGetJobsByIds(ids.slice(cursor, cursor + BATCH_SIZE));
+    }
+    try {
+      for await (const batch of indexed ? indexed.batches() : legacyBatches()) {
+        const matches = filterJobs(batch, filters);
+        if (filters.matchSort && enrich) {
+          const jobs = await enrich(matches);
+          const candidates = jobs.map((job, index) => ({
+            id: String((job as { id: string }).id),
+            rank: total + index,
+            score: (job as { matchScore?: number }).matchScore ?? 0,
+          }));
+          if (indexed) await indexed.rank(candidates, filters.matchSort);
+          else
+            ranked = [...ranked, ...candidates]
+              .sort(compare)
+              .slice(0, capacity);
+        } else {
+          for (const job of matches) {
+            if (total >= offset && page.length < pagination.limit)
+              page.push(job);
+            total++;
+          }
+          continue;
         }
-        continue;
+        total += matches.length;
       }
-      total += matches.length;
+      if (indexed && filters.matchSort && enrich) {
+        page.push(
+          ...(await indexed.hydrate(
+            await indexed.rankedIds(offset, pagination.limit, total),
+          )),
+        );
+      }
+    } finally {
+      await indexed?.close();
     }
     return {
       jobs:
         filters.matchSort && enrich
-          ? await cacheGetJobsByIds(
-              ranked
-                .slice(offset, offset + pagination.limit)
-                .map((item) => item.id),
-            )
+          ? indexed
+            ? page
+            : await cacheGetJobsByIds(
+                ranked
+                  .slice(offset, offset + pagination.limit)
+                  .map((item) => item.id),
+              )
           : page,
       total,
     };

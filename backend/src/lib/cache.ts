@@ -142,7 +142,6 @@ export async function cacheAbsoluteSCard(absoluteKey: string): Promise<number> {
   }
 }
 
-
 export async function cacheSearchKeywords(
   keywords: string[],
 ): Promise<string[]> {
@@ -157,7 +156,9 @@ export async function cacheSearchKeywords(
 
   try {
     const result =
-      keys.length === 1 ? await client.sMembers(keys[0]) : await client.sUnion(keys);
+      keys.length === 1
+        ? await client.sMembers(keys[0])
+        : await client.sUnion(keys);
     recordCacheOperation("search_keywords", result.length > 0 ? "hit" : "miss");
     return result;
   } catch (error) {
@@ -231,7 +232,7 @@ function keywordIndexKeyVariants(keyword: string): string[] {
   ]);
 }
 
-function keywordSearchKeys(keywords: string[]): string[] {
+export function keywordSearchKeys(keywords: string[]): string[] {
   return [
     ...new Set(keywords.flatMap((keyword) => keywordIndexKeyVariants(keyword))),
   ].filter((key) => key !== "scraper:jobs:keyword:");
@@ -389,7 +390,10 @@ export async function cacheGetJobsByIdsDetailed(
 
   if (ids.length === 0) return { jobs: [], missingIds: [] };
 
-  const keys = ids.map((id) => `scraper:job:${id}`);
+  const version = await client.get("scraper:jobs:index-version");
+  const keys = ids.map((id) =>
+    version ? `scraper:jobs:ns:${version}:job:${id}` : `scraper:job:${id}`,
+  );
   let results: Array<string | null>;
   try {
     results = await client.mGet(keys);
@@ -459,7 +463,17 @@ async function cacheDeleteByPattern(pattern: string): Promise<number> {
     cursor = result[0];
     const keys = result[1] ?? [];
     if (keys.length > 0) {
-      deleted += await client.del(keys);
+      const count = Number(
+        await client.eval(
+          `if redis.call('GET',KEYS[1]) then return -1 end;local n=0;for i=2,#KEYS do n=n+redis.call('DEL',KEYS[i]) end;return n`,
+          { keys: ["scraper:jobs:index-version", ...keys], arguments: [] },
+        ),
+      );
+      if (count < 0)
+        throw new Error(
+          "Job catalog activated during legacy cache clear; retry",
+        );
+      deleted += count;
     }
   } while (cursor !== "0");
 
@@ -470,6 +484,13 @@ export async function cacheClearJobs(): Promise<{
   deleted: number;
   patterns: string[];
 }> {
+  const client = await getCache();
+  if (await client.get("scraper:jobs:index-version")) {
+    // Catalog projections are owned by the Processor. Clearing HTTP search
+    // cache must not delete an active validated namespace or durable jobs.
+    await client.incr("jobs:search:generation");
+    return { deleted: 0, patterns: ["jobs:search:generation"] };
+  }
   const patterns = ["scraper:job:*", "scraper:jobs:*"];
   let deleted = 0;
 

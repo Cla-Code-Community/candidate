@@ -1,3 +1,5 @@
+vi.mock("../../../../src/modules/jobs/repositories/valkeyJobSearch.adapter", () => ({ openIndexedSearch: vi.fn().mockResolvedValue(null), hasActiveJobIndex: vi.fn().mockResolvedValue(false) }));
+vi.mock("../../../../src/modules/jobs/cache/valkeySearchCache.adapter", () => ({ searchPageCache: {search: async (_f: unknown, _p: unknown, _r: unknown, query: () => Promise<unknown>) => query()} }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../../../src/lib/cache", () => ({
@@ -229,7 +231,7 @@ describe("SearchJobsService - repository boundary", () => {
     const repository = { search: vi.fn().mockResolvedValue({ jobs: [{ id: "a" }], total: 21 }) };
     const svc = new SearchJobsService(profileService, repository);
     const result = await svc.execute({ userId: "u1", query: {} });
-    expect(repository.search).toHaveBeenCalledWith(filters, defaultPagination, undefined);
+    expect(repository.search).toHaveBeenCalledWith(filters, defaultPagination, undefined, {preferences: undefined, technologies: []}, []);
     expect(result).toMatchObject({ total: 21, page: 1, limit: 10, totalPages: 3, hasNext: true });
     expect(mockCacheSearchJobIds).not.toHaveBeenCalled();
   });
