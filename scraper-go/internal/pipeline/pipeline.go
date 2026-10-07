@@ -12,6 +12,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/taxonomy"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
@@ -452,7 +453,7 @@ func classificationIndexKeys(job domain.Job) []string {
 // Product classification is enabled before its dedicated family filters/indexes.
 // Direct title keywords remain searchable through the existing keyword path.
 func indexedClassificationFamily(family string) bool {
-	return family != "" && family != "product" && family != "product_design"
+	return taxonomy.IsPublic(family) && family != "product" && family != "product_design"
 }
 
 func structuredIndexKeys(job domain.Job) []string {

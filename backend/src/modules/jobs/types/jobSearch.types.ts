@@ -1,3 +1,4 @@
+import type { DiagnosticFamily, ProfessionalFamily } from "./professionalTaxonomy";
 import type { Request } from "express";
 import type { TechnologyExperience } from "../services/jobMatch.service";
 
@@ -11,8 +12,8 @@ export type SearchJob = {
   description?: string | null;
   matchScore?: number | null;
   classification?: {
-    primaryFamily?: string | null;
-    relatedFamilies?: string[] | null;
+    primaryFamily?: DiagnosticFamily | null;
+    relatedFamilies?: ProfessionalFamily[] | null;
     technologies?: string[] | null;
     seniority?: string | null;
   } | null;
