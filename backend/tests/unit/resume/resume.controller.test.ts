@@ -12,11 +12,13 @@ function makeRes() {
     setHeader: vi.fn(),
     status: vi.fn().mockReturnThis(),
     send: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
   };
   return res as unknown as Response & {
     setHeader: ReturnType<typeof vi.fn>;
     status: ReturnType<typeof vi.fn>;
     send: ReturnType<typeof vi.fn>;
+    json: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -28,13 +30,33 @@ const baseGenerated = {
 };
 
 describe("ResumeController.generate", () => {
-  const service = { generateForUser: vi.fn() };
+  const service = { generateForUser: vi.fn(), analyzeForUser: vi.fn() };
   const controller = new ResumeController(service as never);
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getIronSession).mockResolvedValue({ userId: "u1" } as never);
     service.generateForUser.mockResolvedValue(baseGenerated);
+    service.analyzeForUser.mockResolvedValue({ resume: { name: "Ana" }, atsReport: { score: 90 } });
+  });
+
+  it("analyze retorna o JSON da análise", async () => {
+    const res = makeRes();
+    await controller.analyze(
+      { body: { format: "pdf", jobTitle: "Backend" } } as Request,
+      res,
+    );
+    expect(res.status).toHaveBeenCalledWith(200);
+    const arg = service.analyzeForUser.mock.calls[0][1];
+    expect(arg.job).toMatchObject({ title: "Backend" });
+  });
+
+  it("analyze exige autenticação", async () => {
+    vi.mocked(getIronSession).mockResolvedValueOnce({} as never);
+    const res = makeRes();
+    await expect(
+      controller.analyze({ body: {} } as Request, res),
+    ).rejects.toSatisfy((e: unknown) => isAppError(e) && e.statusCode === 401);
   });
 
   it("lança unauthorized quando a sessão não tem userId", async () => {

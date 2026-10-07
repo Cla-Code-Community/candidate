@@ -161,6 +161,29 @@ describe("resumeClient.generate", () => {
     expect(result.filename).toBe("curriculo.md");
   });
 
+  it("analyze retorna o JSON de análise do ats-forge", async () => {
+    const analysis = { resume: { name: "Ana" }, atsReport: { score: 90 }, sourcesUsed: ["candidate"] };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(makeResponse({ headers: {}, json: analysis })),
+      ),
+    );
+
+    const result = await resumeClient.analyze({ profile, format: "pdf" });
+    expect(result).toEqual(analysis);
+  });
+
+  it("analyze propaga erro de validação (400)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(makeResponse({ ok: false, status: 400, json: { message: "x" } }))),
+    );
+    await expect(resumeClient.analyze({ profile, format: "pdf" })).rejects.toSatisfy(
+      (e: unknown) => isAppError(e) && e.statusCode === 400,
+    );
+  });
+
   it("mapeia HTTP não-ok para AppError interno", async () => {
     vi.stubGlobal(
       "fetch",

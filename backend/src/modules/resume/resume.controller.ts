@@ -21,10 +21,7 @@ export class ResumeController {
     return session.userId;
   }
 
-  // POST /resume/generate
-  async generate(req: Request, res: Response) {
-    const userId = await this.requireUserId(req, res);
-
+  private parseParams(req: Request) {
     const {
       format,
       jobTitle,
@@ -33,6 +30,7 @@ export class ResumeController {
       language,
       githubUrl,
       linkedinUrl,
+      about,
       experiences,
     } = req.body as {
       format: "docx" | "pdf" | "md";
@@ -42,6 +40,7 @@ export class ResumeController {
       language?: string;
       githubUrl?: string;
       linkedinUrl?: string;
+      about?: string;
       experiences?: Array<{
         company: string;
         role: string;
@@ -61,12 +60,26 @@ export class ResumeController {
         ? { github: githubUrl, linkedin: linkedinUrl }
         : null;
 
-    const resume = await this.service.generateForUser(userId, {
+    return {
       format,
       job,
       sources,
+      about: about ?? null,
       experiences: experiences ?? null,
-    });
+    };
+  }
+
+  // POST /resume/analyze
+  async analyze(req: Request, res: Response) {
+    const userId = await this.requireUserId(req, res);
+    const analysis = await this.service.analyzeForUser(userId, this.parseParams(req));
+    return res.status(200).json(analysis);
+  }
+
+  // POST /resume/generate
+  async generate(req: Request, res: Response) {
+    const userId = await this.requireUserId(req, res);
+    const resume = await this.service.generateForUser(userId, this.parseParams(req));
 
     res.setHeader("Content-Type", resume.contentType);
     res.setHeader(

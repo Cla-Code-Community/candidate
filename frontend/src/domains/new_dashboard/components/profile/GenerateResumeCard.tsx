@@ -9,12 +9,16 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { Eye } from "lucide-react";
 import { isApiError } from "@/shared/lib/apiError";
 import {
+  analyzeResume,
   generateResume,
   type ExperienceInput,
+  type ResumeAnalysis,
   type ResumeFormat,
 } from "../../infrastructure/resumeApi";
+import { ResumePreview } from "./ResumePreview";
 
 interface ExperienceRow {
   company: string;
@@ -66,10 +70,47 @@ export function GenerateResumeCard() {
   const [jobDescription, setJobDescription] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [about, setAbout] = useState("");
   const [experiences, setExperiences] = useState<ExperienceRow[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
+  const [preview, setPreview] = useState<"idle" | "loading" | "error">("idle");
+  const [previewError, setPreviewError] = useState("");
 
   const isLoading = status.kind === "loading";
+
+  const buildParams = () => {
+    const cleanedExperiences: ExperienceInput[] = experiences
+      .filter((e) => e.company.trim() && e.role.trim())
+      .map((e) => ({
+        company: e.company.trim(),
+        role: e.role.trim(),
+        period: e.period.trim() || undefined,
+        description: e.description.trim() || undefined,
+      }));
+
+    return {
+      jobTitle: jobTitle.trim() || undefined,
+      jobDescription: jobDescription.trim() || undefined,
+      githubUrl: githubUrl.trim() || undefined,
+      linkedinUrl: linkedinUrl.trim() || undefined,
+      about: about.trim() || undefined,
+      experiences: cleanedExperiences.length ? cleanedExperiences : undefined,
+    };
+  };
+
+  const handlePreview = async () => {
+    setPreview("loading");
+    setPreviewError("");
+    try {
+      const result = await analyzeResume(buildParams());
+      setAnalysis(result);
+      setPreview("idle");
+    } catch (error) {
+      setPreview("error");
+      setPreviewError(friendlyError(error));
+    }
+  };
 
   const addExperience = () =>
     setExperiences((rows) => [...rows, { ...emptyExperience }]);
@@ -87,23 +128,7 @@ export function GenerateResumeCard() {
   const handleGenerate = async () => {
     setStatus({ kind: "loading" });
     try {
-      const cleanedExperiences: ExperienceInput[] = experiences
-        .filter((e) => e.company.trim() && e.role.trim())
-        .map((e) => ({
-          company: e.company.trim(),
-          role: e.role.trim(),
-          period: e.period.trim() || undefined,
-          description: e.description.trim() || undefined,
-        }));
-
-      const result = await generateResume({
-        format,
-        jobTitle: jobTitle.trim() || undefined,
-        jobDescription: jobDescription.trim() || undefined,
-        githubUrl: githubUrl.trim() || undefined,
-        linkedinUrl: linkedinUrl.trim() || undefined,
-        experiences: cleanedExperiences.length ? cleanedExperiences : undefined,
-      });
+      const result = await generateResume({ format, ...buildParams() });
       setStatus({
         kind: "success",
         atsScore: result.atsScore,
@@ -179,6 +204,20 @@ export function GenerateResumeCard() {
           />
         </label>
       </div>
+
+      <label className="mt-5 flex flex-col gap-2">
+        <span className="flex items-center gap-1.5 text-sm font-semibold">
+          <Linkedin className="h-4 w-4" aria-hidden /> Resumo / Sobre (cole o "Sobre" do seu LinkedIn)
+        </span>
+        <textarea
+          value={about}
+          onChange={(event) => setAbout(event.target.value)}
+          placeholder="Cole aqui o texto da seção 'Sobre' do seu LinkedIn. O sistema gera um resumo curto e direcionado à vaga a partir dele."
+          rows={4}
+          maxLength={4000}
+          className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+        />
+      </label>
 
       <div className="mt-6">
         <div className="flex items-center justify-between">
@@ -288,29 +327,64 @@ export function GenerateResumeCard() {
         </p>
       )}
 
-      <div className="mt-6 flex items-center justify-between gap-3">
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground">
           O ATS Score é uma estimativa e não garante aprovação na vaga.
         </p>
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={isLoading}
-          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-              Gerando...
-            </>
-          ) : (
-            <>
-              <Sparkles className="h-4 w-4" aria-hidden />
-              Gerar currículo via ATS-forge
-            </>
-          )}
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={handlePreview}
+            disabled={isLoading || preview === "loading"}
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-border px-5 text-sm font-semibold transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {preview === "loading" ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Analisando...
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4" aria-hidden />
+                Pré-visualizar
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={isLoading}
+            className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Gerando...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" aria-hidden />
+                Gerar e baixar
+              </>
+            )}
+          </button>
+        </div>
       </div>
+
+      {preview === "loading" && (
+        <div className="mt-6 animate-pulse space-y-3" aria-label="Carregando pré-visualização">
+          <div className="h-32 rounded-xl bg-muted" />
+          <div className="h-48 rounded-xl bg-muted" />
+        </div>
+      )}
+
+      {preview === "error" && (
+        <p className="mt-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+          {previewError}
+        </p>
+      )}
+
+      {preview === "idle" && analysis && <ResumePreview analysis={analysis} />}
     </section>
   );
 }

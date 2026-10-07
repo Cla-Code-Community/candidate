@@ -17,6 +17,8 @@ export const generateResumeSchema = z.object({
   language: z.string().max(10).optional(),
   githubUrl: z.string().max(300).optional(),
   linkedinUrl: z.string().max(300).optional(),
+  // "Sobre" do LinkedIn colado pelo candidato (base do resumo profissional).
+  about: z.string().max(4000).optional(),
   experiences: z.array(experienceSchema).max(20).optional(),
 });
 

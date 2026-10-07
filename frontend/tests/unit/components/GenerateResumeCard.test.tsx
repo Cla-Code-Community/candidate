@@ -4,9 +4,15 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const generateResume = vi.hoisted(() => vi.fn());
+const analyzeResume = vi.hoisted(() => vi.fn());
 
 vi.mock("@/domains/new_dashboard/infrastructure/resumeApi", () => ({
   generateResume,
+  analyzeResume,
+}));
+
+vi.mock("@/domains/new_dashboard/components/profile/ResumePreview", () => ({
+  ResumePreview: () => <div data-testid="resume-preview" />,
 }));
 
 describe("GenerateResumeCard", () => {
@@ -21,7 +27,7 @@ describe("GenerateResumeCard", () => {
       screen.getByRole("heading", { name: /gerar currículo via ats-forge/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     ).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/github\.com\/seu-usuario/i)).toBeInTheDocument();
     expect(
@@ -37,7 +43,7 @@ describe("GenerateResumeCard", () => {
 
     render(<GenerateResumeCard />);
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => {
@@ -64,11 +70,14 @@ describe("GenerateResumeCard", () => {
     fireEvent.change(screen.getByPlaceholderText(/linkedin\.com\/in\/seu-perfil/i), {
       target: { value: "https://www.linkedin.com/in/ana" },
     });
+    fireEvent.change(screen.getByPlaceholderText(/cole aqui o texto da seção 'sobre'/i), {
+      target: { value: "Engenheira backend focada em APIs." },
+    });
     fireEvent.change(screen.getByDisplayValue("PDF"), {
       target: { value: "docx" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => {
@@ -78,6 +87,7 @@ describe("GenerateResumeCard", () => {
         jobDescription: "Node.js e TypeScript",
         githubUrl: "https://github.com/ana",
         linkedinUrl: "https://www.linkedin.com/in/ana",
+        about: "Engenheira backend focada em APIs.",
       });
     });
   });
@@ -87,7 +97,7 @@ describe("GenerateResumeCard", () => {
 
     render(<GenerateResumeCard />);
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => {
@@ -106,7 +116,7 @@ describe("GenerateResumeCard", () => {
 
     render(<GenerateResumeCard />);
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => {
@@ -119,7 +129,7 @@ describe("GenerateResumeCard", () => {
 
     render(<GenerateResumeCard />);
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => {
@@ -139,7 +149,7 @@ describe("GenerateResumeCard", () => {
 
     render(<GenerateResumeCard />);
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => {
@@ -172,7 +182,7 @@ describe("GenerateResumeCard", () => {
     fireEvent.change(companies[1], { target: { value: "Empresa Incompleta" } });
 
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => {
@@ -201,13 +211,44 @@ describe("GenerateResumeCard", () => {
       target: { value: "Dev" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => expect(generateResume).toHaveBeenCalledTimes(1));
     expect(generateResume.mock.calls[0][0].experiences).toEqual([
       { company: "Empresa A", role: "Dev", period: undefined, description: undefined },
     ]);
+  });
+
+  it("pré-visualiza o currículo (analyze) e mostra o preview", async () => {
+    analyzeResume.mockResolvedValueOnce({ resume: {}, atsReport: {} });
+
+    render(<GenerateResumeCard />);
+    fireEvent.change(screen.getByPlaceholderText(/github\.com\/seu-usuario/i), {
+      target: { value: "https://github.com/ana" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /pré-visualizar/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("resume-preview")).toBeInTheDocument();
+    });
+    expect(analyzeResume).toHaveBeenCalledWith(
+      expect.objectContaining({ githubUrl: "https://github.com/ana" }),
+    );
+  });
+
+  it("mostra erro quando a pré-visualização falha", async () => {
+    analyzeResume.mockRejectedValueOnce(new Error("boom"));
+
+    render(<GenerateResumeCard />);
+    fireEvent.click(screen.getByRole("button", { name: /pré-visualizar/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/não foi possível gerar o currículo/i),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("resume-preview")).not.toBeInTheDocument();
   });
 
   it("remove uma experiência adicionada", () => {
@@ -226,7 +267,7 @@ describe("GenerateResumeCard", () => {
     fireEvent.click(screen.getByRole("button", { name: /adicionar/i }));
     // deixa a experiência vazia (sem empresa/cargo)
     fireEvent.click(
-      screen.getByRole("button", { name: /gerar currículo via ats-forge/i }),
+      screen.getByRole("button", { name: /gerar e baixar/i }),
     );
 
     await waitFor(() => expect(generateResume).toHaveBeenCalledTimes(1));

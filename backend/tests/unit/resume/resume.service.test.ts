@@ -3,6 +3,7 @@ import { isAppError } from "../../../src/lib/errors";
 
 const mockFindById = vi.hoisted(() => vi.fn());
 const mockGenerate = vi.hoisted(() => vi.fn());
+const mockAnalyze = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../src/modules/users/users.repository", () => ({
   UsersRepository: class {
@@ -11,7 +12,7 @@ vi.mock("../../../src/modules/users/users.repository", () => ({
 }));
 
 vi.mock("../../../src/modules/resume/resume.client", () => ({
-  resumeClient: { generate: mockGenerate },
+  resumeClient: { generate: mockGenerate, analyze: mockAnalyze },
 }));
 
 import { ResumeService } from "../../../src/modules/resume/resume.service";
@@ -42,7 +43,34 @@ describe("ResumeService.generateForUser", () => {
     vi.clearAllMocks();
     mockFindById.mockResolvedValue(user);
     mockGenerate.mockResolvedValue(generated);
+    mockAnalyze.mockResolvedValue({ resume: { name: "Ana Souza" }, atsReport: { score: 90 } });
     service = new ResumeService({} as never);
+  });
+
+  it("analyzeForUser monta o perfil e chama o client.analyze", async () => {
+    const result = await service.analyzeForUser("u1", {
+      format: "pdf",
+      job: { title: "Backend" },
+      sources: { github: "https://github.com/ana" },
+    });
+    expect(result).toMatchObject({ atsReport: { score: 90 } });
+    expect(mockAnalyze).toHaveBeenCalledTimes(1);
+    expect(mockAnalyze.mock.calls[0][0].profile.name).toBe("Ana Souza");
+    expect(mockAnalyze.mock.calls[0][0].sources).toEqual({ github: "https://github.com/ana" });
+  });
+
+  it("analyzeForUser usa job/sources null quando ausentes", async () => {
+    await service.analyzeForUser("u1", { format: "docx" });
+    const arg = mockAnalyze.mock.calls[0][0];
+    expect(arg.job).toBeNull();
+    expect(arg.sources).toBeNull();
+  });
+
+  it("analyzeForUser lança notFound quando o usuário não existe", async () => {
+    mockFindById.mockResolvedValueOnce(undefined);
+    await expect(
+      service.analyzeForUser("ghost", { format: "pdf" }),
+    ).rejects.toSatisfy((e: unknown) => isAppError(e) && e.statusCode === 404);
   });
 
   it("lança notFound quando o usuário não existe", async () => {
@@ -58,6 +86,7 @@ describe("ResumeService.generateForUser", () => {
       format: "pdf",
       job: { title: "Backend" },
       sources: { github: "https://github.com/ana" },
+      about: "Engenheiro backend focado em integrações.",
     });
 
     expect(result).toBe(generated);
@@ -66,6 +95,7 @@ describe("ResumeService.generateForUser", () => {
     expect(arg.profile.experience).toEqual([]);
     expect(arg.job).toEqual({ title: "Backend" });
     expect(arg.sources).toEqual({ github: "https://github.com/ana" });
+    expect(arg.about).toBe("Engenheiro backend focado em integrações.");
   });
 
   it("inclui experiências manuais quebrando a descrição em bullets", async () => {

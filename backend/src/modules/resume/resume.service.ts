@@ -7,6 +7,8 @@ import { toNormalizedProfile } from "./resume.mapper";
 import type {
   GeneratedResume,
   JobTarget,
+  NormalizedProfile,
+  ResumeAnalysis,
   ResumeFormat,
   ResumeSources,
 } from "./resume.types";
@@ -23,6 +25,7 @@ export interface GenerateResumeParams {
   format: ResumeFormat;
   job?: JobTarget | null;
   sources?: ResumeSources | null;
+  about?: string | null;
   experiences?: ExperienceEntry[] | null;
 }
 
@@ -34,10 +37,10 @@ export class ResumeService {
    * resolved from the session-derived `userId` — never from client input — so a
    * candidate can only ever generate their own resume (spec §19, anti-IDOR).
    */
-  async generateForUser(
+  private async buildProfile(
     userId: string,
     params: GenerateResumeParams,
-  ): Promise<GeneratedResume> {
+  ): Promise<NormalizedProfile> {
     const user = await new UsersRepository(this.tx).findById(userId);
     if (!user) {
       throw AppError.notFound("Usuário não encontrado");
@@ -64,10 +67,34 @@ export class ResumeService {
       }));
     }
 
+    return profile;
+  }
+
+  async generateForUser(
+    userId: string,
+    params: GenerateResumeParams,
+  ): Promise<GeneratedResume> {
+    const profile = await this.buildProfile(userId, params);
     return resumeClient.generate({
       profile,
       job: params.job ?? null,
       sources: params.sources ?? null,
+      about: params.about ?? null,
+      format: params.format,
+    });
+  }
+
+  /** Same inputs as generate, but returns a JSON preview + ATS analysis. */
+  async analyzeForUser(
+    userId: string,
+    params: GenerateResumeParams,
+  ): Promise<ResumeAnalysis> {
+    const profile = await this.buildProfile(userId, params);
+    return resumeClient.analyze({
+      profile,
+      job: params.job ?? null,
+      sources: params.sources ?? null,
+      about: params.about ?? null,
       format: params.format,
     });
   }

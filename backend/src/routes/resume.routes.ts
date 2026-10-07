@@ -16,4 +16,12 @@ router.post(
   },
 );
 
+router.post(
+  "/analyze",
+  validate({ body: generateResumeSchema }),
+  (req, res, next) => {
+    resumeController.analyze(req, res).catch(next);
+  },
+);
+
 export { router as resumeRoutes };

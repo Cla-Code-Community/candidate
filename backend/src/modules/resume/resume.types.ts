@@ -94,3 +94,37 @@ export interface GeneratedResume {
   filename: string;
   atsReport: AtsReport | null;
 }
+
+export interface ResumePreview {
+  name: string;
+  title: string;
+  summary: string;
+  contact: { email: string; phone: string; portfolio: string };
+  links: { linkedin: string; github: string };
+  skills: Record<string, string[]>;
+  experience: Array<{
+    empresa: string;
+    cargo: string;
+    periodo: string;
+    stack: string;
+    atividades: string[];
+    resultados: string[];
+  }>;
+  projects: Array<{
+    name: string;
+    stack: string;
+    description: string;
+    highlights: string[];
+    url?: string;
+  }>;
+  education: string[];
+  languages: string[];
+}
+
+export interface ResumeAnalysis {
+  resume: ResumePreview;
+  atsReport: AtsReport;
+  warnings: string[];
+  sourcesUsed: string[];
+  job: { title: string | null; hasDescription: boolean };
+}

@@ -6,6 +6,7 @@ import { AppError } from "../../../src/lib/errors";
 
 const mockResumeService = vi.hoisted(() => ({
   generateForUser: vi.fn(),
+  analyzeForUser: vi.fn(),
 }));
 
 vi.mock("../../../src/modules/resume/resume.service", () => ({
@@ -63,7 +64,36 @@ describe("Integration - Resume Routes", () => {
     vi.clearAllMocks();
     vi.mocked(getIronSession).mockResolvedValue(fixtureSession as any);
     mockResumeService.generateForUser.mockResolvedValue(fixtureResume);
+    mockResumeService.analyzeForUser.mockResolvedValue({
+      resume: { name: "Ana Souza", skills: {} },
+      atsReport: fixtureAtsReport,
+      warnings: [],
+      sourcesUsed: ["candidate", "github"],
+      job: { title: "Backend", hasDescription: true },
+    });
     app = createJobsApiApp();
+  });
+
+  describe("POST /analyze", () => {
+    it("retorna 200 com o preview + análise ATS", async () => {
+      const res = await request(app)
+        .post(`${BASE}/analyze`)
+        .send({ format: "pdf", jobTitle: "Backend", jobDescription: "node.js" })
+        .expect(200);
+
+      expect(res.body.resume.name).toBe("Ana Souza");
+      expect(res.body.atsReport.score).toBe(82);
+      expect(res.body.sourcesUsed).toContain("github");
+      expect(mockResumeService.analyzeForUser).toHaveBeenCalledWith(
+        "user_abc",
+        expect.objectContaining({ format: "pdf" }),
+      );
+    });
+
+    it("retorna 401 sem sessão", async () => {
+      vi.mocked(getIronSession).mockResolvedValueOnce({ userId: undefined } as any);
+      await request(app).post(`${BASE}/analyze`).send({ format: "pdf" }).expect(401);
+    });
   });
 
   describe("POST /generate", () => {

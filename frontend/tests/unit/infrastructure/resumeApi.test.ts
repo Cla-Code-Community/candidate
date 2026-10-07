@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const post = vi.hoisted(() => vi.fn());
 vi.mock("@/shared/lib/apiClient", () => ({ api: { post } }));
 
-import { generateResume } from "@/domains/new_dashboard/infrastructure/resumeApi";
+import {
+  analyzeResume,
+  generateResume,
+} from "@/domains/new_dashboard/infrastructure/resumeApi";
 
 function resolveWith(headers: Record<string, string>) {
   post.mockResolvedValueOnce({ data: new Blob(["pdf"]), headers });
@@ -53,5 +56,28 @@ describe("generateResume", () => {
     resolveWith({ "x-ats-score": "abc" });
     const result = await generateResume({ format: "pdf" });
     expect(result.atsScore).toBeNull();
+  });
+});
+
+describe("analyzeResume", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("chama /resume/analyze e retorna a análise (format pdf por padrão)", async () => {
+    const analysis = { resume: { name: "Ana" }, atsReport: { score: 90 } };
+    post.mockResolvedValueOnce({ data: analysis, headers: {} });
+
+    const result = await analyzeResume({ jobTitle: "Backend" });
+
+    expect(post).toHaveBeenCalledWith("/resume/analyze", {
+      jobTitle: "Backend",
+      format: "pdf",
+    });
+    expect(result).toEqual(analysis);
+  });
+
+  it("respeita o format informado", async () => {
+    post.mockResolvedValueOnce({ data: {}, headers: {} });
+    await analyzeResume({ format: "docx" });
+    expect(post).toHaveBeenCalledWith("/resume/analyze", { format: "docx" });
   });
 });

@@ -5,6 +5,7 @@ import type {
   GeneratedResume,
   JobTarget,
   NormalizedProfile,
+  ResumeAnalysis,
   ResumeFormat,
   ResumeSources,
 } from "./resume.types";
@@ -16,6 +17,7 @@ export interface GenerateResumeRequest {
   profile: NormalizedProfile;
   job?: JobTarget | null;
   sources?: ResumeSources | null;
+  about?: string | null;
   format: ResumeFormat;
   filename?: string;
 }
@@ -44,43 +46,51 @@ function filenameFromDisposition(
  * `scraperClient` pattern: a single `request` helper with a timeout that maps
  * transport/HTTP failures onto `AppError`.
  */
+function buildHeaders(): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (config.atsForgeApiKey) headers["x-api-key"] = config.atsForgeApiKey;
+  return headers;
+}
+
+async function postToAtsForge(
+  path: string,
+  payload: GenerateResumeRequest,
+): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(`${config.atsForgeUrl}${path}`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw AppError.internal(
+      "Não foi possível contatar o serviço de geração de currículos.",
+      { cause: (err as Error).message },
+    );
+  }
+
+  if (response.status === 400) {
+    const body = await response.json().catch(() => null);
+    throw AppError.validation(
+      body?.message ?? "Dados insuficientes para gerar o currículo.",
+      body?.details,
+    );
+  }
+
+  if (!response.ok) {
+    throw AppError.internal(
+      `Falha ao gerar currículo (ats-forge respondeu HTTP ${response.status}).`,
+    );
+  }
+
+  return response;
+}
+
 export const resumeClient = {
   async generate(payload: GenerateResumeRequest): Promise<GeneratedResume> {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-    if (config.atsForgeApiKey) {
-      headers["x-api-key"] = config.atsForgeApiKey;
-    }
-
-    let response: Response;
-    try {
-      response = await fetch(`${config.atsForgeUrl}/resumes/generate`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-      });
-    } catch (err) {
-      throw AppError.internal(
-        "Não foi possível contatar o serviço de geração de currículos.",
-        { cause: (err as Error).message },
-      );
-    }
-
-    if (response.status === 400) {
-      const body = await response.json().catch(() => null);
-      throw AppError.validation(
-        body?.message ?? "Dados insuficientes para gerar o currículo.",
-        body?.details,
-      );
-    }
-
-    if (!response.ok) {
-      throw AppError.internal(
-        `Falha ao gerar currículo (ats-forge respondeu HTTP ${response.status}).`,
-      );
-    }
+    const response = await postToAtsForge("/resumes/generate", payload);
 
     const arrayBuffer = await response.arrayBuffer();
     return {
@@ -93,5 +103,10 @@ export const resumeClient = {
       ),
       atsReport: decodeReport(response.headers.get("x-ats-report")),
     };
+  },
+
+  async analyze(payload: GenerateResumeRequest): Promise<ResumeAnalysis> {
+    const response = await postToAtsForge("/resumes/analyze", payload);
+    return (await response.json()) as ResumeAnalysis;
   },
 };

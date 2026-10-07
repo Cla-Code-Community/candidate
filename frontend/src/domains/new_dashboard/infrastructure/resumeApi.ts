@@ -17,6 +17,7 @@ export interface GenerateResumeParams {
   language?: string;
   githubUrl?: string;
   linkedinUrl?: string;
+  about?: string;
   experiences?: ExperienceInput[];
 }
 
@@ -24,6 +25,59 @@ export interface GenerateResumeResult {
   /** ATS compatibility score (0-100), when the engine returned one. */
   atsScore: number | null;
   filename: string;
+}
+
+export interface AtsBreakdown {
+  keywords: number;
+  experience: number;
+  technicalSkills: number;
+  structure: number;
+  achievements: number;
+  readability: number;
+}
+
+export interface AtsReport {
+  score: number;
+  status: "PASSED" | "NEEDS_IMPROVEMENT" | "INSUFFICIENT_DATA";
+  breakdown: AtsBreakdown;
+  matchedKeywords: string[];
+  missingKeywords: string[];
+  weakSections: string[];
+  recommendations: string[];
+}
+
+export interface ResumePreview {
+  name: string;
+  title: string;
+  summary: string;
+  contact: { email: string; phone: string; portfolio: string };
+  links: { linkedin: string; github: string };
+  skills: Record<string, string[]>;
+  experience: Array<{
+    empresa: string;
+    cargo: string;
+    periodo: string;
+    stack: string;
+    atividades: string[];
+    resultados: string[];
+  }>;
+  projects: Array<{
+    name: string;
+    stack: string;
+    description: string;
+    highlights: string[];
+    url?: string;
+  }>;
+  education: string[];
+  languages: string[];
+}
+
+export interface ResumeAnalysis {
+  resume: ResumePreview;
+  atsReport: AtsReport;
+  warnings: string[];
+  sourcesUsed: string[];
+  job: { title: string | null; hasDescription: boolean };
 }
 
 const EXTENSION_FALLBACK: Record<ResumeFormat, string> = {
@@ -81,4 +135,19 @@ export async function generateResume(
     atsScore: atsScore !== null && Number.isFinite(atsScore) ? atsScore : null,
     filename,
   };
+}
+
+/**
+ * Analyzes the candidate's profile against the job and returns a structured,
+ * ATS-tailored resume preview + the ATS report + the sources used — without
+ * downloading a file.
+ */
+export async function analyzeResume(
+  params: Omit<GenerateResumeParams, "format"> & { format?: ResumeFormat },
+): Promise<ResumeAnalysis> {
+  const { data } = await api.post<ResumeAnalysis>("/resume/analyze", {
+    ...params,
+    format: params.format ?? "pdf",
+  });
+  return data;
 }
