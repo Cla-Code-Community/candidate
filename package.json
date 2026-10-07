@@ -67,7 +67,7 @@
     "@types/pino": "^7.0.5",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
-    "concurrently": "^9.2.1",
+    "concurrently": "^10.0.5",
     "drizzle-kit": "^0.18.1",
     "electron": "^42.3.3",
     "electron-builder": "^26.15.0",
