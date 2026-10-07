@@ -3,8 +3,9 @@
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "develop"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 10
     groups:
       npm-minor-patch:
@@ -14,14 +15,16 @@ updates:
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "develop"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 10
 
   - package-ecosystem: "gomod"
     directory: "/scraper-go"
+    target-branch: "develop"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
 
   - package-ecosystem: "docker"
@@ -30,6 +33,7 @@ updates:
       - "/frontend"
       - "/front_admin"
       - "/scraper-go"
+    target-branch: "develop"
     schedule:
-      interval: "weekly"
+      interval: "monthly"
     open-pull-requests-limit: 5
