@@ -16,6 +16,7 @@ tools/
 npm-debug.log
 yarn-error.log
 yarn-debug.log
+PAV-124_REPORT.md
 
 # Test coverage reports
 coverage/

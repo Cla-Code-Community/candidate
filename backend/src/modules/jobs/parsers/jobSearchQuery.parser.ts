@@ -1,3 +1,4 @@
+import { parseFamilyQuery } from "./familyQuery.parser";
 import type { Request } from "express";
 import type { ParsedJobSearchQuery } from "../types/jobSearch.types";
 
@@ -27,7 +28,7 @@ export function parseJobSearchQuery(
 
   return {
     keywords: queryValues(query.keywords),
-    family: queryValues(query.family),
+    ...parseFamilyQuery(query),
     technology: queryValues(query.technology),
     company: queryValues(query.company),
     type,
@@ -61,7 +62,7 @@ export function hasStructuredFilters(filters: ParsedJobSearchQuery): boolean {
       filters.continent ||
       filters.state ||
       filters.city ||
-      filters.family.length > 0 ||
+      filters.families.length > 0 ||
       filters.technology.length > 0 ||
       filters.seniority ||
       filters.type.length > 0 ||

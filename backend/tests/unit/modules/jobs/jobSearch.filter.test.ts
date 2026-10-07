@@ -105,7 +105,7 @@ describe("filterJobs", () => {
 
   it("filtra por tecnologia e família da classificação", () => {
     expect(filterJobs(JOBS, filters({ technology: "Go" }))).toHaveLength(1);
-    expect(filterJobs(JOBS, filters({ family: "Frontend" }))).toHaveLength(1);
+    expect(filterJobs(JOBS, filters({ family: "frontend" }))).toHaveLength(1);
   });
 
   it("filtra por senioridade e modalidade", () => {

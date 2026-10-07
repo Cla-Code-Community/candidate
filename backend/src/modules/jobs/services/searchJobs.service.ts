@@ -1,23 +1,22 @@
+import { JobSearchRepository } from "../repositories/jobSearch.repository";
 import {
-    cacheAbsoluteSMembers,
-    cacheGetJobsByIds,
-    cacheGetJobsByIdsDetailed,
-    cacheRemoveJobIndexIds,
-    cacheSearchJobIds,
-    cacheSearchKeywords,
+  cacheAbsoluteSMembers,
+  cacheGetJobsByIdsDetailed,
+  cacheRemoveJobIndexIds,
+  cacheSearchKeywords,
 } from "../../../lib/cache";
 import { paginate, parsePagination } from "../../../lib/pagination";
 import { logWarn } from "../../../logger";
-import { filterJobs, sortJobsByMatch } from "../filters/jobSearch.filter";
+import { sortJobsByMatch } from "../filters/jobSearch.filter";
 import {
-    hasPostOnlyFilters,
-    hasStructuredFilters,
-    parseJobSearchQuery,
+  hasPostOnlyFilters,
+  hasStructuredFilters,
+  parseJobSearchQuery,
 } from "../parsers/jobSearchQuery.parser";
 import type {
-    MatchTechnology,
-    SearchJobsInput,
-    SearchJobsResult,
+  MatchTechnology,
+  SearchJobsInput,
+  SearchJobsResult,
 } from "../types/jobSearch.types";
 import type { MatchableJob } from "./jobMatch.service";
 import { JobProfileMatchService } from "./jobProfileMatch.service";
@@ -38,7 +37,6 @@ async function legacyResolveIds(
   };
 }
 
-
 const MAX_HYDRATION_WINDOWS = 10;
 
 async function removeOrphanIds(missingIds: string[]): Promise<void> {
@@ -57,7 +55,10 @@ async function removeOrphanIds(missingIds: string[]): Promise<void> {
 async function hydrateIndexPage(
   ids: string[],
   { page, limit }: ReturnType<typeof parsePagination>,
-): Promise<{ jobs: unknown[]; meta: ReturnType<typeof paginate>["pagination"] }> {
+): Promise<{
+  jobs: unknown[];
+  meta: ReturnType<typeof paginate>["pagination"];
+}> {
   const jobs: unknown[] = [];
   const missingIds: string[] = [];
   let cursor = (page - 1) * limit;
@@ -153,6 +154,7 @@ function toSearchResult(
 export class SearchJobsService {
   constructor(
     private readonly profileMatchService = new JobProfileMatchService(),
+    private readonly repository = new JobSearchRepository(),
   ) {}
 
   async execute(input: SearchJobsInput): Promise<SearchJobsResult> {
@@ -168,80 +170,42 @@ export class SearchJobsService {
         ? `valkey_filtered_by_keywords:${filters.keywords.join("+")}`
         : "valkey_global_index";
 
-    if (hasFilters) {
-      ids = await cacheSearchJobIds({
-        keywords: filters.keywords,
-        family: filters.family,
-        technology: filters.technology,
-        seniority: filters.seniority,
-        level: filters.level,
-        location: filters.location,
-        continent: filters.continent,
-        country: filters.country,
-        state: filters.state,
-        city: filters.city,
-        type: filters.type,
-        model: filters.type,
-        contract: filters.contract,
-      });
-      source = `${source}:structured_indexes`;
-
-      if (ids.length === 0) {
-        return await this.searchWithPostFilterFallback(
-          filters,
-          pagination,
-          matchTechnologies,
-          input.userId,
-          `${source}:legacy_post_filter_fallback`,
-        );
-      }
-
-      const indexedJobs = await cacheGetJobsByIds(ids);
-      const filteredJobs = filterJobs(indexedJobs, filters);
-      return await this.paginateFilteredJobs(
-        filteredJobs,
-        filters.matchSort,
+    if (hasFilters || hasPostOnlyFilters(filters) || filters.matchSort) {
+      const result = await this.repository.search(
+        filters,
         pagination,
-        matchTechnologies,
+        filters.matchSort
+          ? async (jobs) =>
+              this.profileMatchService.enrich(
+                input.userId,
+                jobs as MatchableJob[],
+                matchTechnologies,
+                { notifyHighMatches: false },
+              )
+          : undefined,
+      );
+      const jobs = await this.profileMatchService.enrich(
         input.userId,
-        `${source}:verified`,
+        result.jobs as MatchableJob[],
+        matchTechnologies,
+      );
+      const totalPages = Math.ceil(result.total / pagination.limit);
+      return toSearchResult(
+        jobs,
+        {
+          ...pagination,
+          total: result.total,
+          totalPages,
+          hasNext: pagination.page < totalPages,
+          hasPrev: pagination.page > 1,
+        },
+        `${source}:verified_batches${filters.matchSort ? `:match_sorted_${filters.matchSort}` : ""}`,
       );
     }
 
     const legacy = await legacyResolveIds(filters.keywords);
     ids = legacy.ids;
     source = legacy.source;
-
-    if (hasPostOnlyFilters(filters)) {
-      const legacyJobs = await cacheGetJobsByIds(ids);
-      return await this.paginateFilteredJobs(
-        filterJobs(legacyJobs, filters),
-        filters.matchSort,
-        pagination,
-        matchTechnologies,
-        input.userId,
-        `${source}:post_filter`,
-      );
-    }
-
-    if (filters.matchSort) {
-      const allJobs = await cacheGetJobsByIds(ids);
-      const matchedJobs = await this.profileMatchService.enrich(
-        input.userId,
-        allJobs as MatchableJob[],
-        matchTechnologies,
-        { notifyHighMatches: false },
-      );
-      const sortedJobs = sortJobsByMatch(matchedJobs, filters.matchSort);
-      const { data: jobs, pagination: meta } = paginate(sortedJobs, pagination);
-      await this.profileMatchService.enrich(
-        input.userId,
-        jobs as MatchableJob[],
-        matchTechnologies,
-      );
-
-      return toSearchResult(jobs, meta, `${source}:match_sorted_${filters.matchSort}`);
-    }
 
     const relevance = await orderIdsByProfileRelevance(ids, matchTechnologies);
     const { jobs: pageJobs, meta } = await hydrateIndexPage(
@@ -256,70 +220,12 @@ export class SearchJobsService {
 
     if (relevance.matchedIds === 0) {
       return toSearchResult(jobs, meta, source);
-    }  return toSearchResult(
+    }
+    return toSearchResult(
       sortJobsByMatch(jobs, "desc"),
       meta,
       `${source}:profile_ranked`,
     );
-  }
-
-  private async searchWithPostFilterFallback(
-    filters: ReturnType<typeof parseJobSearchQuery>,
-    pagination: ReturnType<typeof parsePagination>,
-    matchTechnologies: Parameters<JobProfileMatchService["enrich"]>[2],
-    userId: string | undefined,
-    source: string,
-  ): Promise<SearchJobsResult> {
-    const legacy = await legacyResolveIds(filters.keywords);
-    const legacyJobs = await cacheGetJobsByIds(legacy.ids);
-    const filteredJobs = filterJobs(legacyJobs, filters);
-
-    return await this.paginateFilteredJobs(
-      filteredJobs,
-      filters.matchSort,
-      pagination,
-      matchTechnologies,
-      userId,
-      source,
-    );
-  }
-
-  private async paginateFilteredJobs(
-    jobs: unknown[],
-    matchSort: "asc" | "desc" | null,
-    pagination: ReturnType<typeof parsePagination>,
-    matchTechnologies: Parameters<JobProfileMatchService["enrich"]>[2],
-    userId: string | undefined,
-    source: string,
-  ): Promise<SearchJobsResult> {
-    if (matchSort) {
-      const matchedJobs = await this.profileMatchService.enrich(
-        userId,
-        jobs as MatchableJob[],
-        matchTechnologies,
-        { notifyHighMatches: false },
-      );
-      const { data: pageJobs, pagination: meta } = paginate(
-        sortJobsByMatch(matchedJobs, matchSort),
-        pagination,
-      );
-      await this.profileMatchService.enrich(
-        userId,
-        pageJobs as MatchableJob[],
-        matchTechnologies,
-      );
-
-      return toSearchResult(pageJobs, meta, source);
-    }
-
-    const { data: pageJobs, pagination: meta } = paginate(jobs, pagination);
-    const enrichedJobs = await this.profileMatchService.enrich(
-      userId,
-      pageJobs as MatchableJob[],
-      matchTechnologies,
-    );
-
-    return toSearchResult(enrichedJobs, meta, source);
   }
 }
 
