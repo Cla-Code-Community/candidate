@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -116,11 +119,41 @@ func handleScraperStatus(scheduler *cronjob.Scheduler) http.HandlerFunc {
 	}
 }
 
-// handleGetJobs retorna todas as vagas do Valkey via GET /admin/jobs
+// handleGetJobs preserves the full administrative listing with SQL streaming.
 // Para o frontend, o Node.js lê direto do Valkey — esse endpoint é para uso administrativo.
 func handleGetJobs(js *jobstore.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+		if js.Durable() {
+			started, first := false, true
+			err := js.StreamActive(r.Context(), limit, func(total int64) error {
+				w.Header().Set("Content-Type", "application/json")
+				started = true
+				_, err := fmt.Fprintf(w, `{"total":%d,"jobs":[`, total)
+				return err
+			}, func(job domain.Job) error {
+				if !first {
+					if _, err := w.Write([]byte(",")); err != nil {
+						return err
+					}
+				}
+				first = false
+				return json.NewEncoder(w).Encode(job)
+			})
+			if err != nil {
+				slog.Error("administrative catalog stream failed")
+				if started {
+					panic(http.ErrAbortHandler)
+				}
+				http.Error(w, "erro ao buscar vagas", http.StatusInternalServerError)
+				return
+			}
+			if _, err := w.Write([]byte("]}")); err != nil {
+				panic(http.ErrAbortHandler)
+			}
+			return
+		}
 
 		jobs, err := js.GetSample(r.Context(), limit)
 		if err != nil {

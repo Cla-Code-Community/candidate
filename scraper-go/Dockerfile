@@ -13,6 +13,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w" \
     -o /go-scraper ./cmd/server
 
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /catalog ./cmd/catalog
+
 # ── Runtime stage ───────────────────────────────────────────
 FROM alpine:3.20
 
@@ -21,6 +23,7 @@ RUN apk --no-cache add ca-certificates wget
 WORKDIR /app
 
 COPY --from=builder /go-scraper /go-scraper
+COPY --from=builder /catalog /catalog
 
 COPY --from=builder /app/internal/keywords/keywords.json   ./internal/keywords/keywords.json
 COPY --from=builder /app/internal/keywords/generator.json  ./internal/keywords/generator.json

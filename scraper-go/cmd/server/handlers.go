@@ -11,6 +11,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cache"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
@@ -29,6 +30,7 @@ func handleScrape(
 	rdb *redis.Client,
 	runLock *runlock.Manager,
 	runtimeCfg config.RuntimeConfig,
+	stores ...*jobstore.Store,
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req domain.ScrapeRequest
@@ -50,6 +52,9 @@ func handleScrape(
 		defer cancel()
 
 		searchConfig := searchConfigFromRuntime(req, runtimeCfg)
+		if len(stores) > 0 {
+			searchConfig.Store = stores[0]
+		}
 		slogScrapeStart("public_endpoint", runtimeCfg.MaxConcurrency, req.MaxConcurrency, searchConfig.MaxConcurrency, len(searchConfig.Keywords), len(adapterList))
 
 		start := time.Now()

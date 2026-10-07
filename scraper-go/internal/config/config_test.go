@@ -330,3 +330,36 @@ func findMonorepoFile(t *testing.T, name string) (string, bool) {
 		dir = parent
 	}
 }
+
+func TestCatalogLifetimeConfiguration(t *testing.T) {
+	cfg, err := LoadRuntimeConfigFromLookup(func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CatalogLifetime != DefaultCatalogLifetime {
+		t.Fatal("catalog default differs")
+	}
+	cfg, err = LoadRuntimeConfigFromLookup(func(key string) (string, bool) {
+		if key == "SCRAPER_CATALOG_LIFETIME" {
+			return "192h", true
+		}
+		return "", false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CatalogLifetime.String() != "192h0m0s" {
+		t.Fatal("catalog lifetime not configurable")
+	}
+	for _, value := range []string{"-1h", "0s", "nine days"} {
+		_, err = LoadRuntimeConfigFromLookup(func(key string) (string, bool) {
+			if key == "SCRAPER_CATALOG_LIFETIME" {
+				return value, true
+			}
+			return "", false
+		})
+		if err == nil {
+			t.Fatal("invalid catalog lifetime accepted")
+		}
+	}
+}

@@ -566,3 +566,71 @@ Para impedir perdas com índices estruturados incompletos, buscas filtradas usam
 Custo temporário: O(N) documentos candidatos por busca filtrada para obter total exato; IDs permanecem em memória. Ordenação por match conserva no máximo `offset + limit` IDs/scores e hidrata novamente a página escolhida. Valkey não oferece snapshot entre essas leituras: expiração/reclassificação concorrente pode mudar documentos durante uma busca. A busca simples legada ainda estima total descontando apenas órfãos observados na hidratação da página; esse comportamento preexistente foi preservado.
 
 Ficam para a próxima PAV: índices separados de famílias principais/relacionadas, reconstrução de índices, cache keys finais, invalidação por reclassificação e evolução de match score. Não houve mudança no Processor Go, autenticação, autorização ou rate limit (a busca não tinha limitador próprio; os limitadores de autenticação permanecem).
+
+## Busca e cache após PAV-125
+
+A PAV-125 evolui a PAV-124 sem mudar o parser público de `family`/`familyMode`,
+os IDs da PAV-123, autenticação, rate limit ou envelope HTTP. PostgreSQL mantém o
+catálogo do Processor; a busca online continua usando Valkey. Consulte
+[SCRAPER.md](SCRAPER.md#catálogo-durável-e-índices-de-famílias-pav-125) para migration,
+backfill, rebuild, reconciliação e rollback.
+
+Quando existe `scraper:jobs:index-version`, o repository usa o namespace ativo.
+Múltiplas famílias usam SUNIONSTORE; grupos de keywords são intersectados e a
+atividade é conferida pelo ZSET de expiração. Temporárias têm TTL de 120 segundos
+com renovação durante leitura e são removidas ao finalizar. IDs ficam no Valkey;
+o backend hidrata lotes de até 200 documentos. Os demais predicados da PAV-124
+continuam sendo verificados antes de total/paginação, porque índices legados de
+senioridade, modalidade e localização não representam exatamente todas as
+inferências e aliases do contrato HTTP. Não há consulta SQL por request nem
+pós-filtro de famílias depois da página. Ordenação explícita por match usa ZSET
+temporário com scores, sem acumular documentos de todo o catálogo no Node.
+Empates usam ID determinístico; a ordenação anterior de SETs não tinha garantia.
+A busca simples conserva priorização por keywords do perfil e ordenação da página.
+
+Antes da primeira publicação de namespace, o caminho legado da PAV-124 permanece
+como fallback de migração. Depois da publicação, falhas de índice não causam
+fallback silencioso para dados antigos. A leitura de vagas por ID também acompanha
+a versão ativa. Saved jobs continuam independentes e seus dados persistidos não
+são modificados.
+
+O cache de páginas usa `jobs:search:v2:<sha256>`. O fingerprint inclui filtros
+normalizados, famílias ordenadas e deduplicadas, `familyMode`, página, limite,
+ordenação, versões de contrato/taxonomia/índices, geração e contexto normalizado
+de ranking. Texto, localização e perfil não aparecem diretamente nas chaves.
+`JOB_SEARCH_CACHE_TTL_SECONDS=120` é configurável; o TTL é limitado pela próxima
+expiração global de vaga. Publicação do cache verifica a geração atomicamente.
+Uma geração nova torna entradas antigas inacessíveis; elas expiram naturalmente.
+Há single-flight local por processo, sem reutilizar o lock do scraper. Falha de
+cache permite executar a consulta normal. Não há lock distribuído de stampede.
+
+Create/update/reclassificação/desativação e expiração concluídos no Processor
+versionam o cache após indexação; rebuild/rollback publicam namespace e geração
+juntos. Alterações de regras devem incrementar `searchContractVersion`; mudanças
+de taxonomia também integram o fingerprint. A limpeza administrativa
+`DELETE /admin/jobs/cache` mantém autenticação e formato de resposta, mas,
+com catálogo versionado, invalida cache por geração e retorna `deleted: 0` em vez
+de apagar documentos/índices ativos. É uma mudança operacional deliberada para
+proteger PostgreSQL como fonte de verdade; desativação durável pertence ao Processor.
+
+Produto e Design usam evidências positivas disponíveis: família nas preferências,
+senioridade, modalidade/localização, competências, ferramentas e experiências.
+Ausência de linguagem não reduz o score. Sem evidências não se inventa score.
+`matchReasons` contém somente razões públicas, sem pesos ou dados privados.
+As demais famílias conservam exatamente a fórmula anterior por tecnologias.
+Preferências e notificações continuam exclusivamente no backend.
+
+No contrato atual de `UserPreferences`, `jobTypes` representa modalidades
+(`Remoto`, `Híbrido`, `Presencial`), e `remoteOnly` indica preferência por remoto.
+Nenhum deles fornece contrato de contratação. `searchLocation` é a localização
+de busca; `keywords` são termos livres usados como evidência textual, sem inferir
+uma família canônica. O modelo atual não oferece uma seleção autoritativa de
+família nem contrato; esses campos de match permanecem sem preferência derivada.
+
+Limitações: a busca filtrada com cache frio ainda percorre todos os candidatos
+necessários para obter total exato; consultas residuais amplas têm custo O(N).
+Valkey não oferece snapshot de documentos entre todos os lotes: mudanças concorrentes
+podem afetar uma resposta, embora uma geração modificada impeça publicar cache
+obsoleto. O índice usa expiração em segundos; existe granularidade inferior a um
+segundo em relação aos timestamps SQL. A meta operacional de p95 < 500 ms exige
+medição com volume e concorrência representativos; testes locais não a comprovam.

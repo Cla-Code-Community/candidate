@@ -57,6 +57,7 @@ type Scheduler struct {
 	adapterList []ports.JobSource
 	rdb         *redis.Client
 	runLock     *runlock.Manager
+	BeforeRun   func(context.Context) error
 	OnComplete  func(keywords []string, scraped, saved int, duration time.Duration)
 	mu          sync.Mutex
 	running     bool
@@ -234,6 +235,12 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 	scrapeCtx, cancel := context.WithTimeout(lease.Context(), s.cfg.ScrapeTimeout)
 	defer cancel()
 
+	if s.BeforeRun != nil {
+		if err := s.BeforeRun(scrapeCtx); err != nil {
+			return fmt.Errorf("cronjob: catalog maintenance: %w", err)
+		}
+	}
+
 	kws, err := s.kwStore.Load(scrapeCtx)
 	if err != nil {
 		slog.Error("cronjob: falha ao carregar keywords", "error", err)
@@ -293,6 +300,7 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 
 func (s *Scheduler) searchConfig(kws []string, runID string) pipeline.SearchConfig {
 	return pipeline.SearchConfig{
+		Store:                        s.jobStore,
 		Keywords:                     kws,
 		SearchLocation:               s.cfg.SearchLocation,
 		JobTypes:                     s.cfg.JobTypes,

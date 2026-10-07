@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	DefaultCatalogLifetime         = 9 * 24 * time.Hour
 	DefaultMaxConcurrency          = 12
 	DefaultProviderMaxConcurrency  = 2
 	DefaultRunLockTTL              = 120 * time.Second
@@ -36,6 +37,7 @@ const (
 )
 
 type RuntimeConfig struct {
+	CatalogLifetime              time.Duration
 	MaxConcurrency               int
 	MaxConcurrencySource         string
 	ProviderMaxConcurrency       int
@@ -54,6 +56,7 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 
 func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeConfig, error) {
 	cfg := RuntimeConfig{
+		CatalogLifetime:              DefaultCatalogLifetime,
 		MaxConcurrency:               DefaultMaxConcurrency,
 		MaxConcurrencySource:         SourceInternalDefault,
 		ProviderMaxConcurrency:       DefaultProviderMaxConcurrency,
@@ -102,6 +105,10 @@ func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeCon
 	}
 
 	var err error
+	cfg.CatalogLifetime, err = durationFromLookup(lookup, "SCRAPER_CATALOG_LIFETIME", DefaultCatalogLifetime)
+	if err != nil {
+		return RuntimeConfig{}, err
+	}
 	cfg.RunLockTTL, err = durationFromLookup(lookup, ScraperRunLockTTLEnv, DefaultRunLockTTL)
 	if err != nil {
 		return RuntimeConfig{}, err

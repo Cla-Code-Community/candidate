@@ -53,6 +53,8 @@ vi.mock("redis", () => {
     sendCommand: vi.fn(),
     expire: vi.fn(),
     mGet: vi.fn(),
+    incr: vi.fn(),
+    eval: vi.fn(),
   };
   return {
     createClient: vi.fn(() => mockClient),
@@ -66,6 +68,7 @@ describe("Valkey Cache Lib", () => {
     vi.stubEnv("VALKEY_URL", "redis://localhost:6379");
     mockClientInstance = createClient();
     vi.clearAllMocks();
+    mockClientInstance.get.mockReset();
   });
 
   afterEach(async () => {
@@ -463,6 +466,22 @@ describe("Valkey Cache Lib", () => {
   });
 
   describe("cacheClearJobs", () => {
+    it("does not delete projection keys if activation races legacy cleanup", async () => {
+      mockClientInstance.sendCommand.mockResolvedValueOnce(["0",["scraper:jobs:ns:bootstrap:index"]]);
+      mockClientInstance.eval.mockResolvedValueOnce(-1);
+      await expect(cacheClearJobs()).rejects.toThrow("activated during legacy cache clear");
+      expect(mockClientInstance.del).not.toHaveBeenCalled();
+    });
+
+    it("versions search cache without removing active catalog projections", async () => {
+      mockClientInstance.get.mockResolvedValueOnce("v2-test");
+      mockClientInstance.incr.mockResolvedValueOnce(2);
+      await expect(cacheClearJobs()).resolves.toEqual({deleted:0,patterns:["jobs:search:generation"]});
+      expect(mockClientInstance.incr).toHaveBeenCalledWith("jobs:search:generation");
+      expect(mockClientInstance.del).not.toHaveBeenCalled();
+      expect(mockClientInstance.sendCommand).not.toHaveBeenCalled();
+    });
+
     it("deve remover payloads e índices de vagas por SCAN em lotes", async () => {
       mockClientInstance.sendCommand
         .mockResolvedValueOnce(["0", ["scraper:job:1", "scraper:job:2"]])
@@ -470,7 +489,7 @@ describe("Valkey Cache Lib", () => {
           "0",
           ["scraper:jobs:index", "scraper:jobs:keyword:node"],
         ]);
-      mockClientInstance.del.mockResolvedValueOnce(2).mockResolvedValueOnce(2);
+      mockClientInstance.eval.mockResolvedValueOnce(2).mockResolvedValueOnce(2);
 
       const result = await cacheClearJobs();
 
@@ -490,14 +509,8 @@ describe("Valkey Cache Lib", () => {
         "COUNT",
         "500",
       ]);
-      expect(mockClientInstance.del).toHaveBeenNthCalledWith(1, [
-        "scraper:job:1",
-        "scraper:job:2",
-      ]);
-      expect(mockClientInstance.del).toHaveBeenNthCalledWith(2, [
-        "scraper:jobs:index",
-        "scraper:jobs:keyword:node",
-      ]);
+      expect(mockClientInstance.eval).toHaveBeenNthCalledWith(1, expect.any(String), {keys:["scraper:jobs:index-version","scraper:job:1","scraper:job:2"],arguments:[]});
+      expect(mockClientInstance.eval).toHaveBeenNthCalledWith(2, expect.any(String), {keys:["scraper:jobs:index-version","scraper:jobs:index","scraper:jobs:keyword:node"],arguments:[]});
       expect(result).toEqual({
         deleted: 4,
         patterns: ["scraper:job:*", "scraper:jobs:*"],

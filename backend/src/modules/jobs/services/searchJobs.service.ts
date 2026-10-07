@@ -1,3 +1,4 @@
+import { hasActiveJobIndex } from "../repositories/valkeyJobSearch.adapter";
 import { JobSearchRepository } from "../repositories/jobSearch.repository";
 import {
   cacheAbsoluteSMembers,
@@ -18,7 +19,7 @@ import type {
   SearchJobsInput,
   SearchJobsResult,
 } from "../types/jobSearch.types";
-import type { MatchableJob } from "./jobMatch.service";
+import type { MatchPreferences, MatchableJob } from "./jobMatch.service";
 import { JobProfileMatchService } from "./jobProfileMatch.service";
 
 async function legacyResolveIds(
@@ -161,8 +162,15 @@ export class SearchJobsService {
     const filters = parseJobSearchQuery(input.query);
     const pagination = parsePagination(input.query);
     const hasFilters = hasStructuredFilters(filters);
+    let preferences: MatchPreferences | undefined;
     const matchTechnologies =
-      await this.profileMatchService.getUserTechnologies(input.userId);
+      await this.profileMatchService.getUserTechnologies(
+        input.userId,
+        (value) => {
+          preferences = value;
+        },
+      );
+    const preferenceOptions = preferences ? { preferences } : {};
 
     let ids: string[] = [];
     let source =
@@ -170,7 +178,17 @@ export class SearchJobsService {
         ? `valkey_filtered_by_keywords:${filters.keywords.join("+")}`
         : "valkey_global_index";
 
-    if (hasFilters || hasPostOnlyFilters(filters) || filters.matchSort) {
+    const indexedDefault =
+      !hasFilters &&
+      !hasPostOnlyFilters(filters) &&
+      !filters.matchSort &&
+      (await hasActiveJobIndex());
+    if (
+      hasFilters ||
+      hasPostOnlyFilters(filters) ||
+      filters.matchSort ||
+      indexedDefault
+    ) {
       const result = await this.repository.search(
         filters,
         pagination,
@@ -180,18 +198,28 @@ export class SearchJobsService {
                 input.userId,
                 jobs as MatchableJob[],
                 matchTechnologies,
-                { notifyHighMatches: false },
+                { notifyHighMatches: false, ...preferenceOptions },
               )
           : undefined,
+        {
+          preferences,
+          technologies: [...matchTechnologies]
+            .map((t) => ({ name: t.name.trim().toLowerCase(), years: t.years }))
+            .sort((a, b) => a.name.localeCompare(b.name) || a.years - b.years),
+        },
+        indexedDefault ? matchTechnologies.map((t) => t.name) : [],
       );
       const jobs = await this.profileMatchService.enrich(
         input.userId,
         result.jobs as MatchableJob[],
         matchTechnologies,
+        ...(preferences ? [preferenceOptions] : []),
       );
       const totalPages = Math.ceil(result.total / pagination.limit);
       return toSearchResult(
-        jobs,
+        indexedDefault && matchTechnologies.length
+          ? sortJobsByMatch(jobs, "desc")
+          : jobs,
         {
           ...pagination,
           total: result.total,
@@ -216,6 +244,7 @@ export class SearchJobsService {
       input.userId,
       pageJobs as MatchableJob[],
       matchTechnologies,
+      ...(preferences ? [preferenceOptions] : []),
     );
 
     if (relevance.matchedIds === 0) {
