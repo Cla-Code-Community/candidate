@@ -8,7 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -185,6 +188,7 @@ func TestConfirmedOwnershipLossCancelsLease(t *testing.T) {
 }
 
 func TestTemporaryRenewalFailureDoesNotCancelLease(t *testing.T) {
+	metricBefore := testutil.ToFloat64(metrics.LockRenewFailures)
 	var renewCalls atomic.Int32
 	store := &fakeStore{
 		renew: func(context.Context, State, time.Duration) (bool, error) {
@@ -206,6 +210,7 @@ func TestTemporaryRenewalFailureDoesNotCancelLease(t *testing.T) {
 
 	assert.NoError(t, context.Cause(lease.Context()))
 	assert.GreaterOrEqual(t, renewCalls.Load(), int32(2))
+	assert.Equal(t, metricBefore+1, testutil.ToFloat64(metrics.LockRenewFailures))
 	require.NoError(t, lease.Release(context.Background()))
 }
 
@@ -343,4 +348,26 @@ func (s *fakeStore) Release(context.Context, string, string) (bool, error) {
 		return false, fmt.Errorf("fake release: %w", s.releaseErr)
 	}
 	return true, nil
+}
+
+func TestOperationalLockMetricsAndTokenExclusion(t *testing.T) {
+	manager, client, _ := newTestManager(t, 200*time.Millisecond, 25*time.Millisecond)
+	ctx := context.Background()
+	lease, err := manager.Acquire(ctx, "cron")
+	require.NoError(t, err)
+	require.True(t, metrics.Current().Lock.Held)
+	before := testutil.ToFloat64(metrics.LockConflicts.WithLabelValues("manual"))
+	_, err = manager.Acquire(ctx, "public_endpoint")
+	require.ErrorIs(t, err, ErrAlreadyHeld)
+	require.Equal(t, before+1, testutil.ToFloat64(metrics.LockConflicts.WithLabelValues("manual")))
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	require.NotContains(t, fmt.Sprint(families), lease.Token())
+	lost := testutil.ToFloat64(metrics.LockLost.WithLabelValues("cron"))
+	require.NoError(t, client.Set(ctx, LockKey, "different-owner", time.Second).Err())
+	require.Eventually(t, func() bool { return context.Cause(lease.Context()) != nil }, time.Second, time.Millisecond)
+	require.Equal(t, lost+1, testutil.ToFloat64(metrics.LockLost.WithLabelValues("cron")))
+	require.False(t, metrics.Current().Lock.Held)
+	require.GreaterOrEqual(t, metrics.Current().Lock.TTLSeconds, 0.0)
+	_ = lease.Release(ctx)
 }

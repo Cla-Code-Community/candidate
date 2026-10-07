@@ -70,6 +70,9 @@ vi.mock("../../src/logger.js", () => ({
 }));
 
 vi.mock("../../src/metrics/metrics.js", () => ({
+  searchCacheRequests: { inc: vi.fn() },
+  searchCacheDuration: { startTimer: vi.fn(() => vi.fn()) },
+  searchCacheInvalidations: { inc: vi.fn() },
   register: { contentType: "text/plain", metrics: vi.fn().mockResolvedValue("") },
   httpRequestDuration: { startTimer: vi.fn(() => vi.fn()) },
   httpRequestsTotal: { inc: vi.fn() },

@@ -26,6 +26,7 @@ type result struct {
 }
 
 type adapterTask struct {
+	ordinal  int
 	adapter  ports.JobSource
 	provider ports.ProviderID
 	mode     ports.DiscoveryMode
@@ -69,6 +70,10 @@ func runWithConcurrency(
 	results := make(chan result, queueCapacity)
 	incoming := make(chan domain.Job, stageQueueCapacity(processCfg))
 	runStats := newProviderRunStats(adapterList, budget)
+	metrics.Configure(0, maxConcurrency, adapterList, len(req.Keywords), budget.providerLimit)
+	metrics.BindQueue("collection", func() metrics.Queue { return metrics.Queue{Depth: len(tasks), Capacity: cap(tasks)} })
+	metrics.BindQueue("classification", func() metrics.Queue { return metrics.Queue{Depth: len(incoming), Capacity: cap(incoming)} })
+	defer metrics.ClearQueues()
 
 	var tasksWg sync.WaitGroup
 	tasksWg.Add(1 + maxConcurrency)
@@ -139,6 +144,7 @@ func runWithConcurrency(
 }
 
 type taskCursor struct {
+	ordinal  int
 	adapter  ports.JobSource
 	provider ports.ProviderID
 	mode     ports.DiscoveryMode
@@ -162,9 +168,10 @@ func produceTasks(
 
 	providerIndexes := make(map[ports.ProviderID]int)
 	cursors := make([]providerTaskCursor, 0, len(adapterList))
-	for _, adapter := range adapterList {
+	for ordinal, adapter := range adapterList {
 		capabilities := ports.CapabilitiesOf(adapter)
 		sourceCursor := taskCursor{
+			ordinal:  ordinal,
 			adapter:  adapter,
 			provider: capabilities.Provider,
 			mode:     capabilities.Mode,
@@ -189,10 +196,12 @@ func produceTasks(
 			if cause := context.Cause(ctx); cause != nil {
 				return
 			}
+			metrics.Waiting(string(task.provider), 1)
 			select {
 			case queue <- task:
 				runStats.recordProduced(task)
 			case <-ctx.Done():
+				metrics.Waiting(string(task.provider), -1)
 				return
 			}
 		}
@@ -225,6 +234,7 @@ func (c *taskCursor) nextTask(keywords []string) (adapterTask, bool) {
 		c.emitted = true
 		return adapterTask{
 			adapter:  c.adapter,
+			ordinal:  c.ordinal,
 			provider: c.provider,
 			mode:     c.mode,
 			keywords: append([]string(nil), keywords...),
@@ -236,6 +246,7 @@ func (c *taskCursor) nextTask(keywords []string) (adapterTask, bool) {
 	}
 	task := adapterTask{
 		adapter:  c.adapter,
+		ordinal:  c.ordinal,
 		provider: c.provider,
 		mode:     c.mode,
 		keywords: []string{keywords[c.next]},
@@ -304,6 +315,7 @@ func runWorker(
 			if !ok {
 				return
 			}
+			metrics.Waiting(string(task.provider), -1)
 			if context.Cause(ctx) != nil {
 				return
 			}
@@ -326,12 +338,18 @@ func runScheduledTask(
 	}
 	defer permit.release()
 
-	source := string(task.provider)
+	source := metrics.Provider(string(task.provider))
 	started := time.Now()
 	timer := prometheus.NewTimer(metrics.ScrapeDurationSeconds.WithLabelValues(source))
 	jobs, err := runAdapterTask(ctx, task, req)
 	timer.ObserveDuration()
 	runStats.recordCompleted(ctx, task, err, time.Since(started))
+	observedErr := err
+	if cause := context.Cause(ctx); cause != nil {
+		observedErr = cause
+	}
+	metrics.RecordProvider(source, string(task.mode), len(task.keywords), len(jobs), started, observedErr)
+	metrics.AdapterFinished(task.ordinal)
 
 	metrics.ScrapeRunsTotal.WithLabelValues(source).Inc()
 	if err != nil {
@@ -365,9 +383,8 @@ func logProviderRunStats(runStats *providerRunStats) {
 		if sample := summary.ErrorSample; sample != nil {
 			attrs = append(attrs, slog.Group("error_sample",
 				"provider", sample.Provider,
-				"source", sample.Source,
 				"mode", sample.Mode,
-				"error", sample.Error,
+				"errorType", metrics.ErrorType(fmt.Errorf("%s", sample.Error)),
 			))
 		}
 		slog.Info("scraper provider execution summary", attrs...)

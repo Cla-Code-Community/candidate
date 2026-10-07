@@ -54,6 +54,12 @@ router.post(
 );
 
 router.get(
+  "/observability",
+  requirePermission("observability", "metrics"),
+  observabilityCtrl.getOperationalSnapshot.bind(observabilityCtrl),
+);
+
+router.get(
   "/observability/metrics",
   requirePermission("observability", "metrics"),
   observabilityCtrl.getMetrics.bind(observabilityCtrl),

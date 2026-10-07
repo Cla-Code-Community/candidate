@@ -16,6 +16,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/classifier"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobindex"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/taxonomy"
 	"github.com/redis/go-redis/v9"
@@ -67,7 +68,11 @@ func (m *Maintenance) Rebuild(ctx context.Context) (string, error) {
 	defer release()
 	return m.rebuildLocked(ctx)
 }
-func (m *Maintenance) rebuildLocked(ctx context.Context) (string, error) {
+func (m *Maintenance) rebuildLocked(ctx context.Context) (result string, returnErr error) {
+	started := time.Now()
+	processed := 0
+	defer func() { m.record(ctx, "rebuild", started, processed, Report{}, returnErr) }()
+	m.progress(ctx, 0)
 	bytes := make([]byte, 12)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
@@ -101,6 +106,8 @@ func (m *Maintenance) rebuildLocked(ctx context.Context) (string, error) {
 		}
 		cursor = jobs[len(jobs)-1].ID
 		total += len(jobs)
+		processed = total
+		m.progress(ctx, total)
 		slog.Info("catalog rebuild batch", "version", version, "batch_size", len(jobs), "processed", total)
 	}
 	report, err := Compare(ctx, m.Store, m.Index, version, m.size(), m.keys)
@@ -117,10 +124,12 @@ func (m *Maintenance) rebuildLocked(ctx context.Context) (string, error) {
 		}
 	}
 	raw, _ := json.Marshal(familyKeys)
-	_, err = publish.Run(ctx, m.Index.RDB, []string{jobindex.ActiveKey, jobindex.GenerationKey}, previous, version, jobindex.Prefix(version), string(raw)).Result()
+	publishStarted := time.Now()
+	_, err = publish.Run(ctx, m.Index.RDB, []string{jobindex.ActiveKey, jobindex.GenerationKey}, previous, version, jobindex.Prefix(version), string(raw), taxonomy.Version()).Result()
 	if err != nil {
 		return "", fmt.Errorf("publish catalog namespace: %w", err)
 	}
+	metrics.CacheInvalidationDuration.WithLabelValues("invalidate").Observe(time.Since(publishStarted).Seconds())
 
 	// Record only revisions belonging to the successfully published projection.
 	cursor = ""
@@ -137,6 +146,7 @@ func (m *Maintenance) rebuildLocked(ctx context.Context) (string, error) {
 		}
 		cursor = jobs[len(jobs)-1].ID
 	}
+
 	slog.Info("catalog rebuild published", "version", version, "previous_version", previous, "active", report.Active)
 	return version, nil
 }
@@ -144,7 +154,9 @@ func (m *Maintenance) rebuildLocked(ctx context.Context) (string, error) {
 var publish = redis.NewScript(`
 local previous,version,prefix,families=ARGV[1],ARGV[2],ARGV[3],cjson.decode(ARGV[4])
 local function typed(k,want) local t=redis.call('TYPE',k).ok;if t~='none' and t~=want then error('WRONGTYPE rebuild preflight') end end
-typed(KEYS[1],'string');typed(KEYS[2],'string');typed('scraper:jobs:previous-index-version','string')
+typed(KEYS[1],'string');typed(KEYS[2],'string');typed('scraper:jobs:previous-index-version','string');typed('scraper:jobs:taxonomy-version','string')
+local telemetryType=redis.call('TYPE','scraper:observability:maintenance-metrics').ok;local telemetryOk=telemetryType=='none' or telemetryType=='hash'
+if telemetryOk then for _,reason in ipairs({'job_created','job_updated','job_removed','job_reclassified','index_rebuilt','taxonomy_changed'}) do local v=redis.call('HGET','scraper:observability:maintenance-metrics','cache:'..reason);if v and (not string.match(v,'^%d+$') or tonumber(v)>=9007199254740991) then telemetryOk=false end end end
 if (redis.call('GET',KEYS[1]) or 'bootstrap')~=previous then return redis.error_reply('active namespace changed') end
 local g=redis.call('GET',KEYS[2]);if g and (not string.match(g,'^%d+$') or tonumber(g)>=9007199254740991) then error('invalid generation') end
 typed(prefix..'keys','set');typed(prefix..'index','set');typed(prefix..'expires','zset');typed('scraper:jobs:index','set');typed('scraper:jobs:expires','zset')
@@ -154,10 +166,18 @@ redis.call('SUNIONSTORE','scraper:jobs:index',prefix..'index')
 redis.call('ZUNIONSTORE','scraper:jobs:expires',1,prefix..'expires')
 redis.call('SET','scraper:jobs:previous-index-version',previous)
 redis.call('PERSIST',prefix..'keys');redis.call('PERSIST',prefix..'index');redis.call('PERSIST',prefix..'expires');
-redis.call('SET',KEYS[1],version);redis.call('INCR',KEYS[2]);return 1
+redis.call('SET',KEYS[1],version);redis.call('INCR',KEYS[2]);if telemetryOk then redis.call('HINCRBY','scraper:observability:maintenance-metrics','cache:index_rebuilt',1) end;local old=redis.call('GET','scraper:jobs:taxonomy-version');if telemetryOk and old and old~=ARGV[5] then redis.call('HINCRBY','scraper:observability:maintenance-metrics','cache:taxonomy_changed',1) end;redis.call('SET','scraper:jobs:taxonomy-version',ARGV[5]);return 1
 `)
 
-func (m *Maintenance) Reconcile(ctx context.Context, fix bool) (Report, error) {
+func (m *Maintenance) Reconcile(ctx context.Context, fix bool) (result Report, returnErr error) {
+	started := time.Now()
+	defer func() {
+		if fix && returnErr == nil {
+			m.record(ctx, "reconcile", started, result.Active, result, returnErr, Report{Active: result.Active})
+		} else {
+			m.record(ctx, "reconcile", started, result.Active, result, returnErr)
+		}
+	}()
 	release, err := m.Store.MaintenanceLease(ctx)
 	if err != nil {
 		return Report{}, err
@@ -424,7 +444,9 @@ var cleanup = redis.NewScript(`if (redis.call('GET',KEYS[1]) or 'bootstrap')==AR
 
 // Backfill uses SCAN of document keys, pipelined GET/PTTL and SQL batch import.
 // It does not renew old TTLs or overwrite a row already present in PostgreSQL.
-func (m *Maintenance) Backfill(ctx context.Context) (int, int, error) {
+func (m *Maintenance) Backfill(ctx context.Context) (resultN int, resultInvalid int, returnErr error) {
+	started := time.Now()
+	defer func() { m.record(ctx, "backfill", started, resultN, Report{}, returnErr) }()
 	release, err := m.Store.MaintenanceLease(ctx)
 	if err != nil {
 		return 0, 0, err
@@ -502,7 +524,9 @@ func (m *Maintenance) Backfill(ctx context.Context) (int, int, error) {
 
 // Expire applies committed PostgreSQL expirations in bounded batches. It never
 // deletes historical SQL rows, and repeated runs do not bump cache generation.
-func (m *Maintenance) Expire(ctx context.Context) (int, error) {
+func (m *Maintenance) Expire(ctx context.Context) (resultN int, returnErr error) {
+	started := time.Now()
+	defer func() { m.record(ctx, "expire", started, resultN, Report{}, returnErr) }()
 	release, err := m.Store.ProcessingLease(ctx)
 	if err != nil {
 		return 0, err
@@ -554,7 +578,9 @@ func (m *Maintenance) Expire(ctx context.Context) (int, error) {
 
 // Reclassify is explicit, independent of external collection, and never renews
 // lastSeenAt/expiresAt. Its exclusive fence prevents stale payload overwrites.
-func (m *Maintenance) Reclassify(ctx context.Context) (int, error) {
+func (m *Maintenance) Reclassify(ctx context.Context) (resultN int, returnErr error) {
+	started := time.Now()
+	defer func() { m.record(ctx, "reclassify", started, resultN, Report{}, returnErr) }()
 	release, err := m.Store.MaintenanceLease(ctx)
 	if err != nil {
 		return 0, err
@@ -610,7 +636,9 @@ func (m *Maintenance) Reclassify(ctx context.Context) (int, error) {
 
 // Rollback only activates an already existing namespace if it still matches
 // the PostgreSQL truth. Changed catalog rows require a new rebuild instead.
-func (m *Maintenance) Rollback(ctx context.Context, version string) error {
+func (m *Maintenance) Rollback(ctx context.Context, version string) (returnErr error) {
+	started := time.Now()
+	defer func() { m.record(ctx, "rollback", started, 0, Report{}, returnErr) }()
 	release, err := m.Store.MaintenanceLease(ctx)
 	if err != nil {
 		return err
@@ -646,6 +674,10 @@ func (m *Maintenance) Rollback(ctx context.Context, version string) error {
 		}
 	}
 	raw, _ := json.Marshal(familyKeys)
-	_, err = publish.Run(ctx, m.Index.RDB, []string{jobindex.ActiveKey, jobindex.GenerationKey}, previous, version, jobindex.Prefix(version), string(raw)).Result()
+	publishStarted := time.Now()
+	_, err = publish.Run(ctx, m.Index.RDB, []string{jobindex.ActiveKey, jobindex.GenerationKey}, previous, version, jobindex.Prefix(version), string(raw), taxonomy.Version()).Result()
+	if err == nil {
+		metrics.CacheInvalidationDuration.WithLabelValues("invalidate").Observe(time.Since(publishStarted).Seconds())
+	}
 	return err
 }

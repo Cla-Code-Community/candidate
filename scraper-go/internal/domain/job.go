@@ -3,6 +3,7 @@ package domain
 import "time"
 
 type Job struct {
+	CatalogChange    string    `json:"-"`
 	CatalogRevision  int64     `json:"-"`
 	CatalogExpiresAt time.Time `json:"-"`
 	ID               string    `json:"id"`

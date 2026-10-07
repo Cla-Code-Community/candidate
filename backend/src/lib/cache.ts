@@ -1,3 +1,7 @@
+import {
+  searchCacheDuration,
+  searchCacheInvalidations,
+} from "../metrics/metrics";
 import { normalizeJobTaxonomy } from "../modules/jobs/types/professionalTaxonomy";
 import { randomUUID } from "node:crypto";
 import { createClient, type RedisClientType } from "redis";
@@ -488,7 +492,13 @@ export async function cacheClearJobs(): Promise<{
   if (await client.get("scraper:jobs:index-version")) {
     // Catalog projections are owned by the Processor. Clearing HTTP search
     // cache must not delete an active validated namespace or durable jobs.
-    await client.incr("jobs:search:generation");
+    const end = searchCacheDuration.startTimer({ operation: "invalidate" });
+    try {
+      await client.incr("jobs:search:generation");
+      searchCacheInvalidations.inc({ reason: "manual" });
+    } finally {
+      end();
+    }
     return { deleted: 0, patterns: ["jobs:search:generation"] };
   }
   const patterns = ["scraper:job:*", "scraper:jobs:*"];

@@ -582,3 +582,57 @@ forward-only: não existe down migration destrutiva automática. Não remover a 
 para reverter código; preservar os dados e planejar eventual arquivamento separado.
 Nenhuma operação usa FLUSH ou o comando KEYS; cleanup só alcança o manifesto do
 namespace selecionado e recusa a versão ativa e chaves externas.
+
+
+## Observabilidade operacional — PAV-126
+
+O `/metrics` mantém as métricas `scraper_*`, `go_*` e `process_*` existentes.
+As métricas `candidate_scraper_*` acrescentam resultados por origem, lock,
+concorrência, progresso, discovery mode, classificação, persistência e projeção.
+`other` é exclusivamente diagnóstico; a taxonomia pública continua com 13 famílias.
+Providers são os oito IDs de `ports` ou `unknown`. IDs de execução/vaga, títulos,
+keywords, empresas, tokens e mensagens livres nunca são labels.
+
+O estado operacional é atualizado nos pontos reais do pipeline e protegido por
+mutex. As quatro filas refletem canais e buffers reais. Ao terminar, active,
+waiting e depths voltam a zero. `keywordsTotal/Processed` contam entradas consumidas
+pelas tarefas, incluindo fan-out; não contam keywords únicas. Totais de batches não
+são inventados quando desconhecidos. ProvidersCompleted/AdaptersProcessed indicam
+conclusão de tarefas, inclusive com erro; a situação aparece nas métricas de resultado.
+O comportamento anterior de sucesso parcial de coleta permanece preservado.
+
+A ordem continua classificação → commit PostgreSQL → projeção Valkey. Contadores
+de persistência/indexação medem tentativas, inclusive retries; não são contagens de
+vagas únicas no catálogo. Falhas e rollbacks possuem categorias fixas. Invalidações
+são observadas somente após publicação bem-sucedida da geração. A telemetria não
+transforma uma publicação válida em falha se seu hash estiver corrompido.
+
+Manutenções CLI explícitas gravam contadores/histogramas de operação e um resumo
+com TTL de 24h. O servidor amostra o hash fixo a cada 15s, com prazo de 2s, e conserva
+os últimos contadores conhecidos se Valkey cair. `maintenance_telemetry_available`
+e o timestamp da amostra permitem identificar defasagem. O scrape Prometheus não
+faz I/O externo. A versão ativa está no snapshot administrativo, sem label dinâmica.
+Não há rebuild nem reconciliação automática nova.
+
+O GET interno `/admin/observability` é técnico e deve permanecer na rede privada
+existente do Processor. Autenticação/autorização continuam no backend. O snapshot
+inclui estado, última execução, próxima execução, lock/TTL, concorrência, progresso,
+filas, recursos, erros, versões e última manutenção. PostgreSQL/Valkey são sondados
+em paralelo com prazo compartilhado de 2s e um pool Redis de diagnóstico separado;
+não há consulta ao catálogo nem ao Prometheus. Campos disponíveis permanecem na
+resposta quando uma dependência falha. Configure `APPLICATION_VERSION` no deploy;
+o default é `unknown` (`local` no exemplo de ambiente).
+
+Os títulos rejeitados são um agregado administrativo em memória, normalizado,
+limitado a 100 pares título/motivo e top 10 retornados. Reinicia por execução ou
+após 24h; pode omitir novos títulos ao atingir o limite. Não é histórico completo.
+Títulos com email/URL são descartados; não há vaga/descrição completa nem labels
+por título. CPU percentual é derivada entre leituras do snapshot, inicialmente
+null; RSS depende de `/proc`. CPU/container limits/GC continuam nos collectors
+Go/process/cAdvisor existentes, incluindo GOMAXPROCS e GOMEMLIMIT.
+
+Recording rules e alertas ficam em `observability/prometheus/rules`. Alertas de
+CPU/memória usam janelas sustentadas e os limites atuais de 1.5 CPU/2GiB; revisar
+limiares se recursos mudarem. Prometheus envia ao Alertmanager existente, cujo
+receiver de exemplo não entrega notificações: configurar o destino operacional.
+A validação e o inventário completo estão em `observability/PAV-126_REPORT.md`.

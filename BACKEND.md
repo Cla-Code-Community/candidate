@@ -634,3 +634,46 @@ podem afetar uma resposta, embora uma geração modificada impeça publicar cach
 obsoleto. O índice usa expiração em segundos; existe granularidade inferior a um
 segundo em relação aos timestamps SQL. A meta operacional de p95 < 500 ms exige
 medição com volume e concorrência representativos; testes locais não a comprovam.
+
+
+## Snapshot administrativo e métricas de busca — PAV-126
+
+`GET /admin/observability` (também sob o prefixo API existente) exige sessão,
+role administrativa e permissão `observability.metrics`. Usa o padrão de resposta
+administrativa direto, `Cache-Control: no-store`, com contrato:
+
+```json
+{
+  "status": "partial",
+  "timestamp": "2026-10-07T00:00:00.000Z",
+  "processor": null,
+  "availability": { "scraper": "down" }
+}
+```
+
+Quando o Processor responde, `processor` contém execution, lock, concurrency,
+progress, queues, resources, errors, rejectedTitles/rejectedTitlesSince,
+dependencies e index. Sem histórico, execution.status é idle, os timestamps/source/
+stage são null e durationSeconds é zero. Falhas de PostgreSQL/Valkey preservam o
+snapshot e retornam status partial. O backend faz uma única chamada interna com
+prazo de 2.5s, valida com Zod e remove campos extras antes de responder. Ausência
+ou resposta inválida do Processor resulta no formato parcial acima, HTTP 200.
+Prometheus não é dependência dessa rota. As rotas administrativas anteriores,
+auth, rate limiting e contratos de famílias permanecem preservados.
+
+Métricas HTTP existentes `http_request_duration_seconds`/`http_requests_total`
+continuam com os mesmos nomes/labels. Route usa templates Express; caminhos sem
+match caem em `__unmatched__`, salvo rotas prioritárias estáticas conhecidas.
+Query strings e IDs não viram labels. Methods desconhecidos caem em OTHER.
+Os buckets existentes permitem estimar p50/p95/p99, sem promessa de desempenho.
+
+O cache PAV-125 expõe `candidate_jobs_search_cache_requests_total` com hit/miss/
+stale/error, histogram de get/set/invalidate e invalidações por motivo fixo.
+Cada request tem um resultado: reutilização local via singleflight conta como hit;
+cache indisponível conta error; publicação recusada por geração diferente conta
+stale. As keys, fingerprints, TTL, CAS e ranking não mudaram. Go observa invalidações
+de catálogo/rebuild; Node observa a invalidação manual já existente. Nada registra
+keys, texto livre, localização privada ou dados de usuário em labels.
+
+Ver `observability/PAV-126_REPORT.md` para inventário, regras, testes, limitações e
+rollback. A meta de busca p95 < 500ms requer validação em staging representativo.
