@@ -105,9 +105,10 @@ describe("backfillUserPii script", () => {
   });
 
   it("reports pending records in dry-run without persisting changes", async () => {
-    await import("../../../src/scripts/backfillUserPii");
+    const { completion } = await import("../../../src/scripts/backfillUserPii");
+    await completion;
 
-    await vi.waitFor(() => expect(console.log).toHaveBeenCalledOnce());
+    expect(console.log).toHaveBeenCalledOnce();
 
     const report = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(report).toEqual({
@@ -121,9 +122,10 @@ describe("backfillUserPii script", () => {
   it("writes encrypted user fields and normalized credential email with --write", async () => {
     process.argv = [...originalArgv, "--write"];
 
-    await import("../../../src/scripts/backfillUserPii");
+    const { completion } = await import("../../../src/scripts/backfillUserPii");
+    await completion;
 
-    await vi.waitFor(() => expect(console.log).toHaveBeenCalledOnce());
+    expect(console.log).toHaveBeenCalledOnce();
 
     expect(databaseMocks.update).toHaveBeenCalledTimes(2);
     const userValues = databaseMocks.update.mock.results[0].value.set.mock.calls[0][0];

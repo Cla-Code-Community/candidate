@@ -13,6 +13,7 @@ import adminRoutes from "./routes/admin.routes";
 import { jobsRoutes } from "./routes/jobs.routes";
 import { keywordsRoutes } from "./routes/keywords.routes";
 import { notificationsRoutes } from "./routes/notifications.routes";
+import { resumeRoutes } from "./routes/resume.routes";
 import { savedJobsRoutes } from "./routes/savedJobs.routes";
 import superAdminRoutes from "./routes/superAdmin.routes";
 import supportRoutes from "./routes/support.routes";
@@ -44,6 +45,7 @@ export function createJobsApiApp() {
   apiV1.use("/keywords", withSession, requireAuth, keywordsRoutes);
   apiV1.use("/notifications", withSession, requireAuth, notificationsRoutes);
   apiV1.use("/saved-jobs", withSession, requireAuth, savedJobsRoutes);
+  apiV1.use("/resume", withSession, requireAuth, resumeRoutes);
   apiV1.use("/admin", withSession, supportRoutes);
   apiV1.use("/admin", withSession, adminRoutes);
   apiV1.use("/admin", withSession, superAdminRoutes);
@@ -57,6 +59,7 @@ export function createJobsApiApp() {
   app.use("/keywords", withSession, requireAuth, keywordsRoutes);
   app.use("/notifications", withSession, requireAuth, notificationsRoutes);
   app.use("/saved-jobs", withSession, requireAuth, savedJobsRoutes);
+  app.use("/resume", withSession, requireAuth, resumeRoutes);
   app.use("/admin", withSession, supportRoutes);
   app.use("/admin", withSession, adminRoutes);
   app.use("/admin", withSession, superAdminRoutes);

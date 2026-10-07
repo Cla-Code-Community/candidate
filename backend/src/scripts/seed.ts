@@ -267,7 +267,7 @@ async function main() {
   console.log("Seed concluído.");
 }
 
-main()
+export const completion = main()
   .catch((error) => {
     console.error("Falha ao rodar o seed:", error);
     process.exitCode = 1;

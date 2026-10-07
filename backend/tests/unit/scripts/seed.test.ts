@@ -57,9 +57,10 @@ describe("seed script", () => {
   });
 
   it("preserves existing records while refreshing profile and catalog data", async () => {
-    await import("../../../src/scripts/seed");
+    const { completion } = await import("../../../src/scripts/seed");
+    await completion;
 
-    await vi.waitFor(() => expect(seedMocks.poolEnd).toHaveBeenCalledOnce());
+    expect(seedMocks.poolEnd).toHaveBeenCalledOnce();
 
     expect(seedMocks.credentialsFindFirst).toHaveBeenCalledTimes(2);
     expect(seedMocks.update).toHaveBeenCalledOnce();
