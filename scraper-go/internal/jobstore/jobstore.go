@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 	"log/slog"
 	"net/url"
 	"strings"
@@ -15,10 +17,9 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/adapters/adapterutil"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
 )
 
 const (
@@ -52,7 +53,16 @@ type SaveResult struct {
 func (s *Store) SaveBatch(ctx context.Context, jobs []domain.Job) (SaveResult, error) {
 	if s.catalog != nil {
 		var result SaveResult
-		err := retryTransient(ctx, func() error { var err error; result, err = s.catalog.SaveBatch(ctx, jobs); return err })
+		var previousErr error
+		err := retryTransient(ctx, func() error {
+			if previousErr != nil {
+				metrics.PersistenceRetries.WithLabelValues(metrics.PersistenceErrorReason(previousErr)).Inc()
+			}
+			var err error
+			result, err = s.catalog.SaveBatch(ctx, jobs)
+			previousErr = err
+			return err
+		})
 		return result, err
 	}
 	var result SaveResult

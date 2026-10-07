@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 )
 
 var (
@@ -74,13 +76,18 @@ func (m *Manager) Acquire(ctx context.Context, source string) (*Lease, error) {
 
 	acquired, err := m.store.TryAcquire(ctx, token, m.cfg.TTL)
 	if err != nil {
+		metrics.Attempt(source, "failed")
 		return nil, fmt.Errorf("%w: acquire: %v", ErrUnavailable, err)
 	}
 	if !acquired {
+		metrics.LockConflicts.WithLabelValues(metrics.Source(source)).Inc()
+		metrics.Attempt(source, "skipped")
 		return nil, ErrAlreadyHeld
 	}
 
 	startedAt := m.now().UTC()
+	metrics.StartRun(source, startedAt, runID)
+	metrics.LockAcquired(m.cfg.TTL, runID)
 	state := State{
 		RunID:         runID,
 		Source:        source,
@@ -91,7 +98,7 @@ func (m *Manager) Acquire(ctx context.Context, source string) (*Lease, error) {
 		slog.Warn("scraper run state unavailable",
 			"source", source,
 			"run_id", runID,
-			"error", stateErr,
+			"errorType", metrics.ErrorType(stateErr),
 		)
 	}
 
@@ -157,6 +164,7 @@ func (l *Lease) State() State {
 
 func (l *Lease) Release(ctx context.Context) error {
 	l.releaseOnce.Do(func() {
+		defer metrics.LockReleased(l.runID)
 		l.cancel(nil)
 		l.stopOnce.Do(func() {
 			close(l.stopRenewal)
@@ -170,7 +178,7 @@ func (l *Lease) Release(ctx context.Context) error {
 			slog.Error("scraper run lock release failed",
 				"source", l.source,
 				"run_id", l.runID,
-				"error", err,
+				"errorType", metrics.ErrorType(err),
 			)
 		case released:
 			slog.Info("scraper run lock released",
@@ -202,6 +210,7 @@ func (l *Lease) renew() {
 		case <-l.stopRenewal:
 			return
 		case <-l.ctx.Done():
+			metrics.Canceling(l.runID)
 			return
 		case <-safetyTimer.C:
 			cause := fmt.Errorf("%w: renewal could not be confirmed before safety deadline", ErrLost)
@@ -210,6 +219,9 @@ func (l *Lease) renew() {
 				"run_id", l.runID,
 				"reason", "renewal_safety_deadline",
 			)
+			metrics.LockLost.WithLabelValues(metrics.Source(l.source)).Inc()
+			metrics.LockReleased(l.runID)
+			metrics.Canceling(l.runID)
 			l.cancel(cause)
 			return
 		case <-ticker.C:
@@ -226,10 +238,11 @@ func (l *Lease) renew() {
 				if l.ctx.Err() != nil {
 					return
 				}
+				metrics.LockRenewFailures.Inc()
 				slog.Warn("scraper run lock renewal failed temporarily",
 					"source", l.source,
 					"run_id", l.runID,
-					"error", err,
+					"errorType", metrics.ErrorType(err),
 				)
 				continue
 			}
@@ -240,10 +253,14 @@ func (l *Lease) renew() {
 					"run_id", l.runID,
 					"reason", "ownership_changed",
 				)
+				metrics.LockLost.WithLabelValues(metrics.Source(l.source)).Inc()
+				metrics.LockReleased(l.runID)
+				metrics.Canceling(l.runID)
 				l.cancel(cause)
 				return
 			}
 
+			metrics.LockAcquired(l.manager.cfg.TTL, l.runID)
 			resetTimer(safetyTimer, l.manager.cfg.TTL-l.manager.cfg.RenewInterval)
 		}
 	}

@@ -37,6 +37,7 @@ const (
 )
 
 type RuntimeConfig struct {
+	ApplicationVersion           string
 	CatalogLifetime              time.Duration
 	MaxConcurrency               int
 	MaxConcurrencySource         string
@@ -56,6 +57,7 @@ func LoadRuntimeConfig() (RuntimeConfig, error) {
 
 func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeConfig, error) {
 	cfg := RuntimeConfig{
+		ApplicationVersion:           "unknown",
 		CatalogLifetime:              DefaultCatalogLifetime,
 		MaxConcurrency:               DefaultMaxConcurrency,
 		MaxConcurrencySource:         SourceInternalDefault,
@@ -67,6 +69,14 @@ func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeCon
 		ClassificationBatchSize:      DefaultClassificationBatchSize,
 		PersistBatchSize:             DefaultPersistBatchSize,
 		IndexBatchSize:               DefaultIndexBatchSize,
+	}
+
+	if value, ok := lookup("APPLICATION_VERSION"); ok {
+		value = strings.TrimSpace(value)
+		if value == "" || len(value) > 128 || strings.ContainsAny(value, "\n\r") {
+			return RuntimeConfig{}, fmt.Errorf("APPLICATION_VERSION must contain 1..128 printable characters")
+		}
+		cfg.ApplicationVersion = value
 	}
 
 	if value, ok := lookup(ScraperMaxConcurrencyEnv); ok {

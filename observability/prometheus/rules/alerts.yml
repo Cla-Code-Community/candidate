@@ -1,0 +1,83 @@
+groups:
+  - name: candidate.operational.alerts
+    rules:
+      - alert: CandidateScraperHighCPU
+        expr: candidate_scraper:container_cpu_cores > 1.35
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "Scraper uses over 90% of its 1.5 CPU quota for 15 minutes"}
+      - alert: CandidateScraperMemoryNearLimit
+        expr: candidate_scraper:container_memory_ratio > 0.85
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Scraper memory near the configured container limit"}
+      - alert: CandidateScraperRestarted
+        expr: changes(process_start_time_seconds{job="scraper-go"}[30m]) > 0
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: "Scraper process restarted; inspect container exit reason"}
+      - alert: CandidateScraperGoroutinesGrowing
+        expr: go_goroutines{job="scraper-go"} > 200 and delta(go_goroutines{job="scraper-go"}[30m]) > 100
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "Sustained abnormal goroutine growth"}
+      - alert: CandidateScraperLockStuck
+        expr: candidate_scraper_lock_held == 1 and (time() - candidate_scraper_run_started_timestamp_seconds) > 3600
+        for: 10m
+        labels: {severity: critical}
+        annotations: {summary: "Scraper lock held for over one hour"}
+      - alert: CandidateScraperLockLoss
+        expr: sum by (job) (increase(candidate_scraper_lock_lost_total[30m])) > 1
+        for: 2m
+        labels: {severity: critical}
+        annotations: {summary: "Repeated distributed lock loss"}
+      - alert: CandidateScraperNoProgress
+        expr: candidate_scraper_running == 1 and (time() - candidate_scraper_last_progress_timestamp_seconds) > 600
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Active scraper has no task or batch progress"}
+      - alert: CandidateScraperCronWithoutSuccess
+        expr: (time() - (max by (job, instance) (candidate_scraper_last_run_timestamp_seconds{source="cron",status="success"} > 0) or on (job, instance) process_start_time_seconds{job="scraper-go"})) > on (job, instance) (candidate_scraper_cron_interval_seconds * 2)
+        for: 15m
+        labels: {severity: warning}
+        annotations: {summary: "No cron success for two configured intervals"}
+      - alert: CandidateScraperProviderTimeouts
+        expr: candidate_scraper:provider_timeout_ratio > 0.2 and on (job, provider) sum by (job, provider) (increase(candidate_scraper_provider_runs_total[15m])) >= 5
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Provider timeout ratio exceeds 20%"}
+      - alert: CandidateScraperPersistenceFailure
+        expr: sum by (job) (increase(candidate_scraper_persistence_batches_total{status="failed"}[15m])) > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "PostgreSQL catalog persistence failures"}
+      - alert: CandidateScraperIndexFailure
+        expr: sum by (job) (increase(candidate_scraper_index_batches_total{status="failed"}[15m])) > 0
+        for: 5m
+        labels: {severity: critical}
+        annotations: {summary: "Valkey index publication failed after persistence"}
+      - alert: CandidateScraperReconciliationDivergence
+        expr: sum by (job) (candidate_scraper_index_reconciliation_divergences) > 0
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Explicit PostgreSQL versus Valkey reconciliation found divergence"}
+      - alert: CandidateScraperMaintenanceFailure
+        expr: sum by (job, operation) (increase(candidate_scraper_index_maintenance_runs_total{status="failed"}[30m])) > 0
+        for: 5m
+        labels: {severity: warning}
+        annotations: {summary: "Catalog maintenance failed"}
+      - alert: CandidateJobsSearchLatency
+        expr: candidate_jobs:search_latency_p95_seconds > 0.5
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Jobs search p95 exceeds the 500 ms operational target"}
+      - alert: CandidateAdminLatency
+        expr: candidate_backend:admin_latency_p95_seconds > 1
+        for: 10m
+        labels: {severity: warning}
+        annotations: {summary: "Administrative API p95 exceeds one second"}
+      - alert: CandidateBackendErrorRate
+        expr: candidate_backend:error_ratio > 0.05 and on (job) sum by (job) (increase(http_requests_total[5m])) >= 20
+        for: 10m
+        labels: {severity: critical}
+        annotations: {summary: "Backend 5xx ratio exceeds 5%"}

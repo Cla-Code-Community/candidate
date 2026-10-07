@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
+
 	"github.com/redis/go-redis/v9"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cache"
@@ -57,6 +59,7 @@ func SearchJobs(
 		if err != nil {
 			return SearchResult{}, err
 		}
+		defer func() { metrics.FinishRun(resultErr, lease.RunID()) }()
 		defer func() {
 			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -84,8 +87,8 @@ func SearchJobs(
 
 		if err := c.Set(runCtx, cacheKey, result, ttl); err != nil {
 			slog.Error("pipeline.SearchJobs: cache write failed",
-				"key", cacheKey,
-				"error", err,
+				"stage", "cache",
+				"errorType", metrics.ErrorType(err),
 			)
 		}
 

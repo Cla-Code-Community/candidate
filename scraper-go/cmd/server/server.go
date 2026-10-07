@@ -20,6 +20,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobindex"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/keywords"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/runlock"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -116,6 +117,8 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	schedulerCfg.ClassificationBatchSize = runtimeCfg.ClassificationBatchSize
 	schedulerCfg.PersistBatchSize = runtimeCfg.PersistBatchSize
 	schedulerCfg.IndexBatchSize = runtimeCfg.IndexBatchSize
+	metrics.SetConfiguredConcurrency(runtimeCfg.MaxConcurrency)
+	metrics.SetVersion(runtimeCfg.ApplicationVersion)
 	scheduler := cronjob.New(schedulerCfg, kwStore, jobStore, adapterList, rdb, runLock)
 
 	scheduler.BeforeRun = func(ctx context.Context) error {
@@ -130,6 +133,10 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 
 	bgCtx, bgCancel := context.WithCancel(context.Background())
 	defer bgCancel()
+	metricsRDB := observabilityRedisClient(rdb)
+	defer metricsRDB.Close()
+	stopMetricsSampler := metrics.StartMaintenanceSampler(bgCtx, metricsRDB)
+	defer stopMetricsSampler()
 
 	// ── Rotas ──
 	mux := http.NewServeMux()
@@ -142,6 +149,7 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	mux.Handle("POST /api/keywords", handleSaveKeywords(kwStore))
 
 	// Administrativas
+	mux.Handle("GET /admin/observability", handleOperationalSnapshot(db, metricsRDB))
 	mux.Handle("POST /admin/scrape", handleTriggerScrape(scheduler, bgCtx))
 	mux.Handle("GET /admin/scrape/status", handleScraperStatus(scheduler))
 	mux.Handle("GET /admin/jobs", handleGetJobs(jobStore))

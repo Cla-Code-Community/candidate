@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/classifier"
@@ -11,6 +12,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobindex"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -82,6 +84,16 @@ func processIncomingJobs(
 	persistedByID := make(map[string]domain.Job)
 	pending := make([]*domain.Job, 0, cfg.ClassificationBatchSize)
 	indexBuf := make([]domain.Job, 0, cfg.IndexBatchSize)
+	var persistenceDepth, indexDepth, persistenceCapacity, indexCapacity atomic.Int64
+	persistenceCapacity.Store(int64(cfg.ClassificationBatchSize))
+	indexCapacity.Store(int64(cap(indexBuf)))
+	metrics.BindQueue("persistence", func() metrics.Queue {
+		return metrics.Queue{Depth: int(persistenceDepth.Load()), Capacity: int(persistenceCapacity.Load())}
+	})
+	metrics.BindQueue("indexing", func() metrics.Queue {
+		return metrics.Queue{Depth: int(indexDepth.Load()), Capacity: int(indexCapacity.Load())}
+	})
+	defer func() { persistenceDepth.Store(0); indexDepth.Store(0) }()
 	approved := make([]domain.Job, 0)
 	stats := ProcessStats{}
 	batchNo := 0
@@ -109,6 +121,8 @@ func processIncomingJobs(
 			n := min(cfg.IndexBatchSize, len(indexBuf))
 			chunk := append([]domain.Job(nil), indexBuf[:n]...)
 			indexBuf = append([]domain.Job(nil), indexBuf[n:]...)
+			indexDepth.Store(int64(len(indexBuf)))
+			indexCapacity.Store(int64(cap(indexBuf)))
 			if err := indexPersistedChunk(ctx, cfg, batchNo, chunk, &stats); err != nil {
 				return err
 			}
@@ -126,6 +140,8 @@ func processIncomingJobs(
 					continue
 				}
 				indexBuf = append(indexBuf, job)
+				indexDepth.Store(int64(len(indexBuf)))
+				indexCapacity.Store(int64(cap(indexBuf)))
 				continue
 			}
 			replaced := false
@@ -138,6 +154,8 @@ func processIncomingJobs(
 			}
 			if !replaced {
 				indexBuf = append(indexBuf, job)
+				indexDepth.Store(int64(len(indexBuf)))
+				indexCapacity.Store(int64(cap(indexBuf)))
 			}
 		}
 		return flushIndexBuffer(false)
@@ -187,6 +205,7 @@ func processIncomingJobs(
 			jobs = append(jobs, *job)
 		}
 		pending = pending[:0]
+		persistenceDepth.Store(0)
 		batchDuplicates := windowDuplicates
 		windowDuplicates = 0
 		persisted, err := processStageBatch(ctx, cfg, batchNo, jobs, &stats, batchDuplicates)
@@ -229,6 +248,7 @@ func processIncomingJobs(
 		}
 
 		merged := dedup.Merge(&existing, &incoming)
+		metrics.Stage("classification")
 		classification := classifier.Classify(*merged)
 		merged.Classification = &classification
 		if !classification.InScope && existing.Classification != nil {
@@ -312,6 +332,7 @@ func processIncomingJobs(
 		job = normalizeCollectedJob(job)
 		keys := dedup.Keys(&job)
 		if id, found := flushedID(flushed, keys); found {
+			metrics.JobResult(job.Source, "duplicate", 1)
 			stats.Duplicates++
 			if err := mergeFlushed(job, id); err != nil {
 				terminalErr = err
@@ -319,6 +340,7 @@ func processIncomingJobs(
 			continue
 		}
 		if existing := findSeen(seen, keys); existing != nil {
+			metrics.JobResult(job.Source, "duplicate", 1)
 			stats.Duplicates++
 			windowDuplicates++
 			merged := dedup.Merge(existing, &job)
@@ -331,6 +353,8 @@ func processIncomingJobs(
 		ptr := &jobCopy
 		indexSeen(seen, ptr)
 		pending = append(pending, ptr)
+		persistenceDepth.Store(int64(len(pending)))
+		persistenceCapacity.Store(int64(cap(pending)))
 		if err := flushPending(false); err != nil {
 			terminalErr = err
 		}
@@ -382,14 +406,18 @@ func processStageBatch(
 	duplicates int,
 ) ([]domain.Job, error) {
 	started := time.Now()
+	metrics.Stage("classification")
+	defer metrics.AddProgress("batchesCompleted", 1)
 	valid := make([]domain.Job, 0, len(jobs))
 	invalid := 0
 	for _, job := range jobs {
 		if jobIsInvalid(job) {
 			invalid++
+			metrics.InvalidJob(job.Source)
 			stats.Invalid++
 			continue
 		}
+		metrics.JobResult(job.Source, "valid", 1)
 		stats.Valid++
 		valid = append(valid, job)
 	}
@@ -455,6 +483,7 @@ func persistJobs(
 	written := make([]domain.Job, 0, len(jobs))
 	inserted := 0
 	updated := 0
+	metrics.Stage("persistence")
 	for start := 0; start < len(jobs); start += cfg.PersistBatchSize {
 		if cause := context.Cause(ctx); cause != nil {
 			return written, inserted, updated, cause
@@ -481,6 +510,9 @@ func persistJobs(
 		}
 		inserted += result.Inserted
 		updated += result.Updated
+		for _, j := range result.Persisted {
+			metrics.JobResult(j.Source, "persisted", 1)
+		}
 		written = append(written, result.Persisted...)
 	}
 	return written, inserted, updated, nil
@@ -506,6 +538,7 @@ func indexPersistedChunk(
 
 	var err error
 	commands := 0
+	metrics.Stage("indexing")
 	if cfg.Index != nil {
 		err = cfg.Index(ctx, jobs)
 	} else if cfg.Store.Durable() {
@@ -546,6 +579,9 @@ func indexPersistedChunk(
 			"batch", batchNo,
 			"ids", len(ids),
 		)
+	}
+	for _, j := range jobs {
+		metrics.JobResult(j.Source, "indexed", 1)
 	}
 	stats.Indexed += len(jobs)
 	slog.Info("scraper stage batch",

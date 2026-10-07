@@ -13,6 +13,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/lib/pq"
 )
 
@@ -38,8 +39,11 @@ func (s *Store) SaveBatch(ctx context.Context, jobs []domain.Job) (jobstore.Save
 func (s *Store) Import(ctx context.Context, jobs []domain.Job) (jobstore.SaveResult, error) {
 	return s.save(ctx, jobs, true)
 }
-func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (jobstore.SaveResult, error) {
-	result := jobstore.SaveResult{}
+func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (result jobstore.SaveResult, returnErr error) {
+	started := time.Now()
+	defer func() {
+		metrics.ObservePersistence(started, len(jobs), result.Inserted, result.Updated, len(jobs)-len(result.Persisted), returnErr)
+	}()
 	if len(jobs) > 2500 {
 		return result, fmt.Errorf("catalog batch exceeds 2500")
 	}
@@ -75,6 +79,11 @@ func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (jo
 		return result, fmt.Errorf("catalog begin: %w", err)
 	}
 	defer tx.Rollback()
+	defer func() {
+		if returnErr != nil {
+			metrics.PersistenceRollbacks.WithLabelValues(metrics.PersistenceErrorReason(returnErr)).Inc()
+		}
+	}()
 	// Fence absent IDs as well, so concurrent inserts preserve merge semantics.
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(id,125)) FROM (SELECT unnest($1::text[]) AS id ORDER BY 1) AS ordered_ids`, pq.Array(ids)); err != nil {
 		return result, err
@@ -148,11 +157,13 @@ func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (jo
 	if err = tx.Commit(); err != nil {
 		return jobstore.SaveResult{Invalid: result.Invalid}, fmt.Errorf("catalog commit: %w", err)
 	}
-	for _, j := range persisted {
+	for i, j := range persisted {
 		if _, ok := existing[j.ID]; ok {
 			result.Updated++
+			persisted[i].CatalogChange = "job_updated"
 		} else {
 			result.Inserted++
+			persisted[i].CatalogChange = "job_created"
 		}
 	}
 	result.Persisted = persisted
@@ -264,6 +275,9 @@ func (s *Store) Deactivate(ctx context.Context, ids []string) ([]domain.Job, err
 	if err = tx.Commit(); err != nil {
 		return nil, err
 	}
+	for i := range jobs {
+		jobs[i].CatalogChange = "job_removed"
+	}
 	return jobs, nil
 }
 
@@ -308,6 +322,9 @@ func (s *Store) ReclassifyBatch(ctx context.Context, jobs []domain.Job) ([]domai
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, fmt.Errorf("catalog commit: %w", err)
+	}
+	for i := range persisted {
+		persisted[i].CatalogChange = "job_reclassified"
 	}
 	return persisted, nil
 }
