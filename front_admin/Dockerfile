@@ -21,7 +21,7 @@ ENV VITE_APP_ENV=$VITE_APP_ENV
 RUN npm run build
 
 # ---- Runtime ----
-FROM nginx:1.27-alpine
+FROM nginx:1.31-alpine
 
 COPY --from=build /app/front_admin/dist /usr/share/nginx/html
 
