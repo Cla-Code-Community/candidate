@@ -50,6 +50,27 @@ services:
       - vagas-net
     restart: unless-stopped
 
+  ats-forge:
+    build:
+      context: ../ats-forge
+      dockerfile: Dockerfile
+    container_name: vagas-ats-forge
+    environment:
+      - PORT=8089
+      - ATS_FORGE_API_KEY=${ATS_FORGE_API_KEY-}
+    # Publicado porque o frontend (navegador) chama o ats-forge diretamente.
+    ports:
+      - "8089:8089"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8089/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - vagas-net
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -64,6 +85,8 @@ services:
       - PROMETHEUS_URL=http://prometheus:9090
       - SCRAPER_URL=http://scraper-go:8081
       - GO_SCRAPER_URL=http://scraper-go:8081
+      - ATS_FORGE_URL=http://ats-forge:8089
+      - ATS_FORGE_API_KEY=${ATS_FORGE_API_KEY-}
       - KEYWORDS_STORAGE_MODE=${KEYWORDS_STORAGE_MODE:-env}
       - CACHE_TTL_MS=${CACHE_TTL_MS:-600000}
       - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-vagas-full}
@@ -73,6 +96,8 @@ services:
       - "3001:3001"
     depends_on:
       scraper-go:
+        condition: service_healthy
+      ats-forge:
         condition: service_healthy
     networks:
       - vagas-net
