@@ -1,3 +1,4 @@
+import { isAppError } from "../../../lib/errors";
 import type { NextFunction, Request, Response } from "express";
 import { logWarn } from "../../../logger";
 import { jobSearchesTotal } from "../../../metrics/metrics";
@@ -18,7 +19,7 @@ function hasKeywords(query: Request["query"]): boolean {
 export async function searchJobsController(
   req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ): Promise<void> {
   jobSearchesTotal.inc({ has_keywords: hasKeywords(req.query) ? "true" : "false" });
 
@@ -30,6 +31,10 @@ export async function searchJobsController(
 
     res.json(result);
   } catch (error) {
+    if (isAppError(error)) {
+      next(error);
+      return;
+    }
     logWarn("Erro ao buscar vagas no ecossistema Valkey", {
       error: (error as Error).message,
     });

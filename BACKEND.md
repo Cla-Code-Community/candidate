@@ -58,7 +58,7 @@ Módulos principais:
 - `src/modules/users` — perfis e preferências do usuário (`UsersController`, `UsersService`).
 - `src/modules/savedJobs` — CRUD de vagas salvas (`SavedJobsController`, `SavedJobsService`).
 - `src/modules/notifications` — notificações do usuário autenticado.
-- `src/modules/jobs` — busca, parsing de filtros, fallback pós-filtro e regras de matching/score de vagas.
+- `src/modules/jobs` — busca, parsing de filtros, repository com consulta em lotes e regras de matching/score de vagas.
 - `src/modules/admin` — usuários admin, permissões, scrapers, auditoria, dashboard e observabilidade.
 - `src/modules/email` — envio de e-mails transacionais assíncronos (ver seção [Módulo de E-mail](#módulo-de-e-mail)).
 
@@ -526,3 +526,43 @@ Response (200):
 ---
 
 Os exemplos acima são intencionais e servem como referência rápida para integrar o frontend ou scripts que consomem a API.
+
+## Filtros de famílias profissionais — PAV-124
+
+`GET /api/v1/jobs/search` (também disponível em `/jobs/search`) mantém a autenticação por sessão e o envelope de sucesso com `jobs`, `total`, `page`, `limit`, `totalPages`, `hasNext`, `hasPrev` e `source`.
+
+O parâmetro `family` aceita um ID, IDs separados por vírgula, parâmetros repetidos ou ambos. Exemplos equivalentes:
+
+```text
+?family=backend,fullstack
+?family=fullstack,backend
+?family=backend&family=fullstack
+?family=fullstack,backend&family=backend
+```
+
+O parser central produz `families: ProfessionalFamily[]` ordenadas lexicograficamente, sem espaços externos, valores vazios ou duplicidades, e `familyMode: "primary" | "any"`. O limite de 13 é aplicado às famílias únicas após normalização. `family=backend,` é válido; `family=` e `family=,,,` retornam 400. IDs são sensíveis à caixa: labels (`Backend`, `Full Stack`, `Dados e IA`), aliases históricos e `other` não são públicos.
+
+As famílias são derivadas de `professionalTaxonomy.ts`, o módulo da PAV-123 já verificado contra `scraper-go/internal/taxonomy/families.json`: backend, frontend, fullstack, mobile, data, devops, platform, qa, security, product, product_design, software e leadership. Nenhuma nova taxonomia foi criada.
+
+- `familyMode=primary`: considera somente `classification.primaryFamily`.
+- `familyMode=any` (default): considera principal e relacionadas.
+- `familyMode` sem `family` é validado, mas não restringe a busca.
+- Repetição de `familyMode`, modo vazio ou diferente dos dois valores retorna 400.
+- Famílias usam OR entre si e AND com os outros grupos de filtros.
+- `fullstack` não expande para backend/frontend; devops e platform são independentes.
+
+Exemplo: `?family=product,product_design&familyMode=primary&seniority=senior&model=remoto&country=Brasil&contract=clt`. Os parâmetros de modalidade existentes continuam sendo `model`/`type` (`model` prevalece), com os valores atuais `remoto`, `hibrido` e `presencial`. Esta tarefa não acrescenta `modality` ou um filtro `provider`, que não estavam implementados na busca auditada. Keywords, tecnologias, empresa, senioridade, nível, localização, contrato e aliases, paginação e ordenação continuam com seus parsers e predicados existentes.
+
+Erros de validação usam o envelope padrão `{ "code": "INVALID_JOB_FAMILY" | "INVALID_FAMILY_MODE", "message": "..." }`, status 400, antes de consultar vagas ou perfil. Falhas de infraestrutura preservam o envelope legado da busca `{ "message": "...", "error": "..." }`, status 500.
+
+`GET /api/v1/jobs/filters/options` retorna `taxonomyVersion`, as 13 famílias na ordem canônica com IDs/labels e os modos `any` (default) e `primary`. O endpoint mantém a autenticação de `/jobs`, não consulta vagas/contagens/scraper e envia `Cache-Control: public, max-age=3600` e ETag SHA-256 da versão/conteúdo. `If-None-Match` permite 304.
+
+### Consulta, compatibilidade e limites temporários
+
+A busca anterior já incluía principal e relacionadas; o default `any` conserva essa semântica. A validação estrita deixa de aceitar labels e listas explicitamente vazias, conforme o contrato novo. O repository verifica documentos persistidos em lotes de até 200 e aplica todos os filtros antes de contar e selecionar a página. Não há pós-filtro depois da paginação e não são carregados todos os documentos simultaneamente.
+
+Para impedir perdas com índices estruturados incompletos, buscas filtradas usam o índice global de IDs ou a resolução existente de keywords. O campo diagnóstico `source` passa a usar `:verified_batches` nessas buscas. Isso pode recuperar vagas que os índices anteriores omitiam e mudar a ordem incidental do conjunto de candidatos; não existe ordenação cronológica garantida por Sets do Valkey. A ordem das famílias da request não altera o predicado nem o caminho de consulta. Ordenação explícita por match continua global, com desempate pela ordem dos candidatos e apenas IDs/scores retidos; o cálculo de score existente não foi alterado. A busca simples sem filtros/ordenação mantém sua priorização por perfil e hidratação atuais.
+
+Custo temporário: O(N) documentos candidatos por busca filtrada para obter total exato; IDs permanecem em memória. Ordenação por match conserva no máximo `offset + limit` IDs/scores e hidrata novamente a página escolhida. Valkey não oferece snapshot entre essas leituras: expiração/reclassificação concorrente pode mudar documentos durante uma busca. A busca simples legada ainda estima total descontando apenas órfãos observados na hidratação da página; esse comportamento preexistente foi preservado.
+
+Ficam para a próxima PAV: índices separados de famílias principais/relacionadas, reconstrução de índices, cache keys finais, invalidação por reclassificação e evolução de match score. Não houve mudança no Processor Go, autenticação, autorização ou rate limit (a busca não tinha limitador próprio; os limitadores de autenticação permanecem).

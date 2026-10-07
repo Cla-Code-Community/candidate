@@ -377,8 +377,8 @@ describe("jobsApiApp", () => {
     expect(res.body.total).toBe(1);
   });
 
-  it("GET /jobs/search usa índices estruturados quando há filtros", async () => {
-    mocks.cacheSearchJobIds.mockResolvedValue(["id-structured"]);
+  it("GET /jobs/search consulta documentos em lotes quando há filtros", async () => {
+    mocks.cacheSearchKeywords.mockResolvedValue(["id-structured"]);
     mocks.cacheGetJobsByIds.mockResolvedValue([
       {
         id: "id-structured",
@@ -399,33 +399,19 @@ describe("jobsApiApp", () => {
       })
       .expect(200);
 
-    expect(mocks.cacheSearchJobIds).toHaveBeenCalledWith({
-      keywords: ["React"],
-      family: [],
-      technology: [],
-      seniority: "",
-      level: "Júnior",
-      location: "Brasil",
-      continent: "",
-      country: "",
-      state: "",
-      city: "",
-      type: ["Remoto"],
-      model: ["Remoto"],
-      contract: "",
-    });
+    expect(mocks.cacheSearchJobIds).not.toHaveBeenCalled();
     expect(mocks.jobSearchesInc).toHaveBeenCalledWith({ has_keywords: "true" });
-    expect(mocks.cacheSearchKeywords).not.toHaveBeenCalled();
+    expect(mocks.cacheSearchKeywords).toHaveBeenCalledWith(["React"]);
     expect(mocks.cacheGetJobsByIds).toHaveBeenCalledWith(["id-structured"]);
     expect(res.body.jobs).toEqual([
       expect.objectContaining({ id: "id-structured" }),
     ]);
-    expect(res.body.source).toContain("structured_indexes");
+    expect(res.body.source).toContain("verified_batches");
     expect(res.body.source).toContain("verified");
   });
 
-  it("GET /jobs/search valida resultados dos índices estruturados antes de responder", async () => {
-    mocks.cacheSearchJobIds.mockResolvedValue([
+  it("GET /jobs/search valida documentos antes de contar e paginar", async () => {
+    mocks.cacheAbsoluteSMembers.mockResolvedValue([
       "id-good",
       "id-pleno",
       "id-presencial",
@@ -476,11 +462,11 @@ describe("jobsApiApp", () => {
     ]);
     expect(res.body.jobs).toEqual([expect.objectContaining({ id: "id-good" })]);
     expect(res.body.total).toBe(1);
-    expect(res.body.source).toBe("valkey_global_index:structured_indexes:verified");
+    expect(res.body.source).toBe("valkey_global_index:verified_batches");
   });
 
   it("GET /jobs/search filtra vagas de estágio e trainee", async () => {
-    mocks.cacheSearchJobIds.mockResolvedValue(["id-intern", "id-junior"]);
+    mocks.cacheAbsoluteSMembers.mockResolvedValue(["id-intern", "id-junior"]);
     mocks.cacheGetJobsByIds.mockResolvedValue([
       {
         id: "id-intern",
@@ -506,9 +492,7 @@ describe("jobsApiApp", () => {
       })
       .expect(200);
 
-    expect(mocks.cacheSearchJobIds).toHaveBeenCalledWith(
-      expect.objectContaining({ level: "Estágio/Trainee" }),
-    );
+    expect(mocks.cacheSearchJobIds).not.toHaveBeenCalled();
     expect(res.body.jobs).toEqual([
       expect.objectContaining({ id: "id-intern" }),
     ]);
@@ -596,7 +580,7 @@ describe("jobsApiApp", () => {
       },
     }));
     mocks.cacheAbsoluteSMembers.mockResolvedValue(["low", "high", "middle"]);
-    mocks.cacheGetJobsByIds.mockResolvedValue([
+    const matchJobs = [
       {
         id: "low",
         title: "Customer Success",
@@ -615,7 +599,8 @@ describe("jobsApiApp", () => {
         company: "Initech",
         location: "Brasil",
       },
-    ]);
+    ];
+    mocks.cacheGetJobsByIds.mockImplementation(async (ids: string[]) => ids.flatMap(id => matchJobs.filter(job => job.id === id)));
     mocks.getUserById.mockResolvedValue({
       id: "test-user-id",
       technologies: ["React", "TypeScript", "Node"],
@@ -638,7 +623,7 @@ describe("jobsApiApp", () => {
       "middle",
     ]);
     expect(res.body.total).toBe(3);
-    expect(res.body.source).toBe("valkey_global_index:match_sorted_desc");
+    expect(res.body.source).toBe("valkey_global_index:verified_batches:match_sorted_desc");
   });
 
   it("GET /jobs/search retorna paginação correta", async () => {
