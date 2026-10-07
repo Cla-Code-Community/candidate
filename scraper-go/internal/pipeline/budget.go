@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 )
 
@@ -55,6 +56,8 @@ func (b *concurrencyBudget) acquire(
 		return nil, cause
 	}
 
+	metrics.Waiting(string(provider), 1)
+	defer metrics.Waiting(string(provider), -1)
 	providerSemaphore := b.providerSemaphore(provider)
 	select {
 	case providerSemaphore <- struct{}{}:
@@ -70,8 +73,10 @@ func (b *concurrencyBudget) acquire(
 	case b.global <- struct{}{}:
 		permit := &concurrencyPermit{
 			budget:            b,
+			provider:          provider,
 			providerSemaphore: providerSemaphore,
 		}
+		metrics.Active(string(provider), 1)
 		if cause := context.Cause(ctx); cause != nil {
 			permit.release()
 			return nil, cause
@@ -112,6 +117,7 @@ func (b *concurrencyBudget) providerInUse(provider ports.ProviderID) int {
 }
 
 type concurrencyPermit struct {
+	provider          ports.ProviderID
 	once              sync.Once
 	budget            *concurrencyBudget
 	providerSemaphore chan struct{}
@@ -122,6 +128,7 @@ func (p *concurrencyPermit) release() {
 		return
 	}
 	p.once.Do(func() {
+		metrics.Active(string(p.provider), -1)
 		<-p.budget.global
 		<-p.providerSemaphore
 	})

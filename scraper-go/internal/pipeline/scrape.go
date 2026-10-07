@@ -60,7 +60,7 @@ func ScrapeAllSources(
 		}
 		defer release()
 	}
-	slog.Info("starting scrape", "keywords", config.Keywords)
+	slog.Info("starting scrape", "keywords_total", len(config.Keywords), "run_id", config.RunID, "stage", "collection")
 	slog.Info("scraper concurrency budget",
 		"global_limit", config.MaxConcurrency,
 		"provider_default_limit", config.ProviderMaxConcurrency,

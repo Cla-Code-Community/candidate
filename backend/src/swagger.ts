@@ -1,5 +1,7 @@
 import path from "path";
 import swaggerJsdoc from "swagger-jsdoc";
+import { z } from "zod";
+import { ProcessorSnapshotSchema } from "./modules/admin/observability/observability.types";
 import { jobFilterOptions } from "./modules/jobs/controllers/jobFilterOptions.controller";
 import { professionalFamilies } from "./modules/jobs/types/professionalTaxonomy";
 
@@ -1197,6 +1199,49 @@ const options: swaggerJsdoc.Options = {
             }),
             401: response("Unauthorized"),
             403: response("Forbidden"),
+          },
+        },
+      },
+      "/admin/observability": {
+        get: {
+          tags: ["Admin"],
+          summary: "Estado operacional leve do Jobs Processor",
+          description:
+            "Exige admin e permissão observability.metrics. Responde 200 com status ok ou partial; processor null significa indisponível, execution.status idle significa disponível sem execução. Uma chamada interna limitada a 2.5s; não consulta Prometheus nem varre vagas. Recursos, lock, progresso, versões, resumo de manutenção e top 10 rejeições limitadas estão em processor. Sem histórico, timestamps/source/stage são null.",
+          security: [{ cookieAuth: [] }],
+          responses: {
+            "200": {
+              description: "Snapshot disponível ou parcial",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    required: [
+                      "status",
+                      "timestamp",
+                      "processor",
+                      "availability",
+                    ],
+                    properties: {
+                      status: { type: "string", enum: ["ok", "partial"] },
+                      timestamp: { type: "string", format: "date-time" },
+                      processor: z.toJSONSchema(
+                        ProcessorSnapshotSchema.nullable(),
+                        { target: "openapi-3.0" },
+                      ),
+                      availability: {
+                        type: "object",
+                        properties: {
+                          scraper: { type: "string", enum: ["ok", "down"] },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            "401": { description: "Não autenticado" },
+            "403": { description: "Sem permissão administrativa" },
           },
         },
       },

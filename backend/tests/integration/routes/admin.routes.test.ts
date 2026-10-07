@@ -72,6 +72,9 @@ vi.mock("../../../src/routes/admin.context", () => ({
     triggerOne: mocks.scrapersTriggerOne,
   },
   observabilityCtrl: {
+    getOperationalSnapshot: vi.fn((_req, res) =>
+      res.json({ status: "ok", processor: null }),
+    ),
     getHealth: mocks.health,
     getMetrics: mocks.metrics,
     getDashboards: mocks.dashboards,
@@ -146,6 +149,7 @@ describe("Integration - Admin Routes", () => {
     await request(app).get("/admin/users").expect(403);
     await request(app).patch("/admin/users/user-2/block").expect(403);
     await request(app).get("/admin/observability/metrics").expect(403);
+    await request(app).get("/admin/observability").expect(403);
 
     expect(mocks.usersList).not.toHaveBeenCalled();
     expect(mocks.blockUser).not.toHaveBeenCalled();
@@ -160,6 +164,7 @@ describe("Integration - Admin Routes", () => {
     await request(app).post("/admin/scrapers/run").expect(202);
     await request(app).post("/admin/scrapers/go-scraper/run").expect(202);
     await request(app).get("/admin/observability/metrics").expect(200);
+    await request(app).get("/api/v1/admin/observability").expect(200);
     await request(app).get("/admin/audit").expect(200);
     await request(app).get("/admin/users").expect(200);
 
@@ -224,5 +229,6 @@ describe("Integration - Admin Routes", () => {
     } as any);
 
     await request(app).get("/admin/dashboard").expect(401);
+    await request(app).get("/admin/observability").expect(401);
   });
 });

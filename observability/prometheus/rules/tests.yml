@@ -1,0 +1,51 @@
+# Loaded by promtool test rules only, not a Prometheus rule file.
+rule_files:
+  - alerts.yml
+  - recording.yml
+evaluation_interval: 1m
+tests:
+  - name: sustained-cpu-and-search-under-budget
+    interval: 1m
+    input_series:
+      - series: 'container_cpu_usage_seconds_total{job="cadvisor",container_label_com_docker_compose_service="scraper-go"}'
+        values: '0+84x30'
+      - series: 'http_request_duration_seconds_bucket{job="backend",route="/jobs/search",le="0.1"}'
+        values: '0+5x30'
+      - series: 'http_request_duration_seconds_bucket{job="backend",route="/jobs/search",le="0.5"}'
+        values: '0+10x30'
+      - series: 'http_request_duration_seconds_bucket{job="backend",route="/jobs/search",le="+Inf"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: CandidateScraperHighCPU
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: CandidateScraperHighCPU
+        exp_alerts:
+          - exp_labels: {severity: warning, container_label_com_docker_compose_service: scraper-go}
+            exp_annotations: {summary: "Scraper uses over 90% of its 1.5 CPU quota for 15 minutes"}
+      - eval_time: 20m
+        alertname: CandidateJobsSearchLatency
+        exp_alerts: []
+    promql_expr_test:
+      - expr: candidate_jobs:search_latency_p95_seconds
+        eval_time: 10m
+        exp_samples:
+          - labels: 'candidate_jobs:search_latency_p95_seconds{job="backend"}'
+            value: 0.4600000000000001
+  - name: memory-sustained-not-brief
+    interval: 1m
+    input_series:
+      - series: 'container_memory_working_set_bytes{container_label_com_docker_compose_service="scraper-go"}'
+        values: '1900000000+0x30'
+      - series: 'container_spec_memory_limit_bytes{container_label_com_docker_compose_service="scraper-go"}'
+        values: '2147483648+0x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: CandidateScraperMemoryNearLimit
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: CandidateScraperMemoryNearLimit
+        exp_alerts:
+          - exp_labels: {severity: warning, container_label_com_docker_compose_service: scraper-go}
+            exp_annotations: {summary: "Scraper memory near the configured container limit"}

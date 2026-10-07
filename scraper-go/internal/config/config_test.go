@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -361,5 +362,28 @@ func TestCatalogLifetimeConfiguration(t *testing.T) {
 		if err == nil {
 			t.Fatal("invalid catalog lifetime accepted")
 		}
+	}
+}
+
+func TestApplicationVersionValidation(t *testing.T) {
+	for _, value := range []string{"", "bad\nversion", strings.Repeat("v", 129)} {
+		_, err := LoadRuntimeConfigFromLookup(func(k string) (string, bool) {
+			if k == "APPLICATION_VERSION" {
+				return value, true
+			}
+			return "", false
+		})
+		if err == nil {
+			t.Fatal("invalid version accepted")
+		}
+	}
+	cfg, err := LoadRuntimeConfigFromLookup(func(k string) (string, bool) {
+		if k == "APPLICATION_VERSION" {
+			return "pav-126", true
+		}
+		return "", false
+	})
+	if err != nil || cfg.ApplicationVersion != "pav-126" {
+		t.Fatal(cfg, err)
 	}
 }

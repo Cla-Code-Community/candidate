@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/taxonomy"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"os"
@@ -204,4 +206,27 @@ func TestRealValkeyProjection(t *testing.T) {
 	require.NoError(t, e)
 	require.False(t, client.SIsMember(ctx, prefix+"family:product", "a").Val())
 	require.True(t, client.SIsMember(ctx, prefix+"family:primary:product_design", "a").Val())
+}
+
+func TestInvalidTelemetryCannotBlockAtomicIndexPublication(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+	ctx := context.Background()
+	m := New(rdb)
+	j := domain.Job{ID: "telemetry-job", Title: "Backend", CatalogRevision: 1, CatalogExpiresAt: time.Now().Add(time.Hour), Classification: &domain.Classification{PrimaryFamily: "backend", InScope: true}}
+	require.NoError(t, rdb.Set(ctx, "scraper:observability:maintenance-metrics", "invalid-telemetry", 0).Err())
+	_, err := m.Apply(ctx, []domain.Job{j}, func(domain.Job) []string { return nil })
+	require.NoError(t, err)
+	require.True(t, rdb.SIsMember(ctx, Prefix(Bootstrap)+"family:primary:backend", j.ID).Val())
+	require.Equal(t, "1", rdb.Get(ctx, GenerationKey).Val())
+}
+
+func TestIndexTelemetryIncludesActiveNamespaceLookupFailure(t *testing.T) {
+	m, client := setup(t)
+	client.Close()
+	before := testutil.ToFloat64(metrics.IndexBatches.WithLabelValues("failed"))
+	_, err := m.Apply(context.Background(), []domain.Job{committed("unindexed", "backend", nil, 1)}, noKeys)
+	require.Error(t, err)
+	require.Equal(t, before+1, testutil.ToFloat64(metrics.IndexBatches.WithLabelValues("failed")))
 }

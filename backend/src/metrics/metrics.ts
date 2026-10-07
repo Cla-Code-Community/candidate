@@ -37,3 +37,23 @@ export const cacheOperationsTotal = new client.Counter({
   labelNames: ["operation", "result"],
   registers: [register],
 });
+
+export const searchCacheRequests = new client.Counter({
+  name: "candidate_jobs_search_cache_requests_total",
+  help: "Search cache outcomes",
+  labelNames: ["result"],
+  registers: [register],
+});
+export const searchCacheDuration = new client.Histogram({
+  name: "candidate_jobs_search_cache_operation_duration_seconds",
+  help: "Search cache operation duration",
+  labelNames: ["operation"],
+  buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5],
+  registers: [register],
+});
+export const searchCacheInvalidations = new client.Counter({
+  name: "candidate_jobs_search_cache_invalidations_total",
+  help: "Successful search cache generation invalidations",
+  labelNames: ["reason"],
+  registers: [register],
+});

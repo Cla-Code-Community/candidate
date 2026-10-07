@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/taxonomy"
 	"github.com/redis/go-redis/v9"
 )
@@ -21,6 +22,7 @@ const Bootstrap = "bootstrap"
 func Prefix(version string) string { return "scraper:jobs:ns:" + version + ":" }
 
 type Plan struct {
+	Change   string   `json:"change,omitempty"`
 	ID       string   `json:"id"`
 	Revision int64    `json:"revision"`
 	Expires  int64    `json:"expiresAt"`
@@ -36,7 +38,13 @@ func Build(job domain.Job, keys []string) (Plan, error) {
 	if job.ID == "" || job.CatalogRevision < 1 || job.CatalogExpiresAt.IsZero() {
 		return Plan{}, fmt.Errorf("index requires committed catalog identity, revision and expiry")
 	}
-	p := Plan{ID: job.ID, Revision: job.CatalogRevision, Expires: job.CatalogExpiresAt.Unix(), Taxonomy: taxonomy.Version(), Keys: []string{}, Related: []string{}}
+	change := job.CatalogChange
+	switch change {
+	case "job_created", "job_updated", "job_removed", "job_reclassified":
+	default:
+		change = "job_updated"
+	}
+	p := Plan{Change: change, ID: job.ID, Revision: job.CatalogRevision, Expires: job.CatalogExpiresAt.Unix(), Taxonomy: taxonomy.Version(), Keys: []string{}, Related: []string{}}
 	if c := job.Classification; c != nil {
 		if c.PrimaryFamily != "other" && !taxonomy.IsPublic(c.PrimaryFamily) {
 			return p, fmt.Errorf("invalid primary family in committed classification")
@@ -98,13 +106,17 @@ func (m *Manager) Active(ctx context.Context) (string, error) {
 	return v, e
 }
 func (m *Manager) Apply(ctx context.Context, jobs []domain.Job, keys func(domain.Job) []string) (int, error) {
+	started := time.Now()
 	version, err := m.Active(ctx)
 	if err != nil {
+		metrics.ObserveIndex(started, len(jobs), 0, err)
 		return 0, err
 	}
 	return m.ApplyVersion(ctx, version, jobs, keys, false)
 }
-func (m *Manager) ApplyVersion(ctx context.Context, version string, jobs []domain.Job, keys func(domain.Job) []string, draft bool) (int, error) {
+func (m *Manager) ApplyVersion(ctx context.Context, version string, jobs []domain.Job, keys func(domain.Job) []string, draft bool) (changed int, returnErr error) {
+	started := time.Now()
+	defer func() { metrics.ObserveIndex(started, len(jobs), changed, returnErr) }()
 	if len(jobs) > 2500 {
 		return 0, fmt.Errorf("index batch exceeds 2500")
 	}
@@ -140,9 +152,14 @@ func (m *Manager) ApplyVersion(ctx context.Context, version string, jobs []domai
 	if err != nil {
 		return 0, err
 	}
+	scriptStarted := time.Now()
 	result, err := applyScript.Run(ctx, m.RDB, []string{ActiveKey, GenerationKey}, version, Prefix(version), string(raw), now, draft).Int()
 	if err != nil {
 		return 0, fmt.Errorf("atomic index batch: %w", err)
+	}
+
+	if !draft && result > 0 {
+		metrics.CacheInvalidationDuration.WithLabelValues("invalidate").Observe(time.Since(scriptStarted).Seconds())
 	}
 	return result, nil
 }
@@ -156,7 +173,9 @@ local function typed(k,want)
  local t=redis.call('TYPE',k).ok
  if t~='none' and t~=want then error('WRONGTYPE controlled index preflight') end
 end
-typed(KEYS[1],'string');typed(KEYS[2],'string')
+typed(KEYS[1],'string');typed(KEYS[2],'string');typed('scraper:jobs:taxonomy-version','string')
+local telemetryType=redis.call('TYPE','scraper:observability:maintenance-metrics').ok;local telemetryOk=telemetryType=='none' or telemetryType=='hash'
+if telemetryOk then for _,reason in ipairs({'job_created','job_updated','job_removed','job_reclassified','index_rebuilt','taxonomy_changed'}) do local v=redis.call('HGET','scraper:observability:maintenance-metrics','cache:'..reason);if v and (not string.match(v,'^%d+$') or tonumber(v)>=9007199254740991) then telemetryOk=false end end end
 local g=redis.call('GET',KEYS[2]);if g and (not string.match(g,'^%d+$') or tonumber(g)>=9007199254740991) then error('invalid generation') end
 local active=redis.call('GET',KEYS[1]) or 'bootstrap'
 if not draft and active~=version then return redis.error_reply('index version changed') end
@@ -181,7 +200,7 @@ for i,p in ipairs(plans) do
  for _,k in ipairs(p.keys) do typed(prefix..k,'set');if not draft then typed('scraper:jobs:'..k,'set') end end
  if not draft then typed('scraper:job:'..p.id,'string');typed('scraper:jobs:index-membership:'..p.id,'string');typed('scraper:job:'..p.id..':idx','set') end
 end
-local changed=0
+local changed=0;local invalidations={}
 for i,p in ipairs(plans) do
  if tonumber(old[i].revision)<tonumber(p.revision) or (tonumber(old[i].revision)==tonumber(p.revision) and p.expiresAt<=now and (#old[i].keys>0 or redis.call('SISMEMBER',prefix..'index',p.id)==1)) then
   for _,k in ipairs(old[i].keys) do
@@ -222,8 +241,9 @@ for i,p in ipairs(plans) do
    for _,k in ipairs(p.keys) do redis.call('PERSIST',prefix..k) end
   end
   changed=changed+1
+  if not draft then local reason=p.change;if not alive then reason='job_removed' end;invalidations[reason]=true end
  end
 end
-if not draft and changed>0 then redis.call('SET',KEYS[1],version);redis.call('INCR',KEYS[2]) end
+if not draft and changed>0 then redis.call('SET',KEYS[1],version);redis.call('INCR',KEYS[2]);if telemetryOk then for reason,_ in pairs(invalidations) do redis.call('HINCRBY','scraper:observability:maintenance-metrics','cache:'..reason,1) end end;local old=redis.call('GET','scraper:jobs:taxonomy-version');local tax=plans[1].taxonomyVersion;if telemetryOk and old and old~=tax then redis.call('HINCRBY','scraper:observability:maintenance-metrics','cache:taxonomy_changed',1) end;redis.call('SET','scraper:jobs:taxonomy-version',tax) end
 return changed
 `)

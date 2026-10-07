@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
+
 	"github.com/redis/go-redis/v9"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
@@ -90,17 +92,21 @@ func New(
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
+	metrics.CronInterval.Set(s.cfg.Interval.Seconds())
 	slog.Info("cronjob: scheduler iniciado", "interval", s.cfg.Interval)
 
 	go func() {
 		s.runCron(ctx)
+		metrics.SetNextRun(time.Now().Add(s.cfg.Interval))
 
 		ticker := time.NewTicker(s.cfg.Interval)
 		defer ticker.Stop()
+		defer metrics.SetNextRun(time.Time{})
 
 		for {
 			select {
 			case <-ticker.C:
+				metrics.SetNextRun(time.Now().Add(s.cfg.Interval))
 				s.runCron(ctx)
 			case <-s.stop:
 				slog.Info("cronjob: scheduler encerrado")
@@ -213,6 +219,7 @@ func (s *Scheduler) acquire(ctx context.Context, source string) (*runlock.Lease,
 }
 
 func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
+	defer func() { metrics.FinishRun(runErr, lease.RunID()) }()
 	s.mu.Lock()
 	s.running = true
 	s.mu.Unlock()

@@ -6,8 +6,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/taxonomy"
 )
 
@@ -42,7 +44,9 @@ type sourceClassificationStats struct {
 // TaxonomyVersion identifies the contract used without changing persisted jobs.
 func TaxonomyVersion() string { return taxonomy.Version() }
 
-func Classify(job domain.Job) domain.Classification {
+func Classify(job domain.Job) (classification domain.Classification) {
+	started := time.Now()
+	defer func() { metrics.Classification(job, classification, started) }()
 	text := normalizeText(strings.Join([]string{
 		job.Title,
 		job.Company,

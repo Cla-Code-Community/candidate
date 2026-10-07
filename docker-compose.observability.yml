@@ -3,7 +3,8 @@ services:
     image: prom/prometheus
     container_name: vagas-prometheus
     volumes:
-      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
     ports:
       - "9091:9090"
     networks:

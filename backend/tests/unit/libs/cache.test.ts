@@ -32,6 +32,9 @@ const metricMocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../src/metrics/metrics", () => ({
+  searchCacheRequests: { inc: vi.fn() },
+  searchCacheDuration: { startTimer: vi.fn(() => vi.fn()) },
+  searchCacheInvalidations: { inc: vi.fn() },
   cacheOperationsTotal: {
     inc: metricMocks.cacheInc,
   },

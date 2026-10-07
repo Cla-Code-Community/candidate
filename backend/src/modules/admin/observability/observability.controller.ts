@@ -13,6 +13,13 @@ export class ObservabilityController {
     private readonly auditService: AuditService,
   ) {}
 
+  async getOperationalSnapshot(req: Request, res: Response) {
+    const result = await this.service.getOperationalSnapshot();
+    this.auditService.fromRequest(req, "observability.metrics");
+    res.set("Cache-Control", "no-store");
+    return res.json(result);
+  }
+
   async getHealth(req: Request, res: Response) {
     try {
       const result = await this.service.getHealth();

@@ -1,0 +1,32 @@
+groups:
+  - name: candidate.operational.recording
+    interval: 60s
+    rules:
+      - record: candidate_jobs:search_latency_p95_seconds
+        expr: histogram_quantile(0.95, sum by (job, le) (rate(http_request_duration_seconds_bucket{route=~"(/api/v1)?/jobs/search"}[5m])))
+      - record: candidate_backend:admin_latency_p95_seconds
+        expr: histogram_quantile(0.95, sum by (job, route, le) (rate(http_request_duration_seconds_bucket{route=~"(/api/v1)?/admin/(scrapers|observability)(/.*)?"}[5m])))
+      - record: candidate_backend:error_ratio
+        expr: sum by (job) (rate(http_requests_total{status_code=~"5.."}[5m])) / clamp_min(sum by (job) (rate(http_requests_total[5m])), 0.001)
+      - record: candidate_scraper:cpu_cores
+        expr: sum by (job, instance) (rate(process_cpu_seconds_total{job="scraper-go"}[5m]))
+      - record: candidate_scraper:container_cpu_cores
+        expr: sum by (container_label_com_docker_compose_service) (rate(container_cpu_usage_seconds_total{container_label_com_docker_compose_service="scraper-go"}[5m]))
+      - record: candidate_scraper:container_memory_ratio
+        expr: sum by (container_label_com_docker_compose_service) (container_memory_working_set_bytes{container_label_com_docker_compose_service="scraper-go"}) / clamp_min(sum by (container_label_com_docker_compose_service) (container_spec_memory_limit_bytes{container_label_com_docker_compose_service="scraper-go"}), 1)
+      - record: candidate_scraper:rss_bytes
+        expr: process_resident_memory_bytes{job="scraper-go"}
+      - record: candidate_scraper:provider_duration_p95_seconds
+        expr: histogram_quantile(0.95, sum by (job, provider, le) (rate(candidate_scraper_provider_duration_seconds_bucket[15m])))
+      - record: candidate_scraper:provider_error_ratio
+        expr: sum by (job, provider) (rate(candidate_scraper_provider_runs_total{status="failed"}[15m])) / clamp_min(sum by (job, provider) (rate(candidate_scraper_provider_runs_total[15m])), 0.001)
+      - record: candidate_scraper:provider_timeout_ratio
+        expr: sum by (job, provider) (rate(candidate_scraper_provider_runs_total{status="timeout"}[15m])) / clamp_min(sum by (job, provider) (rate(candidate_scraper_provider_runs_total[15m])), 0.001)
+      - record: candidate_jobs:search_cache_hit_ratio
+        expr: sum by (job) (rate(candidate_jobs_search_cache_requests_total{result="hit"}[5m])) / clamp_min(sum by (job) (rate(candidate_jobs_search_cache_requests_total{result=~"hit|miss|stale"}[5m])), 0.001)
+      - record: candidate_scraper:classification_approved_ratio
+        expr: sum by (job) (rate(candidate_scraper_classification_jobs_total{result="approved"}[15m])) / clamp_min(sum by (job) (rate(candidate_scraper_classification_jobs_total[15m])), 0.001)
+      - record: candidate_scraper:classification_rejected_ratio
+        expr: sum by (job) (rate(candidate_scraper_classification_jobs_total{result=~"rejected|other|invalid"}[15m])) / clamp_min(sum by (job) (rate(candidate_scraper_classification_jobs_total[15m])), 0.001)
+      - record: candidate_scraper:lock_conflicts_rate
+        expr: sum by (job, source) (rate(candidate_scraper_lock_conflicts_total[15m]))
