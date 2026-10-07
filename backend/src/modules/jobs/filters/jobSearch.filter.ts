@@ -304,7 +304,7 @@ export function filterJobs(
   const city = normalizeComparable(filters.city);
   const contract = normalizeComparable(filters.contract);
   const types = filters.type.map(normalizeComparable);
-  const families = filters.family.map(normalizeComparable);
+  const families = filters.families.map(normalizeComparable);
   const technologies = filters.technology.map(normalizeComparable);
   const companies = filters.company.map(normalizeComparable);
 
@@ -332,7 +332,7 @@ export function filterJobs(
     const classification = candidate.classification;
     const classifiedFamilies = [
       classification?.primaryFamily,
-      ...(classification?.relatedFamilies ?? []),
+      ...(filters.familyMode === "any" ? classification?.relatedFamilies ?? [] : []),
     ]
       .filter(Boolean)
       .map((value) => normalizeComparable(String(value)));

@@ -25,7 +25,8 @@ export type MatchSort = "asc" | "desc" | null;
 
 export type ParsedJobSearchQuery = {
   keywords: string[];
-  family: string[];
+  families: ProfessionalFamily[];
+  familyMode: "primary" | "any";
   technology: string[];
   company: string[];
   type: string[];

@@ -77,7 +77,8 @@ function emptyFilters(
 ): ParsedJobSearchQuery {
   return {
     keywords: [],
-    family: [],
+    families: [],
+    familyMode: "any",
     technology: [],
     company: [],
     seniority: "",
@@ -219,152 +220,30 @@ describe("SearchJobsService.execute - legacyResolveIds com keywords", () => {
   });
 });
 
-describe("SearchJobsService.execute - hasFilters", () => {
-  it("usa cacheSearchJobIds e retorna verified quando há resultados indexados", async () => {
+describe("SearchJobsService - repository boundary", () => {
+  it.each(["primary", "any"] as const)("passes normalized %s filters and pagination without reinterpretation", async familyMode => {
     const profileService = buildProfileMatchService();
-    const svc = new SearchJobsService(profileService);
-
+    const filters = emptyFilters({ families: ["backend", "fullstack"], familyMode });
+    mockParseJobSearchQuery.mockReturnValue(filters);
     mockHasStructuredFilters.mockReturnValue(true);
-    mockParseJobSearchQuery.mockReturnValue(
-      emptyFilters({
-        keywords: ["react"],
-        family: ["front"],
-        technology: ["react"],
-        seniority: "sr",
-        level: "senior",
-        location: "BR",
-        continent: "SA",
-        country: "BR",
-        state: "SP",
-        city: "SP",
-        type: ["remote"],
-        contract: "clt",
-      }),
-    );
-    mockCacheSearchJobIds.mockResolvedValueOnce(["id1", "id2"]);
-    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "id1" }, { id: "id2" }]);
-
+    const repository = { search: vi.fn().mockResolvedValue({ jobs: [{ id: "a" }], total: 21 }) };
+    const svc = new SearchJobsService(profileService, repository);
     const result = await svc.execute({ userId: "u1", query: {} });
-
-    expect(mockCacheSearchJobIds).toHaveBeenCalledWith({
-      keywords: ["react"],
-      family: ["front"],
-      technology: ["react"],
-      seniority: "sr",
-      level: "senior",
-      location: "BR",
-      continent: "SA",
-      country: "BR",
-      state: "SP",
-      city: "SP",
-      type: ["remote"],
-      model: ["remote"],
-      contract: "clt",
-    });
-    expect(result.source).toContain("structured_indexes:verified");
+    expect(repository.search).toHaveBeenCalledWith(filters, defaultPagination, undefined);
+    expect(result).toMatchObject({ total: 21, page: 1, limit: 10, totalPages: 3, hasNext: true });
+    expect(mockCacheSearchJobIds).not.toHaveBeenCalled();
   });
-
-  it("cai no fallback quando cacheSearchJobIds retorna vazio", async () => {
+  it("scores batches without notifications and enriches only the final page normally", async () => {
     const profileService = buildProfileMatchService();
-    const svc = new SearchJobsService(profileService);
-
-    mockHasStructuredFilters.mockReturnValue(true);
-    mockParseJobSearchQuery.mockReturnValue(
-      emptyFilters({ keywords: ["react"] }),
-    );
-    mockCacheSearchJobIds.mockResolvedValueOnce([]);
-    mockCacheSearchKeywords.mockResolvedValueOnce(["legacy-id"]);
-    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "legacy-id" }]);
-
-    const result = await svc.execute({ userId: "u1", query: {} });
-
-    expect(result.source).toContain("legacy_post_filter_fallback");
-    expect(mockCacheSearchKeywords).toHaveBeenCalledWith(["react"]);
-  });
-});
-
-describe("SearchJobsService.execute - hasPostOnlyFilters", () => {
-  it("aplica filterJobs e retorna post_filter", async () => {
-    const profileService = buildProfileMatchService();
-    const svc = new SearchJobsService(profileService);
-
-    mockHasStructuredFilters.mockReturnValue(false);
-    mockHasPostOnlyFilters.mockReturnValue(true);
-    mockParseJobSearchQuery.mockReturnValue(
-      emptyFilters({ matchSort: "desc" }),
-    );
-    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
-    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "a" }, { id: "b" }]);
-    mockFilterJobs.mockReturnValueOnce([{ id: "a" }]);
-
-    const result = await svc.execute({ userId: "u1", query: {} });
-
-    expect(mockFilterJobs).toHaveBeenCalled();
-    expect(result.source).toContain("post_filter");
-    expect(mockSortJobsByMatch).toHaveBeenCalled();
-  });
-});
-
-describe("SearchJobsService.execute - matchSort sem hasFilters", () => {
-  it("enriquece, ordena globalmente, pagina e re-enriquece a página", async () => {
-    const profileService = buildProfileMatchService();
-    const svc = new SearchJobsService(profileService);
-
-    mockParseJobSearchQuery.mockReturnValue(
-      emptyFilters({ matchSort: "desc" }),
-    );
-    mockCacheAbsoluteSMembers.mockResolvedValueOnce(["a", "b"]);
-    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "a" }, { id: "b" }]);
-    mockSortJobsByMatch.mockReturnValueOnce([{ id: "b" }, { id: "a" }]);
-    mockPaginate.mockReturnValueOnce({
-      data: [{ id: "b" }],
-      pagination: {
-        total: 2,
-        page: 1,
-        limit: 1,
-        totalPages: 2,
-        hasNext: true,
-        hasPrev: false,
-      },
-    });
-
-    const result = await svc.execute({ userId: "u1", query: {} });
-
-    expect(profileService.enrich).toHaveBeenCalledTimes(2);
-    expect(result.source).toContain("match_sorted_desc");
-    expect(result.hasNext).toBe(true);
-  });
-});
-
-describe("SearchJobsService - paginateFilteredJobs com matchSort", () => {
-  it("enriquece todos, ordena, pagina e re-enriquece página", async () => {
-    const profileService = buildProfileMatchService();
-    const svc = new SearchJobsService(profileService);
-
-    mockHasStructuredFilters.mockReturnValue(true);
-    mockParseJobSearchQuery.mockReturnValue(
-      emptyFilters({ matchSort: "asc", keywords: ["x"] }),
-    );
-    mockCacheSearchJobIds.mockResolvedValueOnce(["1", "2"]);
-    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "1" }, { id: "2" }]);
-    mockFilterJobs.mockReturnValueOnce([{ id: "1" }, { id: "2" }]);
-    mockSortJobsByMatch.mockReturnValueOnce([{ id: "1" }, { id: "2" }]);
-    mockPaginate.mockReturnValueOnce({
-      data: [{ id: "1" }],
-      pagination: {
-        total: 2,
-        page: 1,
-        limit: 1,
-        totalPages: 2,
-        hasNext: true,
-        hasPrev: false,
-      },
-    });
-
-    const result = await svc.execute({ userId: "u1", query: {} });
-
-    expect(profileService.enrich).toHaveBeenCalledTimes(2);
-    expect(result.total).toBe(2);
+    mockParseJobSearchQuery.mockReturnValue(emptyFilters({ matchSort: "asc" }));
+    const repository = { search: vi.fn().mockImplementation(async (_f, _p, enrich) => {
+      await enrich([{ id: "candidate" }]);
+      return { jobs: [{ id: "page" }], total: 20 };
+    }) };
+    const result = await new SearchJobsService(profileService, repository).execute({ query: {}, userId: "u1" });
+    expect(profileService.enrich).toHaveBeenNthCalledWith(1, "u1", [{ id: "candidate" }], [], { notifyHighMatches: false });
+    expect(profileService.enrich).toHaveBeenNthCalledWith(2, "u1", [{ id: "page" }], []);
+    expect(result.total).toBe(20);
   });
 });
 
@@ -593,37 +472,13 @@ describe("searchJobsService (singleton)", () => {
 });
 
 describe("toSearchResult - shape", () => {
-  it("mapeia pagination para o resultado", async () => {
+  it("mapeia paginação calculada sobre os resultados filtrados", async () => {
     const profileService = buildProfileMatchService();
-    const svc = new SearchJobsService(profileService);
-
+    const repository = { search: vi.fn().mockResolvedValue({ jobs: [{ id: "a" }], total: 5 }) };
+    mockParsePagination.mockReturnValue({ page: 2, limit: 3 });
     mockHasStructuredFilters.mockReturnValue(true);
-    mockParseJobSearchQuery.mockReturnValue(
-      emptyFilters({ family: ["backend"] }),
-    );
-    mockCacheSearchJobIds.mockResolvedValueOnce(["a"]);
-    mockCacheGetJobsByIds.mockResolvedValueOnce([{ id: "a" }]);
-    mockPaginate.mockReturnValueOnce({
-      data: [{ id: "a" }],
-      pagination: {
-        total: 5,
-        page: 2,
-        limit: 3,
-        totalPages: 2,
-        hasNext: false,
-        hasPrev: true,
-      },
-    });
-
-    const result = await svc.execute({ userId: "u1", query: {} });
-
-    expect(result).toMatchObject({
-      total: 5,
-      page: 2,
-      limit: 3,
-      totalPages: 2,
-      hasNext: false,
-      hasPrev: true,
-    });
+    mockParseJobSearchQuery.mockReturnValue(emptyFilters({ families: ["backend"] }));
+    const result = await new SearchJobsService(profileService, repository).execute({ userId: "u1", query: {} });
+    expect(result).toMatchObject({ total: 5, page: 2, limit: 3, totalPages: 2, hasNext: false, hasPrev: true });
   });
 });

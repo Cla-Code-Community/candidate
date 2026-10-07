@@ -1,6 +1,8 @@
 import { ZodError } from "zod";
 
 export type ErrorCode =
+  | "INVALID_JOB_FAMILY"
+  | "INVALID_FAMILY_MODE"
   | "VALIDATION_ERROR"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
