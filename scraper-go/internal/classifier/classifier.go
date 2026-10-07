@@ -8,6 +8,13 @@ import (
 	"strings"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/taxonomy"
+)
+
+const (
+	titlePriorityTechnical     = 3
+	titlePriorityLeadership    = 4
+	titlePriorityProductOffset = 4
 )
 
 type familyScore struct {
@@ -32,6 +39,9 @@ type sourceClassificationStats struct {
 	rejectedCompanies        map[string]int
 }
 
+// TaxonomyVersion identifies the contract used without changing persisted jobs.
+func TaxonomyVersion() string { return taxonomy.Version() }
+
 func Classify(job domain.Job) domain.Classification {
 	text := normalizeText(strings.Join([]string{
 		job.Title,
@@ -41,7 +51,31 @@ func Classify(job domain.Job) domain.Classification {
 		job.Description,
 	}, " "))
 
-	scores, exclusions := scoreFamilies(text, normalizeText(job.Title))
+	title := normalizeText(job.Title)
+	scores, exclusions := scoreFamilies(text, title)
+	titleScores, _ := scoreFamilies(title, title)
+	// Title-supported technical candidates survive conflicting description evidence.
+	for _, ts := range titleScores {
+		if ts.evidence == "" {
+			continue
+		}
+		found := false
+		for i := range scores {
+			if ts.family != scores[i].family {
+				continue
+			}
+			found = true
+			scores[i].titlePriority = ts.titlePriority
+			if ts.titlePriority <= titlePriorityLeadership {
+				scores[i].score = ts.score
+			}
+			scores[i].evidence = ts.evidence
+			break
+		}
+		if !found {
+			scores = append(scores, ts)
+		}
+	}
 	technologies := detectTechnologies(text)
 	seniority := detectSeniority(text)
 
@@ -88,6 +122,9 @@ func Classify(job domain.Job) domain.Classification {
 		related = append(related, "frontend")
 	}
 
+	if primary.family == "fullstack" {
+		related = append(related, "backend", "frontend")
+	}
 	confidence := math.Min(0.99, 0.35+(float64(primary.score)*0.08))
 
 	reason := "classificacao local por titulo descricao tecnologias"
@@ -100,7 +137,7 @@ func Classify(job domain.Job) domain.Classification {
 
 	return domain.Classification{
 		PrimaryFamily:   primary.family,
-		RelatedFamilies: unique(related),
+		RelatedFamilies: taxonomy.Related(primary.family, related),
 		Technologies:    technologies,
 		Seniority:       seniority,
 		InScope:         primary.score >= 2,
@@ -365,6 +402,22 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 				}
 			}
 		}
+		priority := rule.TitlePriority
+		if rule.TitleRequired {
+			priority += titlePriorityProductOffset
+		}
+		if !rule.TitleRequired {
+			for _, term := range rule.StrongTerms {
+				if containsTokenOrPhrase(title, term) {
+					evidence = term
+					priority = titlePriorityTechnical
+					break
+				}
+			}
+			if evidence != "" && rule.Family == "leadership" {
+				priority = titlePriorityLeadership
+			}
+		}
 		if rule.TitleRequired && evidence == "" {
 			continue
 		}
@@ -387,7 +440,7 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 		}
 
 		if score > 0 {
-			scores = append(scores, familyScore{family: rule.Family, score: score, titlePriority: rule.TitlePriority, evidence: evidence})
+			scores = append(scores, familyScore{family: rule.Family, score: score, titlePriority: priority, evidence: evidence})
 		}
 	}
 

@@ -1,3 +1,4 @@
+import { normalizeJobTaxonomy } from "../modules/jobs/types/professionalTaxonomy";
 import { randomUUID } from "node:crypto";
 import { createClient, type RedisClientType } from "redis";
 import { logger } from "../logger";
@@ -407,7 +408,7 @@ export async function cacheGetJobsByIdsDetailed(
     }
 
     try {
-      jobs.push(JSON.parse(raw));
+      jobs.push(normalizeJobTaxonomy(JSON.parse(raw)));
     } catch {
       missingIds.push(ids[index]);
     }

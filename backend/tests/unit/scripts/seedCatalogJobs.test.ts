@@ -1,3 +1,4 @@
+import { isPublicFamily } from "../../../src/modules/jobs/types/professionalTaxonomy";
 import { describe, expect, it } from "vitest";
 
 import { scoreJobWithTechnologies } from "../../../src/modules/jobs/services/jobMatch.service";
@@ -17,6 +18,12 @@ function scoreOf(spec: (typeof SEED_CATALOG_JOBS)[number]) {
 }
 
 describe("seedCatalogJobs", () => {
+  it("usa somente IDs públicos canônicos", () => {
+    for (const spec of SEED_CATALOG_JOBS) {
+      expect(isPublicFamily(spec.family)).toBe(true);
+      expect(catalogJobDocument(spec).classification.primaryFamily).toBe(spec.family);
+    }
+  });
   it("gera cada vaga com o match documentado em expectedMatch", () => {
     for (const spec of SEED_CATALOG_JOBS) {
       expect(scoreOf(spec).matchScore, spec.title).toBe(spec.expectedMatch);

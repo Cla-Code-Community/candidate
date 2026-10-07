@@ -68,3 +68,12 @@ func TestProductClassificationDoesNotCreateFamilyIndexes(t *testing.T) {
 	assert.Contains(t, classificationIndexKeys(job), "scraper:jobs:family:backend")
 	assert.NotContains(t, classificationIndexKeys(job), "scraper:jobs:family:product")
 }
+
+func TestDiagnosticAndUnknownFamiliesNeverIndexed(t *testing.T) {
+	for _, family := range []string{"other", "unknown", "Backend", ""} {
+		job := domain.Job{Classification: &domain.Classification{PrimaryFamily: family, RelatedFamilies: []string{"other", "unknown"}, InScope: true}}
+		for _, key := range classificationIndexKeys(job) {
+			assert.NotContains(t, key, "scraper:jobs:family:")
+		}
+	}
+}

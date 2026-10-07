@@ -5,6 +5,8 @@ node_modules/
 !.env.example
 .vscode/
 .docker-local/
+.codex_local/
+.cspell/
 dist/
 build/
 output/
