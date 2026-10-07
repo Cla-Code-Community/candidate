@@ -104,6 +104,8 @@ describe("backfillUserPii script", () => {
     vi.restoreAllMocks();
   });
 
+  // timeout ampliado: o import dinâmico do script pode levar vários segundos
+  // sob a carga da suíte completa (pre-push), estourando o padrão de 5s do vitest.
   it("reports pending records in dry-run without persisting changes", async () => {
     const { completion } = await import("../../../src/scripts/backfillUserPii");
     await completion;
@@ -117,7 +119,7 @@ describe("backfillUserPii script", () => {
       credentials: { scanned: 1, pending: 1 },
     });
     expect(databaseMocks.update).not.toHaveBeenCalled();
-  });
+  }, 30000);
 
   it("writes encrypted user fields and normalized credential email with --write", async () => {
     process.argv = [...originalArgv, "--write"];
@@ -148,5 +150,5 @@ describe("backfillUserPii script", () => {
       email: "encrypted:person@example.com",
       emailHash: "hash:person@example.com",
     });
-  });
+  }, 30000);
 });

@@ -56,6 +56,8 @@ describe("seed script", () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
+  // timeout ampliado: o import dinâmico do script pode levar vários segundos
+  // sob a carga da suíte completa (pre-push), estourando o padrão de 5s do vitest.
   it("preserves existing records while refreshing profile and catalog data", async () => {
     const { completion } = await import("../../../src/scripts/seed");
     await completion;
@@ -69,5 +71,5 @@ describe("seed script", () => {
     expect(seedMocks.insert).not.toHaveBeenCalled();
     expect(seedMocks.transaction).not.toHaveBeenCalled();
     expect(seedMocks.seedCatalogJobs).toHaveBeenCalledOnce();
-  });
+  }, 30000);
 });
