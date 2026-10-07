@@ -11,8 +11,10 @@ import (
 )
 
 type familyScore struct {
-	family string
-	score  int
+	family        string
+	score         int
+	titlePriority int
+	evidence      string
 }
 
 type sourceClassificationStats struct {
@@ -39,7 +41,7 @@ func Classify(job domain.Job) domain.Classification {
 		job.Description,
 	}, " "))
 
-	scores := scoreFamilies(text)
+	scores, exclusions := scoreFamilies(text, normalizeText(job.Title))
 	technologies := detectTechnologies(text)
 	seniority := detectSeniority(text)
 
@@ -61,11 +63,14 @@ func Classify(job domain.Job) domain.Classification {
 			Seniority:     seniority,
 			InScope:       false,
 			Confidence:    0,
-			Reasons:       []string{"nenhuma familia reconhecida"},
+			Reasons:       append([]string{"nenhuma familia reconhecida"}, exclusions...),
 		}
 	}
 
 	sort.Slice(scores, func(i, j int) bool {
+		if scores[i].titlePriority != scores[j].titlePriority {
+			return scores[i].titlePriority > scores[j].titlePriority
+		}
 		if scores[i].score == scores[j].score {
 			return scores[i].family < scores[j].family
 		}
@@ -86,6 +91,9 @@ func Classify(job domain.Job) domain.Classification {
 	confidence := math.Min(0.99, 0.35+(float64(primary.score)*0.08))
 
 	reason := "classificacao local por titulo descricao tecnologias"
+	if primary.evidence != "" {
+		reason = "titulo: " + primary.evidence
+	}
 	if primary.score < 2 {
 		reason = "score abaixo do minimo"
 	}
@@ -97,7 +105,7 @@ func Classify(job domain.Job) domain.Classification {
 		Seniority:       seniority,
 		InScope:         primary.score >= 2,
 		Confidence:      math.Round(confidence*100) / 100,
-		Reasons:         []string{reason},
+		Reasons:         append([]string{reason}, exclusions...),
 	}
 }
 
@@ -318,34 +326,85 @@ func topCountLabels(values map[string]int, limit int) []string {
 	return out
 }
 
-func scoreFamilies(text string) []familyScore {
+func scoreFamilies(text, title string) ([]familyScore, []string) {
 	scores := make([]familyScore, 0, len(familyRules))
+	var exclusions []string
 
 	for _, rule := range familyRules {
 		score := 0
+		evidence := ""
+		strongText := text
+		if rule.TitleRequired {
+			strongText = title
+			blocked := false
+			for _, term := range rule.NegativeTerms {
+				if containsWholePhrase(title, term) {
+					if hasTitleFamilyContext(title, rule.Family) {
+						exclusions = append(exclusions, "exclusao "+rule.Family+": "+term)
+					}
+					blocked = true
+					break
+				}
+			}
+			if blocked {
+				continue
+			}
+		}
 
 		for _, term := range rule.StrongTerms {
-			if containsTokenOrPhrase(text, term) {
+			var matches bool
+			if rule.TitleRequired {
+				matches = containsWholePhrase(strongText, term)
+			} else {
+				matches = containsTokenOrPhrase(strongText, term)
+			}
+			if matches {
 				score += 4
+				if rule.TitleRequired && evidence == "" {
+					evidence = term
+				}
 			}
 		}
+		if rule.TitleRequired && evidence == "" {
+			continue
+		}
+		complementary := 0
 		for _, term := range rule.TechnologyTerms {
 			if containsTokenOrPhrase(text, term) {
-				score++
+				complementary++
 			}
 		}
-		for _, term := range rule.NegativeTerms {
-			if containsTokenOrPhrase(text, term) {
-				score -= 3
+		if rule.TitleRequired {
+			complementary = min(complementary, 3)
+		}
+		score += complementary
+		if !rule.TitleRequired {
+			for _, term := range rule.NegativeTerms {
+				if containsTokenOrPhrase(text, term) {
+					score -= 3
+				}
 			}
 		}
 
 		if score > 0 {
-			scores = append(scores, familyScore{family: rule.Family, score: score})
+			scores = append(scores, familyScore{family: rule.Family, score: score, titlePriority: rule.TitlePriority, evidence: evidence})
 		}
 	}
 
-	return scores
+	return scores, exclusions
+}
+
+// Both ends of multi-word titles must be whole words: product != production,
+// product manager != product management, and designer != designership.
+func containsWholePhrase(text, term string) bool {
+	return strings.Contains(" "+text+" ", " "+normalizeText(term)+" ")
+}
+
+func hasTitleFamilyContext(title, family string) bool {
+	if family == "product" {
+		return containsAny(title, "product", "produto", "produtos", "production", "producao")
+	}
+	return containsAny(title, "designer", "design", "ux", "ui")
 }
 
 func detectTechnologies(text string) []string {

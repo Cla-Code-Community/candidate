@@ -232,6 +232,18 @@ O mecanismo é fail-closed: se o Valkey não confirmar a aquisição, nenhum ada
 
 O token proprietário nunca é gravado no estado operacional nem nos logs. Um `runId` independente identifica a execução para observabilidade sem expor a credencial usada pelos scripts de renovação e liberação.
 
+### Classificação de Produto e Design de Produto
+
+`product` reconhece gestão, análise, estratégia e operações de produtos digitais; `product_design` reconhece design, pesquisa e conteúdo de experiência digital. Ambas exigem cargo reconhecido no **título**, com limites de palavra e normalização de acentos, pontuação e espaços. O título original não é alterado. `Product Designer`, `Lead Product Designer` e `Product Design Manager` têm precedência de `product_design`; `Product Manager` e `Product Operations` pertencem a `product`.
+
+Os termos fortes do título valem 4 pontos cada. Descrição, competências e ferramentas presentes nos campos existentes apenas complementam a confiança, com no máximo 3 pontos adicionais; não habilitam essas famílias sem evidência no título. As regras e pontuações das famílias técnicas existentes permanecem as mesmas. `Reasons` mantém o formato de lista de strings, registra `titulo: <cargo>` e, quando aplicável, uma exclusão curta. Nenhum campo `skills` foi acrescentado.
+
+Produção industrial (`production`/`produção`), marketing, vendas, suporte e cargos de engenharia não habilitam `product`. Design gráfico, motion, moda, industrial, interiores e marketing não habilitam `product_design`. Um cargo técnico não vira Produto por mencionar Product Manager na descrição.
+
+Os cargos diretos em português e inglês constam de `keywords.json`, `generator.json` e do fallback interno. São preservados sem gerar combinações como `Jira Product Manager`, `Figma Product Owner` ou `SQL UX Designer`. O limite continua sendo **200 combinações adicionais**; as seeds fornecidas são preservadas, normalizadas e deduplicadas. Providers `catalog` e `batch` continuam recebendo uma tarefa por fonte, e providers `keyword` uma tarefa por consulta.
+
+Nesta etapa, as novas famílias não emitem índices `scraper:jobs:family:product` ou `scraper:jobs:family:product_design`, nem aliases de keyword derivados desses nomes de família. Os cargos continuam pesquisáveis pelas keywords diretas, usando o contrato de indexação existente. Filtros, cache keys e schema permanecem inalterados.
+
 ### Processamento em lotes após a coleta
 
 Depois da coleta, o pipeline processa vagas em etapas com filas limitadas:
