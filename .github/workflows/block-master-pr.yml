@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Check source branch and block if not develop
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const sourceBranch = context.payload.pull_request.head.ref;
