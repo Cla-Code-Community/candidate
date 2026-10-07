@@ -461,3 +461,124 @@ docker exec vagas-valkey valkey-cli HGETALL scraper:run:state
 ```
 
 Uma segunda execução manual deve retornar conflito sem iniciar adapters. Após o término, as duas chaves devem desaparecer. Nunca remova a chave manualmente apenas porque ela existe: primeiro confirme que não há processo correspondente ativo e registre valor e TTL.
+
+## Catálogo durável e índices de famílias (PAV-125)
+
+O catálogo de vagas passa a ter PostgreSQL como fonte de verdade. A migration
+aditiva `backend/drizzle/0015_job_catalog.sql` segue o histórico Drizzle existente.
+Não havia tabela de catálogo reutilizável: `saved_jobs` representa vagas salvas
+por usuários; o script de seed anterior escreve documentos de demonstração no
+Valkey. Nenhuma dessas estruturas substitui o catálogo do Processor. O seed
+legado de vagas só continua disponível antes da publicação do catálogo; depois
+disso ele é ignorado para não alterar índices fora do fluxo durável. Para migrar
+dados de demonstração existentes, use o backfill explícito.
+
+`job_catalog` conserva o documento `domain.Job` em `payload` JSONB, o ID estável
+já calculado por `jobstore.StableID`, `first_seen_at`, `last_seen_at`, `updated_at`,
+`expires_at`, revisão monotônica e revisão de indexação confirmada. Não existe
+FK para usuários ou saved jobs. A listagem administrativa conserva o endpoint
+completo e o parâmetro `limit` por streaming de um snapshot SQL read-only, com
+count e linhas consistentes, sem carregar todo o catálogo no Processor. O upsert em transação faz merge de fontes e
+keywords como antes, preserva `first_seen_at` e renova `last_seen_at` e expiração.
+Somente o resultado de um commit confirmado é enviado ao indexador.
+
+A atividade é inferida por `expires_at > agora`; registros antigos permanecem
+no PostgreSQL. `SCRAPER_CATALOG_LIFETIME=216h` define a janela padrão de nove dias
+(e pode ser configurado para `192h`, oito dias). Reclassificação não renova essa
+janela. Documentos Valkey recebem TTL correspondente à expiração persistida.
+A busca também intersecta candidatos com o ZSET de expiração; não depende apenas
+do desaparecimento das chaves. Antes de cada execução do scheduler, a manutenção
+remove associações de registros já inativos. Portanto, SETs podem conservar IDs
+expirados até a próxima manutenção, mas a busca já os exclui. Há comando explícito
+para antecipar essa remoção. Não há deleção física automática de histórico.
+
+O Processor continua responsável por classificação, persistência, indexação e
+manutenção. O backend Node continua responsável por HTTP, validação, autenticação,
+autorização, filtros e cache de busca. `DATABASE_URL` agora é obrigatório também
+para o Processor; o startup verifica conectividade, existência da migration e
+impede bootstrap parcial quando já existem vagas e ainda não foi publicado um
+namespace. Nesse caso exige backfill/rebuild explícito antes de iniciar.
+O overlay `docker-compose.migrate.yml` fornece a conexão interna ao PostgreSQL
+e faz o Processor aguardar a migration, como já fazia o backend. Em execução local
+a URL de exemplo usa `sslmode=disable`; ambientes externos devem preservar a
+configuração TLS apropriada da sua conexão.
+
+### Índices e atualização
+
+Cada namespace `scraper:jobs:ns:<versão>:` contém SETs de IDs:
+
+- `family:<id>`: associação principal **ou** relacionada;
+- `family:primary:<id>`: somente principal;
+- `family:related:<id>`: somente relacionada, sem repetir a principal;
+- `index`: catálogo indexado; `expires`: ZSET de expiração;
+- `index-membership:<jobId>`: JSON com revisão, taxonomia, principal, relacionadas
+  e chaves de associação anteriores;
+- `job:<jobId>`: documento único; `keys`: manifesto de limpeza controlada.
+
+Os índices fixos `scraper:jobs:family:<id>`, `family:primary:<id>` e
+`family:related:<id>` são preservados como projeções de compatibilidade.
+A taxonomia vem de `internal/taxonomy/families.json`; `other` não cria índice de
+família, e valores desconhecidos interrompem a indexação controlada.
+
+Lua valida todos os tipos e registros inversos antes de escrever. Remove apenas
+o ID daquela vaga dos seus antigos SETs, adiciona novas associações e atualiza
+membership, documento e geração de cache atomicamente por lote. Revisões impedem
+retries e atualizações atrasadas de desfazer classificações novas. Não há uma
+transação distribuída entre PostgreSQL e Valkey: um commit pode ficar pendente de
+indexação se Valkey falhar. A execução retorna erro, o registro durável continua
+recuperável, e a reconciliação com `--fix` ou o rebuild podem corrigir a projeção.
+Retries são limitados; cancelamento interrompe espera e operações.
+
+### Implantação e operações explícitas
+
+Execute a migration pelo mecanismo já existente (`npm run db:migrate` no
+backend). Pause a versão antiga do coletor antes do backfill: ela não participa
+do fencing PostgreSQL introduzido nesta task. Execute o backfill e valide a
+reconciliação antes de iniciar o novo Processor. Essas ações **não** são executadas
+automaticamente na inicialização normal.
+
+O Dockerfile do Processor também fornece `/catalog`. Exemplos, com as mesmas
+variáveis de conexão da aplicação:
+
+```sh
+docker compose run --rm --entrypoint /catalog scraper-go --operation backfill --batch-size 200
+docker compose run --rm --entrypoint /catalog scraper-go --operation reconcile
+docker compose run --rm --entrypoint /catalog scraper-go --operation reconcile --fix
+docker compose run --rm --entrypoint /catalog scraper-go --operation rebuild --batch-size 200
+docker compose run --rm --entrypoint /catalog scraper-go --operation reclassify
+docker compose run --rm --entrypoint /catalog scraper-go --operation expire
+docker compose run --rm --entrypoint /catalog scraper-go --operation deactivate --ids ID1,ID2
+docker compose run --rm --entrypoint /catalog scraper-go --operation rollback --version VERSAO_ANTERIOR
+docker compose run --rm --entrypoint /catalog scraper-go --operation cleanup --version VERSAO_INATIVA
+```
+
+Também é possível executar `go run ./cmd/catalog` dentro de `scraper-go`, com
+`DATABASE_URL` e `VALKEY_URL` exportados no ambiente.
+
+O backfill faz SCAN e GET/PTTL em lotes, valida documentos/famílias, preserva os
+IDs e a vida restante observada e faz `ON CONFLICT DO NOTHING`. Não inventa a data
+original da coleta: `first_seen_at` representa a observação na migração. Documentos
+inválidos, sem identidade ou sem TTL confiável são contabilizados e ignorados;
+próximas coletas podem completar o catálogo. Depois dos commits, um novo namespace
+é reconstruído a partir do PostgreSQL.
+
+Rebuild usa cursor de IDs e somente registros ativos do PostgreSQL. Constrói um
+namespace isolado, compara documentos, membership, famílias, IDs e contagens, e
+só então troca o ponteiro ativo e a geração de cache. Um advisory lock exclusivo
+impede concorrência com commit/indexação do Processor. A busca continua lendo a
+versão ativa anterior durante o rebuild. Uma manutenção pode esperar a coleta em
+andamento terminar; a espera é cancelável. Namespaces incompletos têm TTL; a versão
+anterior é mantida até cleanup explicitamente solicitado.
+
+Reconcile é read-only por padrão; `--fix` reconstrói uma versão validada. Detecta
+vagas ausentes, IDs inexistentes/inativos, classificação, membership, documentos,
+associações, taxonomia e contagens divergentes. Os números contam ocorrências de
+divergência, não necessariamente IDs únicos.
+
+Rollback de namespace exige que a versão escolhida ainda corresponda ao catálogo
+PostgreSQL; caso contrário, é recusado e deve-se fazer rebuild. O catálogo durável
+não é apagado durante rollback de aplicação. Drizzle neste projeto usa migrations
+forward-only: não existe down migration destrutiva automática. Não remover a tabela
+para reverter código; preservar os dados e planejar eventual arquivamento separado.
+Nenhuma operação usa FLUSH ou o comando KEYS; cleanup só alcança o manifesto do
+namespace selecionado e recusa a versão ativa e chaves externas.

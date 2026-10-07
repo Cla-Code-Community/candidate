@@ -13,21 +13,24 @@ import (
 	"unicode"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/adapters/adapterutil"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/lib/pq"
 	"github.com/redis/go-redis/v9"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
 
 const (
-	jobTTL               = 9 * 24 * time.Hour
+	jobTTL               = config.DefaultCatalogLifetime
 	indexKey             = "scraper:jobs:index"
 	jobKeyPrefix         = "scraper:job:"
 	maxTransientAttempts = 3
 )
 
 type Store struct {
-	rdb *redis.Client
+	rdb     *redis.Client
+	catalog Catalog
 }
 
 func New(rdb *redis.Client) *Store {
@@ -45,8 +48,13 @@ type SaveResult struct {
 	Persisted []domain.Job
 }
 
-// SaveBatch persists a limited job batch with one Valkey transaction.
+// SaveBatch returns only committed durable rows; the legacy adapter remains for migration/tests.
 func (s *Store) SaveBatch(ctx context.Context, jobs []domain.Job) (SaveResult, error) {
+	if s.catalog != nil {
+		var result SaveResult
+		err := retryTransient(ctx, func() error { var err error; result, err = s.catalog.SaveBatch(ctx, jobs); return err })
+		return result, err
+	}
 	var result SaveResult
 	if len(jobs) == 0 {
 		return result, nil
@@ -255,6 +263,10 @@ func isTransient(err error) bool {
 	if errors.Is(err, redis.Nil) {
 		return false
 	}
+	var pgError *pq.Error
+	if errors.As(err, &pgError) {
+		return pgError.Code == "40001" || pgError.Code == "40P01" || strings.HasPrefix(string(pgError.Code), "08")
+	}
 	message := strings.ToLower(err.Error())
 	for _, token := range []string{
 		"invalid",
@@ -273,6 +285,9 @@ func isTransient(err error) bool {
 }
 
 func (s *Store) GetByIDs(ctx context.Context, ids []string) ([]domain.Job, error) {
+	if s.catalog != nil {
+		return s.catalog.GetByIDs(ctx, ids)
+	}
 	if cause := context.Cause(ctx); cause != nil {
 		return nil, cause
 	}
@@ -308,6 +323,9 @@ func (s *Store) GetByIDs(ctx context.Context, ids []string) ([]domain.Job, error
 }
 
 func (s *Store) GetAll(ctx context.Context) ([]domain.Job, error) {
+	if s.catalog != nil {
+		return nil, fmt.Errorf("durable catalog requires streaming; use StreamActive")
+	}
 	ids, err := s.rdb.SMembers(ctx, indexKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("jobstore.GetAll: SMembers: %w", err)
@@ -342,6 +360,9 @@ func (s *Store) GetAll(ctx context.Context) ([]domain.Job, error) {
 }
 
 func (s *Store) GetSample(ctx context.Context, limit int) ([]domain.Job, error) {
+	if s.catalog != nil {
+		return s.catalog.Sample(ctx, limit)
+	}
 	if limit <= 0 {
 		return s.GetAll(ctx)
 	}
@@ -397,6 +418,9 @@ func (s *Store) GetSample(ctx context.Context, limit int) ([]domain.Job, error) 
 }
 
 func (s *Store) Count(ctx context.Context) (int64, error) {
+	if s.catalog != nil {
+		return s.catalog.Count(ctx)
+	}
 	n, err := s.rdb.SCard(ctx, indexKey).Result()
 	if err != nil {
 		return 0, fmt.Errorf("jobstore.Count: %w", err)
@@ -458,4 +482,39 @@ func normalizeURL(raw string) string {
 	u.RawQuery = ""
 	u.Fragment = ""
 	return strings.TrimRight(u.String(), "/")
+}
+
+// Catalog is the durable persistence port consumed by the Processor.
+type Catalog interface {
+	SaveBatch(context.Context, []domain.Job) (SaveResult, error)
+	GetByIDs(context.Context, []string) ([]domain.Job, error)
+	Sample(context.Context, int) ([]domain.Job, error)
+	Count(context.Context) (int64, error)
+	MarkIndexed(context.Context, []domain.Job) error
+	ProcessingLease(context.Context) (func(), error)
+	StreamActive(context.Context, int, func(int64) error, func(domain.Job) error) error
+}
+
+func NewDurable(rdb *redis.Client, catalog Catalog) *Store {
+	if catalog == nil {
+		panic("durable job catalog is required")
+	}
+	return &Store{rdb: rdb, catalog: catalog}
+}
+func (s *Store) Durable() bool { return s != nil && s.catalog != nil }
+func (s *Store) MarkIndexed(ctx context.Context, jobs []domain.Job) error {
+	return s.catalog.MarkIndexed(ctx, jobs)
+}
+func (s *Store) ProcessingLease(ctx context.Context) (func(), error) {
+	return s.catalog.ProcessingLease(ctx)
+}
+
+// MergeStored preserves the existing merge and stable-ID contract for SQL upserts.
+func MergeStored(existing, incoming domain.Job) domain.Job { return mergeStored(existing, incoming) }
+
+func (s *Store) StreamActive(ctx context.Context, limit int, begin func(int64) error, emit func(domain.Job) error) error {
+	if !s.Durable() {
+		return fmt.Errorf("streaming requires durable catalog")
+	}
+	return s.catalog.StreamActive(ctx, limit, begin, emit)
 }

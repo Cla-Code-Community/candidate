@@ -19,6 +19,13 @@ services:
       - vagas-net
     restart: "no"
 
+  scraper-go:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   backend:
     env_file:
       - ./.env

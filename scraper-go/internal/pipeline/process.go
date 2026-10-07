@@ -9,6 +9,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/dedup"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobindex"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/redis/go-redis/v9"
 )
@@ -69,7 +70,7 @@ func processIncomingJobs(
 	if cfg.IndexBatchSize <= 0 {
 		cfg.IndexBatchSize = config.DefaultIndexBatchSize
 	}
-	if cfg.Index == nil && cfg.RDB != nil && cfg.IndexSession == nil {
+	if cfg.Index == nil && cfg.RDB != nil && cfg.IndexSession == nil && !cfg.Store.Durable() {
 		cfg.IndexSession = newIndexSession(cfg.RunID)
 	}
 
@@ -507,6 +508,14 @@ func indexPersistedChunk(
 	commands := 0
 	if cfg.Index != nil {
 		err = cfg.Index(ctx, jobs)
+	} else if cfg.Store.Durable() {
+		err = jobstore.RetryTransient(ctx, func() error {
+			_, e := jobindex.New(cfg.RDB).Apply(ctx, jobs, func(job domain.Job) []string { return invertedIndexKeys(job, cfg.Keywords) })
+			return e
+		})
+		if err == nil {
+			err = cfg.Store.MarkIndexed(ctx, jobs)
+		}
 	} else {
 		commands, err = indexJobsInValkeyBatched(ctx, cfg.RDB, jobs, cfg.Keywords, cfg.IndexBatchSize, cfg.IndexSession)
 	}
@@ -519,7 +528,7 @@ func indexPersistedChunk(
 			"size", len(jobs),
 			"error", err,
 		)
-		if cfg.Store == nil || cfg.RDB == nil || len(ids) == 0 {
+		if cfg.Store == nil || cfg.RDB == nil || len(ids) == 0 || cfg.Store.Durable() {
 			return err
 		}
 		if reconErr := reindexPersistedJobs(ctx, cfg.Store, cfg.RDB, ids, cfg.Keywords, cfg.IndexBatchSize, cfg.IndexSession); reconErr != nil {

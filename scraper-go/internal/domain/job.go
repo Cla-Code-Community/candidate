@@ -1,19 +1,23 @@
 package domain
 
+import "time"
+
 type Job struct {
-	ID          string   `json:"id"`
-	Title       string   `json:"title"`
-	Company     string   `json:"company"`
-	Location    string   `json:"location"`
-	URL         string   `json:"url"`
-	Salary      string   `json:"salary,omitempty"`
-	Modality    string   `json:"modality,omitempty"`
-	Description string   `json:"description,omitempty"`
-	PostedAt    string   `json:"postedAt,omitempty"`
-	Source      string   `json:"source"`
-	Sources     []string `json:"sources"`
-	Keyword     string   `json:"keyword"`
-	Keywords    []string `json:"keywords"`
+	CatalogRevision  int64     `json:"-"`
+	CatalogExpiresAt time.Time `json:"-"`
+	ID               string    `json:"id"`
+	Title            string    `json:"title"`
+	Company          string    `json:"company"`
+	Location         string    `json:"location"`
+	URL              string    `json:"url"`
+	Salary           string    `json:"salary,omitempty"`
+	Modality         string    `json:"modality,omitempty"`
+	Description      string    `json:"description,omitempty"`
+	PostedAt         string    `json:"postedAt,omitempty"`
+	Source           string    `json:"source"`
+	Sources          []string  `json:"sources"`
+	Keyword          string    `json:"keyword"`
+	Keywords         []string  `json:"keywords"`
 
 	Classification *Classification `json:"classification,omitempty"`
 }

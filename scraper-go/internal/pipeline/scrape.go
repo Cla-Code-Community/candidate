@@ -16,6 +16,7 @@ import (
 )
 
 type SearchConfig struct {
+	Store                        *jobstore.Store          `json:"-"`
 	Keywords                     []string                 `json:"keywords"`
 	SearchLocation               string                   `json:"searchLocation"`
 	SearchGeoID                  string                   `json:"searchGeoId"`
@@ -52,6 +53,13 @@ func ScrapeAllSources(
 	rdb *redis.Client,
 ) ([]domain.Job, ProcessStats, error) {
 	config = normalizeSearchConfig(config)
+	if config.Store != nil && config.Store.Durable() {
+		release, err := config.Store.ProcessingLease(ctx)
+		if err != nil {
+			return nil, ProcessStats{}, fmt.Errorf("catalog processing lease: %w", err)
+		}
+		defer release()
+	}
 	slog.Info("starting scrape", "keywords", config.Keywords)
 	slog.Info("scraper concurrency budget",
 		"global_limit", config.MaxConcurrency,
@@ -102,7 +110,10 @@ func ScrapeAllSources(
 	}
 	if rdb != nil {
 		processCfg.RDB = rdb
-		processCfg.Store = jobstore.New(rdb)
+		processCfg.Store = config.Store
+		if processCfg.Store == nil {
+			processCfg.Store = jobstore.New(rdb)
+		}
 	}
 
 	jobs, stats, err := runWithConcurrency(
