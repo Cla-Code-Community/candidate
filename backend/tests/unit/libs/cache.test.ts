@@ -414,6 +414,12 @@ describe("Valkey Cache Lib", () => {
   });
 
   describe("cacheGetJobsByIdsDetailed", () => {
+    it("normaliza taxonomia histórica na hidratação sem escrever no Valkey", async () => {
+      mockClientInstance.mGet.mockResolvedValue([JSON.stringify({id:"legacy",classification:{primaryFamily:"Backend",relatedFamilies:["Backend","Frontend","frontend","unknown"]}})]);
+      const result = await cacheGetJobsByIdsDetailed(["legacy"]);
+      expect(result.jobs).toEqual([{id:"legacy",classification:{primaryFamily:"backend",relatedFamilies:["frontend"]}}]);
+      expect(mockClientInstance.set).not.toHaveBeenCalled();
+    });
     it("deve reportar os IDs do índice que não possuem documento", async () => {
       mockClientInstance.mGet.mockResolvedValue([
         JSON.stringify({ title: "Go Dev" }),

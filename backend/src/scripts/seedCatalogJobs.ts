@@ -1,3 +1,4 @@
+import type { ProfessionalFamily } from "../modules/jobs/types/professionalTaxonomy";
 import { createClient } from "redis";
 
 export type SeedTechnologyExperience = {
@@ -25,7 +26,7 @@ export type SeedCatalogJobSpec = {
   contract: string;
   level: string;
   seniority: string;
-  family: string;
+  family: ProfessionalFamily;
   technologies: string[];
   salary: string;
   description: string;
@@ -46,7 +47,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "PJ",
     level: "Senior",
     seniority: "Senior",
-    family: "Fullstack",
+    family: "fullstack",
     technologies: [
       "React",
       "TypeScript",
@@ -76,7 +77,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "CLT",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Fullstack",
+    family: "fullstack",
     technologies: ["React", "TypeScript", "Node.js", "PostgreSQL", "Docker"],
     salary: "R$ 12.000 - R$ 15.500",
     description:
@@ -94,7 +95,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "PJ",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Fullstack",
+    family: "fullstack",
     technologies: ["React", "TypeScript", "Node.js", "PostgreSQL"],
     salary: "R$ 11.000 - R$ 14.000",
     description:
@@ -117,7 +118,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "CLT",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Fullstack",
+    family: "fullstack",
     technologies: ["React", "TypeScript", "Node.js"],
     salary: "R$ 10.500 - R$ 13.000",
     description:
@@ -135,7 +136,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "PJ",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Backend",
+    family: "backend",
     technologies: ["TypeScript", "Node.js", "Docker"],
     salary: "R$ 10.000 - R$ 13.500",
     description:
@@ -153,7 +154,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "PJ",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Frontend",
+    family: "frontend",
     technologies: ["React", "TypeScript"],
     salary: "R$ 9.500 - R$ 12.000",
     description:
@@ -176,7 +177,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "CLT",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Backend",
+    family: "backend",
     technologies: ["Node.js", "PostgreSQL"],
     salary: "R$ 9.000 - R$ 11.500",
     description:
@@ -194,7 +195,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "PJ",
     level: "Senior",
     seniority: "Senior",
-    family: "Infraestrutura",
+    family: "devops",
     technologies: ["Docker", "AWS"],
     salary: "R$ 14.000 - R$ 18.000",
     description:
@@ -212,7 +213,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "CLT",
     level: "Junior",
     seniority: "Junior",
-    family: "Frontend",
+    family: "frontend",
     technologies: ["React"],
     salary: "R$ 4.500 - R$ 6.000",
     description:
@@ -235,7 +236,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "CLT",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Dados",
+    family: "data",
     technologies: ["PostgreSQL"],
     salary: "R$ 9.000 - R$ 12.000",
     description:
@@ -253,7 +254,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "PJ",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Infraestrutura",
+    family: "devops",
     technologies: ["Docker"],
     salary: "R$ 11.000 - R$ 14.000",
     description:
@@ -276,7 +277,7 @@ export const SEED_CATALOG_JOBS: SeedCatalogJobSpec[] = [
     contract: "CLT",
     level: "Pleno",
     seniority: "Pleno",
-    family: "Dados",
+    family: "data",
     technologies: ["Python", "Pandas", "Power BI"],
     salary: "R$ 8.000 - R$ 10.500",
     description:
