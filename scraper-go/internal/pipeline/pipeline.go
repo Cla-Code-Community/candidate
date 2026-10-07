@@ -409,7 +409,7 @@ func classificationIndexKeys(job domain.Job) []string {
 
 	values := make([]string, 0, 1+len(classification.RelatedFamilies)+len(classification.Technologies))
 
-	if classification.PrimaryFamily != "" {
+	if indexedClassificationFamily(classification.PrimaryFamily) {
 		normalized := normalizeIndexValue(classification.PrimaryFamily)
 		if normalized != "" {
 			values = append(values,
@@ -419,6 +419,9 @@ func classificationIndexKeys(job domain.Job) []string {
 		}
 	}
 	for _, family := range classification.RelatedFamilies {
+		if !indexedClassificationFamily(family) {
+			continue
+		}
 		normalized := normalizeIndexValue(family)
 		if normalized != "" {
 			values = append(values,
@@ -444,6 +447,12 @@ func classificationIndexKeys(job domain.Job) []string {
 	}
 
 	return uniqueStrings(values)
+}
+
+// Product classification is enabled before its dedicated family filters/indexes.
+// Direct title keywords remain searchable through the existing keyword path.
+func indexedClassificationFamily(family string) bool {
+	return family != "" && family != "product" && family != "product_design"
 }
 
 func structuredIndexKeys(job domain.Job) []string {

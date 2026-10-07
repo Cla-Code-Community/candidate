@@ -5,6 +5,9 @@ type familyRule struct {
 	StrongTerms     []string
 	TechnologyTerms []string
 	NegativeTerms   []string
+	// TitleRequired families cannot be inferred from descriptions or tools.
+	TitleRequired bool
+	TitlePriority int
 }
 
 var familyRules = []familyRule{
@@ -121,6 +124,53 @@ var familyRules = []familyRule{
 		StrongTerms: []string{
 			"software engineer", "software developer", "engenheiro de software",
 			"desenvolvedor de software", "application developer",
+		},
+	},
+	{
+		Family:        "product",
+		TitleRequired: true,
+		TitlePriority: 1,
+		StrongTerms: []string{
+			"product manager", "product owner", "product analyst", "product operations",
+			"product lead", "head of product", "product strategist", "product strategy manager",
+			"gerente de produto", "gerente de produtos", "analista de produto", "analista de produtos",
+			"especialista de produto", "especialista de produtos", "lider de produto", "lider de produtos",
+			"operacoes de produto", "operacoes de produtos", "diretor de produto", "diretor de produtos",
+			"estrategista de produto", "gestor de produto", "gestora de produto",
+		},
+		TechnologyTerms: []string{
+			"roadmap", "discovery", "product strategy", "product metrics", "estrategia de produto",
+			"metricas de produto", "jira", "sql", "amplitude", "mixpanel",
+		},
+		NegativeTerms: []string{
+			"production", "producao", "marketing", "sales", "vendas", "support", "suporte",
+			"engineer", "engineering", "developer", "engenheiro", "engenheira", "desenvolvedor",
+			"desenvolvedora", "designer", "design",
+		},
+	},
+	{
+		Family:        "product_design",
+		TitleRequired: true,
+		TitlePriority: 2,
+		StrongTerms: []string{
+			"product designer", "product design manager", "product design lead",
+			"ux designer", "ui designer", "ux ui designer", "ui ux designer",
+			"ux researcher", "ux writer", "content designer", "service designer",
+			"interaction designer", "design system designer", "design systems designer",
+			"designer de produto", "designer de produtos", "pesquisador ux", "pesquisadora ux",
+			"designer de interacao", "designer de servico", "designer de servicos",
+			"designer de conteudo", "pesquisador de experiencia do usuario", "pesquisadora de experiencia do usuario",
+		},
+		TechnologyTerms: []string{
+			"figma", "sketch", "adobe xd", "usability", "usabilidade", "user research",
+			"pesquisa com usuarios", "prototyping", "prototipacao", "design system",
+		},
+		NegativeTerms: []string{
+			"graphic designer", "motion designer", "fashion designer", "industrial designer",
+			"interior designer", "marketing designer", "designer grafico", "designer grafica",
+			"designer de moda", "designer industrial", "designer de interiores", "designer de marketing",
+			"production", "producao", "engineer", "developer", "engenheiro", "engenheira",
+			"desenvolvedor", "desenvolvedora",
 		},
 	},
 }

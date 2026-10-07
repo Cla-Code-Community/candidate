@@ -157,7 +157,7 @@ Esta é a parte que economiza seu tempo: uma vez que o card está vinculado (se�
 
 | Ação no GitHub                                         | Estado do card no Linear |
 | ------------------------------------------------------ | ------------------------ |
-| **Branch criado** com o identificador do card         | → **In Progress**        |
+| **Branch criado** com o identificador do card          | → **In Progress**        |
 | **Pull Request aberto** e vinculado ao card            | → **In Review**          |
 | **PR mergeado** (na `develop`)                         | → **Done**               |
 
@@ -228,7 +228,7 @@ Sim. Basta que todos referenciem o mesmo identificador `PAV-XX`.
 O **merge**. Abrir o PR leva o card para **In Review**; é o merge que o conclui em **Done**.
 
 **Onde vejo o board do time?**
-Board oficial do PAV: https://linear.app/tatame/team/PAV/all
+Board oficial do PAV: <https://linear.app/tatame/team/PAV/all>
 
 ---
 
