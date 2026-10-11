@@ -135,6 +135,7 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
   const requirements = atsReport.requirements ?? [];
 
   const [prevAnalysis, setPrevAnalysis] = useState(analysis);
+
   if (prevAnalysis !== analysis) {
     setPrevAnalysis(analysis);
     setEditedMarkdown(buildResumeMarkdown(analysis));

@@ -107,7 +107,7 @@ describe("ResumePreview", () => {
 
     expect(screen.getByText(/Personalizado para: Backend/)).toBeInTheDocument();
     expect(screen.getByText("92")).toBeInTheDocument();
-    expect(screen.getByText("Aprovado para ATS")).toBeInTheDocument();
+    expect(screen.getByText("Aderência textual elevada")).toBeInTheDocument();
     expect(screen.getByText("node.js")).toBeInTheDocument();
     expect(screen.getByText("kubernetes")).toBeInTheDocument();
     expect(screen.getByText(/Adicione mais resultados/)).toBeInTheDocument();
@@ -153,6 +153,6 @@ describe("ResumePreview", () => {
       />,
     );
     expect(screen.getByText("60")).toBeInTheDocument();
-    expect(screen.getByText("Pode melhorar")).toBeInTheDocument();
+    expect(screen.getByText("Aderência textual a melhorar")).toBeInTheDocument();
   });
 });
