@@ -44,6 +44,38 @@ export interface AtsReport {
   missingKeywords: string[];
   weakSections: string[];
   recommendations: string[];
+  jobFitScore?: number | null;
+  jobFitExplanation?: string;
+  jobDetails?: { title: string | null; company: string | null };
+  requirements?: Array<{
+    text: string;
+    category:
+      | "required"
+      | "preferred"
+      | "responsibility"
+      | "education"
+      | "certification"
+      | "behavioral"
+      | "ambiguous";
+    priority: "required" | "preferred" | "informational" | "review";
+    technologies: string[];
+    reviewRequired: boolean;
+    matchStrength: number;
+    evidence: Array<{
+      skillId: string;
+      canonicalName: string;
+      source: "github" | "linkedin" | "candidate" | "manual";
+      evidenceType:
+        | "professional_experience"
+        | "project"
+        | "profile_mention"
+        | "education";
+      originalExcerpt: string;
+      position: number;
+      confidence: number;
+      occurrences: number;
+    }>;
+  }>;
 }
 
 export interface ResumePreview {
@@ -77,7 +109,7 @@ export interface ResumeAnalysis {
   atsReport: AtsReport;
   warnings: string[];
   sourcesUsed: string[];
-  job: { title: string | null; hasDescription: boolean };
+  job: { title: string | null; company?: string | null; hasDescription: boolean };
 }
 
 const EXTENSION_FALLBACK: Record<ResumeFormat, string> = {

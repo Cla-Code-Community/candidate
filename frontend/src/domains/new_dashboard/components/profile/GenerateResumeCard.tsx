@@ -6,7 +6,6 @@ import {
   Linkedin,
   Loader2,
   Plus,
-  Sparkles,
   Trash2,
 } from "lucide-react";
 import { Eye } from "lucide-react";
@@ -45,8 +44,13 @@ function friendlyError(error: unknown): string {
     switch (error.code) {
       case "UNAUTHORIZED":
         return "Sua sessão expirou. Entre novamente para gerar o currículo.";
-      case "VALIDATION_ERROR":
-        return "Não há dados suficientes para gerar o currículo. Preencha seu perfil ou informe um GitHub público.";
+      case "VALIDATION_ERROR": {
+        const fields = error.details ? Object.keys(error.details) : [];
+        const detail = fields.length
+          ? ` Campos com problema: ${fields.join(", ")}.`
+          : "";
+        return `${error.message || "Dados inválidos para gerar o currículo."}${detail}`;
+      }
       case "NOT_FOUND":
         return "Perfil não encontrado.";
       case "INTERNAL_ERROR":
@@ -143,7 +147,7 @@ export function GenerateResumeCard() {
     <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
       <div className="flex items-center gap-3">
         <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Sparkles className="h-5 w-5" aria-hidden />
+          <FileText className="h-5 w-5" aria-hidden />
         </span>
         <div>
           <h2 className="text-[18px] font-bold leading-tight">
@@ -151,7 +155,8 @@ export function GenerateResumeCard() {
           </h2>
           <p className="text-xs text-muted-foreground">
             Gera um currículo otimizado para ATS com seu nome, a vaga e seus
-            perfis públicos de GitHub e LinkedIn.
+            perfis públicos de GitHub e LinkedIn. A análise usa regras
+            determinísticas e não utiliza IA generativa.
           </p>
         </div>
       </div>
@@ -363,7 +368,7 @@ export function GenerateResumeCard() {
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4" aria-hidden />
+                <FileText className="h-4 w-4" aria-hidden />
                 Gerar e baixar
               </>
             )}

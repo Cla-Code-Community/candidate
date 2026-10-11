@@ -11,7 +11,7 @@ import type {
 } from "./resume.types";
 
 // GitHub enrichment happens inside ats-forge, so allow a longer budget.
-const TIMEOUT_MS = 20000;
+const TIMEOUT_MS = 30000;
 
 export interface GenerateResumeRequest {
   profile: NormalizedProfile;
@@ -57,6 +57,7 @@ async function postToAtsForge(
   payload: GenerateResumeRequest,
 ): Promise<Response> {
   let response: Response;
+  const startedAt = Date.now();
   try {
     response = await fetch(`${config.atsForgeUrl}${path}`, {
       method: "POST",
@@ -65,6 +66,9 @@ async function postToAtsForge(
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch (err) {
+    console.error(
+      `[resume] falha ao chamar ${config.atsForgeUrl}${path} após ${Date.now() - startedAt}ms: ${(err as Error).message}`,
+    );
     throw AppError.internal(
       "Não foi possível contatar o serviço de geração de currículos.",
       { cause: (err as Error).message },

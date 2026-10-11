@@ -86,6 +86,38 @@ export interface AtsReport {
   weakSections?: string[];
   recommendations?: string[];
   warnings?: string[];
+  jobFitScore?: number | null;
+  jobFitExplanation?: string;
+  jobDetails?: { title: string | null; company: string | null };
+  requirements?: Array<{
+    text: string;
+    category:
+      | "required"
+      | "preferred"
+      | "responsibility"
+      | "education"
+      | "certification"
+      | "behavioral"
+      | "ambiguous";
+    priority: "required" | "preferred" | "informational" | "review";
+    technologies: string[];
+    reviewRequired: boolean;
+    matchStrength: number;
+    evidence: Array<{
+      skillId: string;
+      canonicalName: string;
+      source: DataSource;
+      evidenceType:
+        | "professional_experience"
+        | "project"
+        | "profile_mention"
+        | "education";
+      originalExcerpt: string;
+      position: number;
+      confidence: number;
+      occurrences: number;
+    }>;
+  }>;
 }
 
 export interface GeneratedResume {
@@ -126,5 +158,5 @@ export interface ResumeAnalysis {
   atsReport: AtsReport;
   warnings: string[];
   sourcesUsed: string[];
-  job: { title: string | null; hasDescription: boolean };
+  job: { title: string | null; company?: string | null; hasDescription: boolean };
 }

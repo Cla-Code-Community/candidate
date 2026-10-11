@@ -140,7 +140,7 @@ describe("GenerateResumeCard", () => {
 
   it.each<[ApiErrorCode, RegExp]>([
     ["UNAUTHORIZED", /sessão expirou/i],
-    ["VALIDATION_ERROR", /dados suficientes/i],
+    ["VALIDATION_ERROR", /^x$/],
     ["NOT_FOUND", /perfil não encontrado/i],
     ["INTERNAL_ERROR", /indisponível/i],
     ["UNKNOWN_ERROR", /tente novamente/i],

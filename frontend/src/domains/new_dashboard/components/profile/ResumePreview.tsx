@@ -1,7 +1,9 @@
+import { useState } from "react";
 import {
   BadgeCheck,
   CheckCircle2,
   CircleAlert,
+  Copy,
   Github,
   Linkedin,
   User,
@@ -24,9 +26,26 @@ const BREAKDOWN_LABELS: Array<[keyof AtsReport["breakdown"], string]> = [
 ];
 
 const STATUS_LABELS: Record<AtsReport["status"], string> = {
-  PASSED: "Aprovado para ATS",
-  NEEDS_IMPROVEMENT: "Pode melhorar",
+  PASSED: "Aderência textual elevada",
+  NEEDS_IMPROVEMENT: "Aderência textual a melhorar",
   INSUFFICIENT_DATA: "Dados insuficientes",
+};
+
+const REQUIREMENT_LABELS: Record<string, string> = {
+  required: "Obrigatório",
+  preferred: "Desejável",
+  responsibility: "Responsabilidade",
+  education: "Formação",
+  certification: "Certificação",
+  behavioral: "Comportamental",
+  ambiguous: "Revisar",
+};
+
+const EVIDENCE_LABELS: Record<string, string> = {
+  professional_experience: "Experiência declarada",
+  project: "Projeto",
+  profile_mention: "Menção no perfil",
+  education: "Formação",
 };
 
 function scoreColor(score: number): string {
@@ -52,15 +71,93 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function buildResumeMarkdown(analysis: ResumeAnalysis): string {
+  const { resume } = analysis;
+  const lines = [
+    `# ${resume.name}`,
+    resume.title,
+    [resume.contact.email, resume.contact.phone, resume.contact.portfolio]
+      .filter(Boolean)
+      .join(" | "),
+    [resume.links.linkedin, resume.links.github].filter(Boolean).join(" | "),
+    "",
+  ].filter((line): line is string => Boolean(line));
+
+  if (resume.summary) lines.push("## Resumo Profissional", "", resume.summary, "");
+  if (resume.experience.length) {
+    lines.push("## Experiência Profissional", "");
+    for (const experience of resume.experience) {
+      lines.push(
+        `### ${experience.empresa}${experience.cargo ? ` — ${experience.cargo}` : ""}`,
+      );
+      if (experience.periodo) lines.push(experience.periodo);
+      if (experience.stack) lines.push(`Tecnologias: ${experience.stack}`);
+      lines.push(
+        ...experience.atividades.map((item) => `- ${item}`),
+        ...experience.resultados.map((item) => `- ${item}`),
+        "",
+      );
+    }
+  }
+  if (resume.projects.length) {
+    lines.push("## Projetos", "");
+    for (const project of resume.projects) {
+      lines.push(`### ${project.name}`);
+      if (project.url) lines.push(project.url);
+      if (project.stack) lines.push(`Tecnologias: ${project.stack}`);
+      if (project.description) lines.push(project.description);
+      lines.push(...project.highlights.map((item) => `- ${item}`), "");
+    }
+  }
+  if (Object.keys(resume.skills).length) {
+    lines.push("## Competências Técnicas", "");
+    for (const [category, skills] of Object.entries(resume.skills)) {
+      lines.push(`- **${category}:** ${skills.join(", ")}`);
+    }
+    lines.push("");
+  }
+  if (resume.education.length) {
+    lines.push("## Formação Acadêmica", "", ...resume.education.map((item) => `- ${item}`), "");
+  }
+  if (resume.languages.length) {
+    lines.push("## Idiomas", "", ...resume.languages.map((item) => `- ${item}`), "");
+  }
+  return lines.join("\n").trim();
+}
+
 export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
   const { resume, atsReport, sourcesUsed, job, warnings } = analysis;
   const contactLine = [resume.contact.email, resume.contact.phone, resume.contact.portfolio]
     .filter(Boolean)
     .join("  |  ");
   const linksLine = [resume.links.linkedin, resume.links.github].filter(Boolean).join("  |  ");
+  const [editedMarkdown, setEditedMarkdown] = useState(() => buildResumeMarkdown(analysis));
+  const [copyMessage, setCopyMessage] = useState("");
+  const requirements = atsReport.requirements ?? [];
+
+  const [prevAnalysis, setPrevAnalysis] = useState(analysis);
+  if (prevAnalysis !== analysis) {
+    setPrevAnalysis(analysis);
+    setEditedMarkdown(buildResumeMarkdown(analysis));
+    setCopyMessage("");
+  }
+
+  const copyMarkdown = async () => {
+    if (!navigator.clipboard?.writeText) {
+      setCopyMessage("A cópia para a área de transferência não está disponível neste navegador.");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(editedMarkdown);
+      setCopyMessage("Currículo copiado.");
+    } catch {
+      setCopyMessage("Não foi possível copiar o currículo. Selecione e copie o texto manualmente.");
+    }
+  };
 
   return (
-    <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_320px]">
+    <div className="mt-6 space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
       {/* ── Documento (ATS-safe: coluna única, texto real, hierarquia clara) ── */}
       <article
         className="rounded-xl border border-border bg-card p-6 sm:p-8 shadow-sm"
@@ -159,10 +256,13 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
 
       {/* ── Painel de transparência / análise ATS ── */}
       <aside className="space-y-4 lg:sticky lg:top-4 lg:self-start">
-        {job.title && (
+        {(job.title || atsReport.jobDetails?.title) && (
           <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm font-medium text-primary">
             <BadgeCheck className="h-4 w-4 shrink-0" aria-hidden />
-            Personalizado para: {job.title}
+            Personalizado para: {job.title || atsReport.jobDetails?.title}
+            {job.company || atsReport.jobDetails?.company
+              ? ` · ${job.company || atsReport.jobDetails?.company}`
+              : ""}
           </div>
         )}
 
@@ -175,6 +275,10 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">{STATUS_LABELS[atsReport.status]}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Esta pontuação mede estrutura e correspondência textual; não prevê aprovação
+            nem avalia objetivamente o domínio profissional.
+          </p>
 
           <div className="mt-3 space-y-2">
             {BREAKDOWN_LABELS.map(([key, label]) => (
@@ -193,6 +297,71 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
             ))}
           </div>
         </div>
+
+        {atsReport.jobFitScore !== undefined && atsReport.jobFitScore !== null && (
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-semibold">Aderência textual à vaga</span>
+              <span className={`text-xl font-bold ${scoreColor(atsReport.jobFitScore)}`}>
+                {atsReport.jobFitScore}/100
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {atsReport.jobFitExplanation}
+            </p>
+          </div>
+        )}
+
+        {requirements.length > 0 && (
+          <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+            <h3 className="text-sm font-semibold">Requisitos identificados</h3>
+            <div className="mt-3 space-y-3">
+              {requirements.slice(0, 20).map((requirement, index) => (
+                <article key={`${requirement.category}-${index}`} className="border-t border-border pt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-semibold">
+                      {REQUIREMENT_LABELS[requirement.category] ?? requirement.category}
+                      {requirement.priority === "preferred" ? " · Desejável" : ""}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {requirement.reviewRequired
+                        ? "Classificação para revisão"
+                        : requirement.priority === "informational"
+                          ? "Informativo"
+                          : `${requirement.matchStrength}% de correspondência`}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm">{requirement.text}</p>
+                  {requirement.technologies.length > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Competências: {requirement.technologies.join(", ")}
+                    </p>
+                  )}
+                  {requirement.evidence.length > 0 ? (
+                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                      {requirement.evidence.slice(0, 3).map((item, evidenceIndex) => (
+                        <li key={`${item.skillId}-${item.source}-${evidenceIndex}`}>
+                          {item.source} · {EVIDENCE_LABELS[item.evidenceType] ?? item.evidenceType}
+                          {" · "}correspondência textual {Math.round(item.confidence * 100)}%
+                          {" · “"}{item.originalExcerpt}{"”"}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : requirement.priority !== "informational" && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                      Nenhuma evidência correspondente foi encontrada no perfil informado.
+                    </p>
+                  )}
+                </article>
+              ))}
+            </div>
+            {requirements.length > 20 && (
+              <p className="mt-3 text-xs text-muted-foreground">
+                Exibindo 20 de {requirements.length} itens.
+              </p>
+            )}
+          </section>
+        )}
 
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <p className="text-sm font-semibold">Fontes utilizadas</p>
@@ -267,6 +436,37 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
           </div>
         )}
       </aside>
+      </div>
+
+      <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold">Editar e copiar currículo em Markdown</h3>
+            <p className="text-xs text-muted-foreground">
+              Edite o texto antes de copiar. A edição é local e não altera os dados do perfil
+              nem os arquivos exportados pelo gerador.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={copyMarkdown}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold hover:bg-accent"
+          >
+            <Copy className="h-4 w-4" aria-hidden />
+            Copiar texto
+          </button>
+        </div>
+        <textarea
+          aria-label="Editar currículo em Markdown"
+          value={editedMarkdown}
+          onChange={(event) => setEditedMarkdown(event.target.value)}
+          rows={18}
+          className="mt-3 w-full rounded-md border border-border bg-background px-3 py-2 font-mono text-xs leading-relaxed outline-none focus:border-primary"
+        />
+        {copyMessage && (
+          <p className="mt-2 text-xs text-muted-foreground" role="status">{copyMessage}</p>
+        )}
+      </section>
     </div>
   );
 }
