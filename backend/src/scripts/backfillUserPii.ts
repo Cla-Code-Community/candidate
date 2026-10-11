@@ -154,7 +154,7 @@ async function main() {
   );
 }
 
-main().catch((error) => {
+export const completion = main().catch((error) => {
   console.error(error instanceof Error ? error.message : error);
   process.exitCode = 1;
 });

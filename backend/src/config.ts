@@ -36,6 +36,8 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean {
 export const config = {
   scraperUrl: process.env.SCRAPER_URL ?? "http://scraper-go:8081",
   prometheusUrl: process.env.PROMETHEUS_URL ?? "http://prometheus:9090",
+  atsForgeUrl: process.env.ATS_FORGE_URL ?? "http://ats-forge:8089",
+  atsForgeApiKey: process.env.ATS_FORGE_API_KEY?.trim() ?? "",
 };
 
 function parseNumber(value: string | undefined, fallback: number): number {

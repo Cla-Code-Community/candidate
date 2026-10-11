@@ -104,10 +104,13 @@ describe("backfillUserPii script", () => {
     vi.restoreAllMocks();
   });
 
+  // timeout ampliado: o import dinâmico do script pode levar vários segundos
+  // sob a carga da suíte completa (pre-push), estourando o padrão de 5s do vitest.
   it("reports pending records in dry-run without persisting changes", async () => {
-    await import("../../../src/scripts/backfillUserPii");
+    const { completion } = await import("../../../src/scripts/backfillUserPii");
+    await completion;
 
-    await vi.waitFor(() => expect(console.log).toHaveBeenCalledOnce());
+    expect(console.log).toHaveBeenCalledOnce();
 
     const report = JSON.parse(vi.mocked(console.log).mock.calls[0][0] as string);
     expect(report).toEqual({
@@ -116,14 +119,15 @@ describe("backfillUserPii script", () => {
       credentials: { scanned: 1, pending: 1 },
     });
     expect(databaseMocks.update).not.toHaveBeenCalled();
-  });
+  }, 30000);
 
   it("writes encrypted user fields and normalized credential email with --write", async () => {
     process.argv = [...originalArgv, "--write"];
 
-    await import("../../../src/scripts/backfillUserPii");
+    const { completion } = await import("../../../src/scripts/backfillUserPii");
+    await completion;
 
-    await vi.waitFor(() => expect(console.log).toHaveBeenCalledOnce());
+    expect(console.log).toHaveBeenCalledOnce();
 
     expect(databaseMocks.update).toHaveBeenCalledTimes(2);
     const userValues = databaseMocks.update.mock.results[0].value.set.mock.calls[0][0];
@@ -146,5 +150,5 @@ describe("backfillUserPii script", () => {
       email: "encrypted:person@example.com",
       emailHash: "hash:person@example.com",
     });
-  });
+  }, 30000);
 });

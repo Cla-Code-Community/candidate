@@ -14,6 +14,7 @@ O monorepo possui os seguintes blocos principais:
 * `backend` — API Node.js/Express (TypeScript + Drizzle)
 * `front_admin` — painel administrativo (React + Vite)
 * `scraper-go` — serviço Go para coleta/agregação de vagas
+* `../ats-forge` — serviço TypeScript de geração de currículos ATS (repositório irmão, porta 8089)
 * `observability` — stack de métricas e logs (Prometheus/Grafana/Loki etc.)
 
 Além disso, existem arquivos Docker Compose para infraestrutura, migrações, aplicação e observabilidade.
@@ -338,12 +339,25 @@ Se ela já existir, o Docker informará que a rede já existe. Nesse caso, não 
 
 Este é o fluxo recomendado para quem está começando.
 
+O `ats-forge` (geração de currículo ATS) já faz parte do `docker-compose.yml` e sobe junto com o backend. Ele é construído a partir de `../ats-forge`, então clone-o ao lado do `candidate` antes de rodar.
+
 ```bash
+# Sobe o ambiente completo, incluindo o ats-forge
 docker compose \
   -f docker-compose.infra.yml \
   -f docker-compose.yml \
   -f docker-compose.migrate.yml \
   up --build -d
+```
+
+Para subir ou reconstruir somente o ats-forge:
+
+```bash
+docker compose \
+  -f docker-compose.infra.yml \
+  -f docker-compose.yml \
+  -f docker-compose.migrate.yml \
+  up --build -d ats-forge
 ```
 
 O fluxo executará:
@@ -361,6 +375,8 @@ db:seed
     ↓
 security:backfill-user-pii
     ↓
+ats-forge (healthcheck em /health)
+    ↓
 backend
     ↓
 frontend
@@ -370,7 +386,7 @@ front_admin
 scraper-go
 ```
 
-O backend somente será iniciado depois que o serviço `migrate` terminar com sucesso.
+O backend somente será iniciado depois que o serviço `migrate` terminar com sucesso e o `ats-forge` estiver saudável.
 
 ---
 
@@ -1623,6 +1639,7 @@ Frontend:  http://localhost:5173
 Admin:     http://localhost:5174
 Backend:   http://localhost:3001
 Swagger:   http://localhost:3001/docs
+ATS Forge: http://localhost:8089/health
 ```
 
 ### Credenciais locais
@@ -1655,4 +1672,83 @@ docker compose \
   -f docker-compose.yml \
   -f docker-compose.migrate.yml \
   up --build -d
+```
+
+---
+
+# Geração de currículo ATS (ats-forge)
+
+O `ats-forge` é um serviço separado que gera currículos em DOCX, PDF e Markdown e
+analisa a aderência do perfil a uma vaga. O `docker-compose.yml` o constrói a partir de
+`../ats-forge`, portanto os dois repositórios devem estar lado a lado:
+
+```text
+Open-Source/
+├── candidate/
+└── ats-forge/
+```
+
+Ambos usam a branch `feat/PAV-177-otimizar-geracao-curriculo-ats`.
+
+## Variáveis
+
+Já constam em `.env.example`:
+
+```text
+ATS_FORGE_URL=http://localhost:8089      # usada pelo backend
+ATS_FORGE_API_KEY=                        # vazio em dev; não exponha segredos no frontend
+VITE_ATS_FORGE_URL=http://localhost:8089 # usada pelo navegador
+```
+
+No Docker, o backend usa `http://ats-forge:8089` e só inicia depois que o healthcheck
+`/health` do ats-forge estiver saudável.
+
+## Executar fora do Docker
+
+```bash
+cd ../ats-forge
+npm install
+npm run build
+npm start          # ou: npm run serve (ts-node)
+```
+
+Health check: `curl http://localhost:8089/health`
+
+## O que a análise entrega
+
+A análise é **determinística e local**: não usa IA generativa, embeddings nem serviços
+externos de inferência. O endpoint `POST /resumes/generate` devolve o arquivo e o
+relatório (header `X-Ats-Report`, em base64), que agora inclui:
+
+* `jobDetails` — título e empresa inferidos da vaga;
+* `requirements` — requisitos classificados (`required`, `preferred`, `responsibility`,
+  `education`, `certification`, `behavioral`, `ambiguous`), cada um com evidências e
+  `matchStrength`;
+* `jobFitScore` e `jobFitExplanation` — aderência **textual** (obrigatórios pesam 3,
+  desejáveis 1; experiência vale 100%, projeto 80%, menção de perfil 45%). Não é
+  probabilidade de aprovação. Itens ambíguos ficam marcados para revisão e fora da nota.
+
+Regras de evidência:
+
+* O catálogo de tecnologias é versionado (`TECH_TAXONOMY_VERSION`); `TS` só vira
+  TypeScript com contexto de linguagem.
+* No import do GitHub, badges, HTML, URLs e código dos READMEs são removidos antes da
+  análise; projetos nunca são promovidos a experiência profissional.
+* A URL/usuário do GitHub é validada (somente `github.com/<usuário>`) e as respostas da
+  API têm limite de tamanho (1 MB; README 512 KB). Falha de README é tolerada.
+* O "sobre" do LinkedIn também gera evidências e skills.
+
+## No frontend
+
+O preview do currículo (`ResumePreview`) mostra o card de **Aderência textual à vaga**, a
+lista de **Requisitos identificados** com evidências e um editor Markdown com botão de
+copiar.
+
+## Validar
+
+```bash
+# ats-forge
+cd ../ats-forge
+npm run build
+npm test
 ```

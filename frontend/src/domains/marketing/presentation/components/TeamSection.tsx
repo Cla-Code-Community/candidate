@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Autoplay, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 
-import { Github } from "lucide-react";
+import { FaGithub as Github } from "react-icons/fa";
 import "swiper/css";
 import "swiper/css/pagination";
 
