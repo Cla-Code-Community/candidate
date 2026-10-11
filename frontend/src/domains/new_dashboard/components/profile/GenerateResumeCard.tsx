@@ -2,12 +2,11 @@ import { useState } from "react";
 import {
   Briefcase,
   FileText,
-  Github,
-  Linkedin,
   Loader2,
   Plus,
   Trash2,
 } from "lucide-react";
+import { FaGithub as Github, FaLinkedin as Linkedin } from "react-icons/fa";
 import { Eye } from "lucide-react";
 import { isApiError } from "@/shared/lib/apiError";
 import {

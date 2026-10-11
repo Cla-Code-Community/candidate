@@ -1,5 +1,6 @@
 import { Image } from "@unpic/react";
-import { Bell, Instagram, Linkedin, Search, TrendingUp } from "lucide-react";
+import { Bell, Search, TrendingUp } from "lucide-react";
+import { FaInstagram as Instagram, FaLinkedin as Linkedin } from "react-icons/fa";
 
 export default function LeftSide() {
   return (

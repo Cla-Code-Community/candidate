@@ -4,10 +4,9 @@ import {
   CheckCircle2,
   CircleAlert,
   Copy,
-  Github,
-  Linkedin,
   User,
 } from "lucide-react";
+import { FaGithub as Github, FaLinkedin as Linkedin } from "react-icons/fa";
 import type { AtsReport, ResumeAnalysis } from "../../infrastructure/resumeApi";
 
 const SOURCE_LABELS: Record<string, { label: string; icon: typeof User }> = {
