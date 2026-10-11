@@ -42,6 +42,7 @@ export default defineConfig(({ mode }) => {
       env,
       coverage: {
         provider: "v8",
+        coverageFilesDirectory: resolve(cwd, "coverage", "files"),
         reporter: ["text", "html"],
         include: ["src/**/*.ts"],
         thresholds: {
