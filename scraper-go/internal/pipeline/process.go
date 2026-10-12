@@ -421,6 +421,7 @@ func processStageBatch(
 	metrics.Stage("classification")
 	defer metrics.AddProgress("batchesCompleted", 1)
 	metrics.RunClassificationReceived(cfg.RunID, len(jobs))
+	validationStarted := time.Now()
 	valid := make([]domain.Job, 0, len(jobs))
 	invalid := 0
 	for _, job := range jobs {
@@ -436,6 +437,8 @@ func processStageBatch(
 		valid = append(valid, job)
 	}
 
+	validationDuration := time.Since(validationStarted)
+	classificationStarted := time.Now()
 	approved := make([]domain.Job, 0, len(valid))
 	rejected := 0
 	for _, job := range valid {
@@ -452,13 +455,17 @@ func processStageBatch(
 		stats.Approved++
 	}
 
+	classificationDuration := time.Since(classificationStarted)
+	var persistenceDuration time.Duration
 	persisted := approved
 	batchInserted := 0
 	batchUpdated := 0
 	var persistErr error
 	if cfg.Persist != nil || cfg.Store != nil {
 		var written []domain.Job
+		persistenceStarted := time.Now()
 		written, batchInserted, batchUpdated, persistErr = persistJobs(ctx, cfg, batchNo, approved, stats)
+		persistenceDuration = time.Since(persistenceStarted)
 		stats.Inserted += batchInserted
 		stats.Updated += batchUpdated
 		persisted = written
@@ -484,6 +491,9 @@ func processStageBatch(
 		"inserted", batchInserted,
 		"existing_upsert", batchUpdated,
 		"content_change_detection_available", false,
+		"validation_duration", validationDuration,
+		"classification_duration", classificationDuration,
+		"persistence_duration", persistenceDuration,
 		"duration", time.Since(started).Round(time.Millisecond),
 	)
 	return persisted, persistErr

@@ -931,3 +931,50 @@ func TestDurablePipelineUsesPreparedKeywordSnapshot(t *testing.T) {
 	require.Equal(t, int64(2), rdb.SCard(context.Background(), "scraper:jobs:keyword:initialtoken").Val())
 	require.Zero(t, rdb.SCard(context.Background(), "scraper:jobs:keyword:replacementtoken").Val())
 }
+
+func TestClassifyPersistLogSeparatesStageDurations(t *testing.T) {
+	for _, scenario := range []string{"success", "failure", "no_store"} {
+		t.Run(scenario, func(t *testing.T) {
+			output := captureIndexLogs(t)
+			cfg := processConfig{PersistBatchSize: 100}
+			var expectedErr error
+			if scenario == "failure" {
+				expectedErr = errors.New("persist failure")
+			}
+			if scenario != "no_store" {
+				cfg.Persist = func(_ context.Context, jobs []domain.Job) (jobstore.SaveResult, error) {
+					time.Sleep(10 * time.Millisecond)
+					return jobstore.SaveResult{Inserted: len(jobs), Persisted: jobs}, expectedErr
+				}
+			}
+			stats := ProcessStats{}
+			_, err := processStageBatch(context.Background(), cfg, 1, []domain.Job{
+				inScopeJob(1), {}, {Title: "Graphic Designer", Company: "Acme"},
+			}, &stats, 0)
+			require.ErrorIs(t, err, expectedErr)
+			var record map[string]any
+			for _, line := range strings.Split(strings.TrimSpace(output.String()), "\n") {
+				var candidate map[string]any
+				require.NoError(t, json.Unmarshal([]byte(line), &candidate))
+				if candidate["stage"] == "classify_persist" {
+					record = candidate
+				}
+			}
+			require.NotNil(t, record)
+			validation := record["validation_duration"].(float64)
+			classification := record["classification_duration"].(float64)
+			persistence := record["persistence_duration"].(float64)
+			require.Positive(t, validation)
+			require.Positive(t, classification)
+			if scenario == "no_store" {
+				require.Zero(t, persistence)
+			} else {
+				require.GreaterOrEqual(t, persistence, float64(10*time.Millisecond))
+			}
+			// Total remains rounded to milliseconds; component durations are exact.
+			require.GreaterOrEqual(t, record["duration"].(float64)+float64(time.Millisecond), validation+classification+persistence)
+			require.Equal(t, float64(1), record["invalid"])
+			require.Equal(t, float64(1), record["rejected"])
+		})
+	}
+}
