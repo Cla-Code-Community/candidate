@@ -12,8 +12,8 @@ describe("ScraperGrid", () => {
         onToggle={onToggle}
       />,
     );
-    expect(screen.getByText("Nenhum scraper retornado pelo backend.")).toBeInTheDocument();
-    expect(screen.getByText("Rode cada scraper pelo card")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum processamento retornado pelo backend.")).toBeInTheDocument();
+    expect(screen.getByText("Inicie o processamento pelo card")).toBeInTheDocument();
 
     rerender(
       <ScraperGrid
@@ -23,18 +23,18 @@ describe("ScraperGrid", () => {
             name: "Ativo",
             status: "Executando",
             lastRun: "Agora",
-            indexedJobs: 1000,
+            catalogJobs: 1000,
             active: true,
-            sla: "Operacional",
+            availability: "Operacional",
           },
           {
             id: "b",
             name: "Inativo",
             status: "Ocioso",
             lastRun: "Nunca",
-            indexedJobs: 0,
+            catalogJobs: 0,
             active: false,
-            sla: "Indisponivel",
+            availability: "Indisponivel",
           },
         ]}
         startingScraperId={null}

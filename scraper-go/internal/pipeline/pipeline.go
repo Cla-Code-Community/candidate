@@ -70,7 +70,7 @@ func runWithConcurrency(
 	results := make(chan result, queueCapacity)
 	incoming := make(chan domain.Job, stageQueueCapacity(processCfg))
 	runStats := newProviderRunStats(adapterList, budget)
-	metrics.Configure(0, maxConcurrency, adapterList, len(req.Keywords), budget.providerLimit)
+	metrics.Configure(0, maxConcurrency, adapterList, len(req.Keywords), budget.providerLimit, processCfg.RunID)
 	metrics.BindQueue("collection", func() metrics.Queue { return metrics.Queue{Depth: len(tasks), Capacity: cap(tasks)} })
 	metrics.BindQueue("classification", func() metrics.Queue { return metrics.Queue{Depth: len(incoming), Capacity: cap(incoming)} })
 	defer metrics.ClearQueues()
@@ -84,7 +84,7 @@ func runWithConcurrency(
 	for range maxConcurrency {
 		go func() {
 			defer tasksWg.Done()
-			runWorker(ctx, tasks, results, budget, runStats, req)
+			runWorker(ctx, tasks, results, budget, runStats, req, processCfg.RunID)
 		}()
 	}
 
@@ -303,6 +303,7 @@ func runWorker(
 	budget *concurrencyBudget,
 	runStats *providerRunStats,
 	req domain.ScrapeRequest,
+	runID string,
 ) {
 	for {
 		if context.Cause(ctx) != nil {
@@ -319,7 +320,7 @@ func runWorker(
 			if context.Cause(ctx) != nil {
 				return
 			}
-			runScheduledTask(ctx, task, results, budget, runStats, req)
+			runScheduledTask(ctx, task, results, budget, runStats, req, runID)
 		}
 	}
 }
@@ -331,6 +332,7 @@ func runScheduledTask(
 	budget *concurrencyBudget,
 	runStats *providerRunStats,
 	req domain.ScrapeRequest,
+	runID string,
 ) {
 	permit, err := budget.acquire(ctx, task.provider)
 	if err != nil {
@@ -349,6 +351,7 @@ func runScheduledTask(
 		observedErr = cause
 	}
 	metrics.RecordProvider(source, string(task.mode), len(task.keywords), len(jobs), started, observedErr)
+	metrics.RecordRunProvider(runID, source, len(jobs), started, observedErr)
 	metrics.AdapterFinished(task.ordinal)
 
 	metrics.ScrapeRunsTotal.WithLabelValues(source).Inc()

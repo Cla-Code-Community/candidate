@@ -17,7 +17,7 @@ describe("ScraperTable", () => {
       </NotificationProvider>,
     );
 
-    expect(screen.getByText("Nenhum scraper retornado pelo backend.")).toBeInTheDocument();
+    expect(screen.getByText("Nenhum processamento retornado pelo backend.")).toBeInTheDocument();
 
     rerender(
       <NotificationProvider>
@@ -28,7 +28,7 @@ describe("ScraperTable", () => {
               name: "Scraper",
               status: "Online",
               lastRun: "Hoje",
-              collected24h: 100,
+              catalogJobs: 100,
               active: false,
             },
           ]}
@@ -38,7 +38,7 @@ describe("ScraperTable", () => {
       </NotificationProvider>,
     );
 
-    fireEvent.click(screen.getByTitle("Iniciar Scraper"));
+    fireEvent.click(screen.getByTitle("Iniciar processamento"));
     expect(onToggle).toHaveBeenCalledWith("s1");
 
     fireEvent.click(screen.getByTitle("Ver detalhes de Scraper"));

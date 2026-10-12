@@ -20,7 +20,7 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard, path: ROUTES.dashboard },
   { id: "usuarios", label: "Usuários", icon: Users, path: ROUTES.users },
-  { id: "scrapers", label: "Scrapers", icon: Cpu, path: ROUTES.scrapers },
+  { id: "scrapers", label: "Processamento", icon: Cpu, path: ROUTES.scrapers },
   { id: "observabilidade", label: "Observabilidade", icon: Activity, path: ROUTES.observability },
   { id: "auditoria", label: "Auditoria", icon: ShieldCheck, path: ROUTES.audit },
   { id: "permissoes", label: "Permissões", icon: Key, path: ROUTES.permissions },

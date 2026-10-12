@@ -28,6 +28,14 @@ type ChartSeriesEntry = {
   index: number;
 };
 
+const BUSINESS_CONTEXT: Record<string, string> = {
+  "searches-24h": "Total de buscas • últimas 24h",
+  "jobs-collected": "Estimativa da coleta • últimas 24h; sem dedup. Não é o catálogo.",
+  "business-cache-hit": "Acertos do cache • últimas 24h",
+  "users-total": "Estimativa de linhas vivas • última amostra do Postgres",
+  "saved-jobs": "Estimativa de linhas vivas • última amostra do Postgres",
+};
+
 const PALETTE = [
   "#73bf69",
   "#f2cc0c",
@@ -92,7 +100,7 @@ function formatValue(
   value: number | null,
   unit: ObservabilityPanel["unit"],
 ): string {
-  if (value === null || !Number.isFinite(value)) return "No data";
+  if (value === null || !Number.isFinite(value)) return "N/D";
 
   if (unit === "percent") return `${value.toFixed(value >= 10 ? 1 : 2)}%`;
   if (unit === "ms") return `${Math.round(value)} ms`;
@@ -113,12 +121,7 @@ function formatValue(
     return `${nextValue.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   }
 
-  return value >= 1000
-    ? Math.round(value).toLocaleString("pt-BR")
-    : value
-        .toFixed(value % 1 === 0 ? 0 : 3)
-        .replace(/0+$/, "")
-        .replace(/\.$/, "");
+  return value.toLocaleString("pt-BR", { maximumFractionDigits: 3 });
 }
 
 function formatTime(timestamp: number): string {
@@ -163,21 +166,25 @@ function buildTicks(min: number, max: number, count: number): number[] {
 }
 
 function buildPath(
-  points: ReturnType<typeof finitePoints>,
+  points: ObservabilityPoint[],
   minTime: number,
   timeSpan: number,
   minValue: number,
   valueSpan: number,
 ): string {
-  return points
-    .map((point, index) => {
-      const x =
-        PLOT.left + ((point.timestampMs - minTime) / timeSpan) * PLOT_WIDTH;
-      const y =
-        PLOT.top + (1 - (point.value - minValue) / valueSpan) * PLOT_HEIGHT;
-      return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
-    })
-    .join(" ");
+  let connected = false;
+  return points.map(point => {
+    const timestampMs = new Date(point.timestamp).getTime();
+    if (point.value == null || !Number.isFinite(point.value) || !Number.isFinite(timestampMs)) {
+      connected = false;
+      return "";
+    }
+    const x = PLOT.left + ((timestampMs - minTime) / timeSpan) * PLOT_WIDTH;
+    const y = PLOT.top + (1 - (point.value - minValue) / valueSpan) * PLOT_HEIGHT;
+    const command = connected ? "L" : "M";
+    connected = true;
+    return `${command} ${x.toFixed(2)} ${y.toFixed(2)}`;
+  }).filter(Boolean).join(" ");
 }
 
 function nearestPoints(
@@ -235,9 +242,9 @@ function LineChart({
       minTime,
       minValue,
       timeSpan: Math.max(1, maxTime - minTime),
-      valueSpan: Math.max(1, maxValue - minValue),
+      valueSpan: Math.max(Number.EPSILON, maxValue - minValue),
       xTicks: buildTicks(minTime, maxTime, 4),
-      yTicks: buildTicks(minValue, maxValue, 5),
+      yTicks: buildTicks(minValue, maxValue, 3),
     };
   }, [seriesEntries]);
 
@@ -262,7 +269,7 @@ function LineChart({
   }
 
   return (
-    <div className="relative h-64 overflow-hidden rounded-md bg-slate-50 dark:bg-slate-950/40">
+    <div className="relative h-64 shrink-0 overflow-hidden rounded-md bg-slate-50 dark:bg-slate-950/40">
       <svg
         className="h-full w-full"
         preserveAspectRatio="none"
@@ -333,7 +340,7 @@ function LineChart({
           seriesEntries.map(({ key, serie, index }) => {
             const points = finitePoints(serie);
             const path = buildPath(
-              points,
+              serie.points,
               chart.minTime,
               chart.timeSpan,
               chart.minValue,
@@ -395,7 +402,7 @@ function LineChart({
 
       {!chart.hasData && (
         <div className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-slate-400 dark:text-slate-500">
-          No data
+          N/D
         </div>
       )}
 
@@ -440,17 +447,19 @@ export function ObservabilityPanelCard({ panel }: ObservabilityPanelCardProps) {
   const [selectedSeriesKey, setSelectedSeriesKey] = useState<string | null>(
     null,
   );
+  const [showAll, setShowAll] = useState(false);
+  const duplicatedLabels = new Set(panel.series.filter((serie, index) => panel.series.findIndex(other => other.label === serie.label) !== index).map(serie => serie.label));
   const visibleSeries = panel.series
     .map((serie, index) => ({
       key: seriesKey(serie, index),
-      serie,
+      serie: duplicatedLabels.has(serie.label) ? { ...serie, label: `${serie.label} • série ${index + 1}` } : serie,
       index,
     }))
     .filter(({ serie }) => finitePoints(serie).length > 0);
-  const selectedEntries = selectedSeriesKey
-    ? visibleSeries.filter((entry) => entry.key === selectedSeriesKey)
-    : visibleSeries;
-  const activeSeries = selectedEntries.length > 0 ? selectedEntries : visibleSeries;
+  const ranked = [...visibleSeries].sort((a, b) => Math.max(...finitePoints(b.serie).map(p => p.value)) - Math.max(...finitePoints(a.serie).map(p => p.value))).map((entry, index) => ({ ...entry, index }));
+  const defaultEntries = showAll ? ranked : ranked.slice(0, 6);
+  const selectedEntries = selectedSeriesKey ? ranked.filter(entry => entry.key === selectedSeriesKey) : defaultEntries;
+  const activeSeries = selectedEntries.length > 0 ? selectedEntries : defaultEntries;
   const latest = activeSeries.length > 0 ? latestValueFromEntries(activeSeries) : latestValue(panel);
 
   function toggleSeries(key: string) {
@@ -458,12 +467,12 @@ export function ObservabilityPanelCard({ panel }: ObservabilityPanelCardProps) {
   }
 
   return (
-    <article className="flex min-h-88 flex-col justify-between rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#0f131a]">
-      <div>
-        <div className="mb-4 flex items-start justify-between gap-3">
+    <article aria-label={panel.title} className="flex h-full min-w-0 flex-col rounded-lg border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#0f131a]">
+      <div className="flex flex-1 flex-col">
+        <div className="mb-4 flex min-h-10 items-start justify-between gap-3">
           <div>
             <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-              {panel.title}
+              {panel.id === "postgres-connections" ? "Postgres — conexões por grupo" : panel.title}
             </h4>
             {panel.description && (
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
@@ -472,24 +481,26 @@ export function ObservabilityPanelCard({ panel }: ObservabilityPanelCardProps) {
             )}
           </div>
           <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-            {panel.visualization === "stat"
-              ? "atual"
-              : formatValue(latest, panel.unit)}
+            {panel.visualization === "stat" ? "" : activeSeries.length > 1 ? `${activeSeries.length} séries` : formatValue(latest, panel.unit)}
           </span>
         </div>
 
         {panel.visualization === "stat" ? (
-          <div className="flex h-64 items-center justify-center rounded-md bg-slate-50 text-6xl font-extrabold text-emerald-600 dark:bg-slate-950/40 dark:text-emerald-400">
-            {formatValue(latest, panel.unit)}
+          <div>
+            <p className="text-3xl font-extrabold tabular-nums text-slate-900 dark:text-white">{formatValue(latest, panel.unit)}</p>
+            <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{BUSINESS_CONTEXT[panel.id] ?? "Último valor disponível"}</p>
           </div>
         ) : (
           <LineChart panel={panel} seriesEntries={activeSeries} />
         )}
       </div>
 
-      <div className="mt-4 max-h-20 overflow-y-auto border-t border-slate-100 pt-3 dark:border-slate-800">
+      {panel.id === "container-cpu" && <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Multicore: 100% equivale a um núcleo; valores acima de 100% são válidos.</p>}
+      {panel.id === "postgres-connections" && duplicatedLabels.size > 0 && <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">Identificação limitada: banco e estado não constam no contrato. Números de série são identificadores locais, não bancos.</p>}
+      {panel.visualization !== "stat" && visibleSeries.length > 6 && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400"><span>{selectedSeriesKey ? "Série selecionada" : showAll ? "Todas as séries" : `6 de ${visibleSeries.length} séries • maiores picos`}</span><button className="rounded border border-slate-200 px-2 py-1 dark:border-slate-700" type="button" onClick={() => { setShowAll(!showAll); setSelectedSeriesKey(null); }}>{showAll ? "Reduzir séries" : `Mostrar todas (${visibleSeries.length})`}</button></div>}
+      {panel.visualization !== "stat" && <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-800">
         <div className="flex flex-wrap gap-x-4 gap-y-2 pr-2">
-          {visibleSeries.map(({ key, serie, index }) => {
+          {(selectedSeriesKey ? activeSeries : defaultEntries).map(({ key, serie, index }) => {
             const selected = selectedSeriesKey === key;
             const dimmed = selectedSeriesKey !== null && !selected;
 
@@ -506,6 +517,7 @@ export function ObservabilityPanelCard({ panel }: ObservabilityPanelCardProps) {
                     : "text-slate-500 hover:bg-slate-50 hover:text-slate-800 dark:text-slate-400 dark:hover:bg-slate-900 dark:hover:text-slate-200"
               }`}
               title={serie.label}
+              aria-pressed={selected}
             >
               <span
                 className="h-1.5 w-3 shrink-0 rounded-full"
@@ -516,7 +528,8 @@ export function ObservabilityPanelCard({ panel }: ObservabilityPanelCardProps) {
             );
           })}
         </div>
-      </div>
+      </div>}
+      {panel.visualization !== "stat" && visibleSeries.length > 6 && <details className="mt-2 text-[11px] text-slate-500 dark:text-slate-400"><summary className="cursor-pointer">Selecionar uma série</summary><select aria-label={`Série de ${panel.title}`} value={selectedSeriesKey ?? ""} onChange={event => setSelectedSeriesKey(event.target.value || null)} className="mt-2 w-full rounded border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900"><option value="">Visão geral</option>{visibleSeries.map(entry => <option key={entry.key} value={entry.key}>{entry.serie.label}</option>)}</select></details>}
     </article>
   );
 }

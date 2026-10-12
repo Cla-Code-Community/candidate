@@ -95,6 +95,7 @@ func processIncomingJobs(
 	})
 	defer func() { persistenceDepth.Store(0); indexDepth.Store(0) }()
 	approved := make([]domain.Job, 0)
+	metrics.BeginRunProcessing(cfg.RunID, cfg.Persist != nil || cfg.Store != nil)
 	stats := ProcessStats{}
 	batchNo := 0
 	windowDuplicates := 0
@@ -249,7 +250,9 @@ func processIncomingJobs(
 
 		merged := dedup.Merge(&existing, &incoming)
 		metrics.Stage("classification")
+		metrics.RunClassificationReceived(cfg.RunID, 1)
 		classification := classifier.Classify(*merged)
+		metrics.RecordRunClassification(cfg.RunID, classification.InScope)
 		merged.Classification = &classification
 		if !classification.InScope && existing.Classification != nil {
 			merged.Classification = existing.Classification
@@ -408,12 +411,14 @@ func processStageBatch(
 	started := time.Now()
 	metrics.Stage("classification")
 	defer metrics.AddProgress("batchesCompleted", 1)
+	metrics.RunClassificationReceived(cfg.RunID, len(jobs))
 	valid := make([]domain.Job, 0, len(jobs))
 	invalid := 0
 	for _, job := range jobs {
 		if jobIsInvalid(job) {
 			invalid++
 			metrics.InvalidJob(job.Source)
+			metrics.RecordRunInvalid(cfg.RunID)
 			stats.Invalid++
 			continue
 		}
@@ -426,6 +431,7 @@ func processStageBatch(
 	rejected := 0
 	for _, job := range valid {
 		classification := classifier.Classify(job)
+		metrics.RecordRunClassification(cfg.RunID, classification.InScope)
 		stats.Classified++
 		if !classification.InScope {
 			rejected++
@@ -492,11 +498,13 @@ func persistJobs(
 		chunk := jobs[start:end]
 		var result jobstore.SaveResult
 		var err error
+		metrics.RunPersistenceReceived(cfg.RunID, len(chunk))
 		if cfg.Persist != nil {
 			result, err = cfg.Persist(ctx, chunk)
 		} else {
 			result, err = cfg.Store.SaveBatch(ctx, chunk)
 		}
+		metrics.RecordRunPersistence(cfg.RunID, len(chunk), result.Inserted, result.Updated, len(result.Persisted), err)
 		if err != nil {
 			stats.Failed++
 			slog.Error("scraper persist batch failed",

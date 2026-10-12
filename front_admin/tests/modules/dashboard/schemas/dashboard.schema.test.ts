@@ -17,9 +17,9 @@ describe("dashboard schemas", () => {
       jobsToday: { value: 7, trend: "today", positive: false },
     });
     const resources = ResourceUsageSchema.parse({
-      scraper: 99,
-      postgres: 65,
-      valkey: 0,
+      scraper: "ok",
+      postgres: "degraded",
+      valkey: "down",
     });
 
     const parsed = DashboardOverviewSchema.parse({
@@ -31,7 +31,7 @@ describe("dashboard schemas", () => {
           name: "Adzuna",
           status: "Online",
           lastRun: "Hoje",
-          collected24h: 12,
+          catalogJobs: 12,
           active: true,
         }),
       ],
@@ -40,14 +40,14 @@ describe("dashboard schemas", () => {
           name: "Postgres",
           status: "Online",
           sla: "10ms",
-          health: 99,
+          health: "ok",
           tone: "success",
         }),
       ],
     });
 
     expect(parsed.chartPoints).toEqual([]);
-    expect(parsed.resources.postgres).toBe(65);
+    expect(parsed.resources.postgres).toBe("degraded");
   });
 
   it("rejects invalid chart and service values", () => {

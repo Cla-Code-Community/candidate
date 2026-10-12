@@ -88,10 +88,27 @@ export type ObservabilityOverview = z.infer<typeof ObservabilityOverviewSchema>;
 // Processor-owned runtime state. Unknown fields are stripped before forwarding,
 // so an internal response cannot expose credentials or incidental payloads.
 const nullableTimestamp = z.string().datetime().nullable();
+const runCount = z.number().int().nonnegative();
+const ProviderStateSchema = z.object({
+  id: z.enum(["linkedin", "adzuna", "themuse", "gupy", "inhire", "jooble", "greenhouse", "lever", "unknown"]),
+  configuredConcurrency: runCount,
+  active: runCount,
+  waiting: runCount,
+  tasksTotal: runCount,
+  tasksCompleted: runCount,
+  tasksFailed: runCount,
+  tasksCanceled: runCount,
+  jobsCollected: runCount,
+  lastTaskStatus: z.enum(["success", "failed", "canceled", "timeout"]).nullable(),
+  lastTaskFinishedAt: nullableTimestamp,
+  lastTaskDurationSeconds: z.number().nonnegative().nullable(),
+  lastErrorType: z.enum(["network", "timeout", "canceled", "rate_limit", "authentication", "parsing", "validation", "unknown"]).nullable(),
+});
 export const ProcessorSnapshotSchema = z.object({
   status: z.enum(["ok", "partial"]),
   timestamp: z.string().datetime(),
   execution: z.object({
+    runId: z.string().min(1).max(128).nullable().optional().default(null),
     status: z.enum(["idle", "running", "canceling", "failed", "completed"]),
     source: z.enum(["manual", "cron"]).nullable(),
     startedAt: nullableTimestamp,
@@ -108,6 +125,11 @@ export const ProcessorSnapshotSchema = z.object({
     applicationVersion: z.string().max(128),
     taxonomyVersion: z.string().max(128),
   }),
+  providers: z.array(ProviderStateSchema).max(9)
+    .refine((providers) => new Set(providers.map((p) => p.id)).size === providers.length, "Providers duplicados")
+    .nullable().optional().default(null),
+  classification: z.object({ received: runCount, classified: runCount, approved: runCount, rejected: runCount, invalid: runCount }).nullable().optional().default(null),
+  persistence: z.object({ received: runCount, inserted: runCount, updated: runCount, skipped: runCount, failed: runCount, failedBatches: runCount }).nullable().optional().default(null),
   lock: z.object({ held: z.boolean(), ttlSeconds: z.number().nonnegative() }),
   concurrency: z.object({
     configured: z.number().int().nonnegative(),

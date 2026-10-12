@@ -47,7 +47,7 @@ const NOTIFICATION_STYLES: Record<
 const SERVICE_LABELS = {
   postgres: "Postgres",
   valkey: "Valkey",
-  scraper: "Scraper",
+  scraper: "Processamento",
 } as const;
 
 function formatSnapshot(value: string): string {
@@ -84,14 +84,14 @@ function buildNotifications(overview: DashboardOverview): Notification[] {
       notifications.push({
         tone: "success",
         title: `${scraper.name} em execução`,
-        description: "O scraper está rodando neste momento.",
+        description: "O processamento está em execução neste momento.",
         timeAgo,
       });
     } else if (scraper.status === "down") {
       notifications.push({
         tone: "error",
         title: `${scraper.name} indisponível`,
-        description: "O backend não conseguiu consultar o scraper.",
+        description: "O backend não conseguiu consultar o processamento.",
         timeAgo,
       });
     }

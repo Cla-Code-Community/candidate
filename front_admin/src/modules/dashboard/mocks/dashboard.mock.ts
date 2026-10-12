@@ -13,9 +13,9 @@ export const MOCK_STATS: DashboardStats = {
 };
 
 export const MOCK_RESOURCES: ResourceUsage = {
-  scraper: 99,
-  postgres: 100,
-  valkey: 100,
+  scraper: "ok",
+  postgres: "ok",
+  valkey: "ok",
 };
 
 export const MOCK_SERVICES: ServiceHealth[] = [
@@ -23,42 +23,42 @@ export const MOCK_SERVICES: ServiceHealth[] = [
     name: "Backend API",
     status: "Operacional",
     sla: "99.9%",
-    health: 100,
+    health: "ok",
     tone: "success",
   },
   {
     name: "PostgreSQL",
     status: "Operacional",
     sla: "100%",
-    health: 100,
+    health: "ok",
     tone: "success",
   },
   {
     name: "Valkey (Redis)",
     status: "Operacional",
     sla: "100%",
-    health: 100,
+    health: "ok",
     tone: "success",
   },
   {
     name: "Go Scraper",
     status: "Operacional",
     sla: "98.7%",
-    health: 99,
+    health: "ok",
     tone: "success",
   },
   {
     name: "Prometheus",
     status: "Operacional",
     sla: "100%",
-    health: 100,
+    health: "ok",
     tone: "success",
   },
   {
     name: "Loki",
     status: "Operacional",
     sla: "100%",
-    health: 100,
+    health: "ok",
     tone: "success",
   },
 ];
@@ -69,7 +69,7 @@ export const MOCK_SCRAPERS: ScraperSummary[] = [
     name: "LinkedIn Scraper",
     status: "Executando",
     lastRun: "2 min atrás",
-    collected24h: 2543,
+    catalogJobs: 2543,
     active: true,
   },
   {
@@ -77,7 +77,7 @@ export const MOCK_SCRAPERS: ScraperSummary[] = [
     name: "InfoJobs Scraper",
     status: "Executando",
     lastRun: "1 min atrás",
-    collected24h: 1872,
+    catalogJobs: 1872,
     active: true,
   },
   {
@@ -85,7 +85,7 @@ export const MOCK_SCRAPERS: ScraperSummary[] = [
     name: "Glassdoor Scraper",
     status: "Executando",
     lastRun: "3 min atrás",
-    collected24h: 1456,
+    catalogJobs: 1456,
     active: true,
   },
   {
@@ -93,7 +93,7 @@ export const MOCK_SCRAPERS: ScraperSummary[] = [
     name: "Indeed Scraper",
     status: "Executando",
     lastRun: "1 min atrás",
-    collected24h: 2850,
+    catalogJobs: 2850,
     active: true,
   },
 ];

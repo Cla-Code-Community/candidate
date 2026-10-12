@@ -18,12 +18,12 @@ const ROLE_OPTIONS: Array<{
   {
     value: "super_admin",
     label: "Super Admin",
-    description: "Acesso completo a usuários, auditoria, scrapers e métricas.",
+    description: "Acesso completo a usuários, auditoria, processamento e métricas.",
   },
   {
     value: "admin",
     label: "Admin",
-    description: "Pode operar scrapers, observabilidade e ações administrativas.",
+    description: "Pode operar processamento, observabilidade e ações administrativas.",
   },
   {
     value: "support",

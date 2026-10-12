@@ -49,9 +49,9 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 const ROLE_DESCRIPTIONS: Record<"support" | "admin" | "super_admin", string> = {
-  support: "Opera dashboard, scrapers e healthcheck sem ações sensíveis.",
+  support: "Opera dashboard, processamento e healthcheck sem ações sensíveis.",
   admin:
-    "Executa scrapers, métricas, auditoria e ações administrativas comuns.",
+    "Executa processamento, métricas, auditoria e ações administrativas comuns.",
   super_admin: "Acesso completo, incluindo usuários e mudanças de role.",
 };
 
@@ -70,7 +70,7 @@ const ACTION_LABELS: Record<Action, string> = {
 
 const RESOURCE_LABELS: Record<Resource, string> = {
   dashboard: "Dashboard",
-  scrapers: "Scrapers",
+  scrapers: "Processamento",
   observability: "Observabilidade",
   audit: "Auditoria",
   users: "Usuários",

@@ -1,23 +1,21 @@
-import { Folder, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
-import { useNotifications } from "../../components/notifications/useNotifications";
+import "./observability.css";
+import { ApiError } from "../../lib/api/client";
+import { useAuth } from "../auth/hooks/useAuth";
+import { useOperationalSnapshot } from "./hooks/useOperationalSnapshot";
+import { OperationalSnapshotPanels, ProcessorResources } from "./components/OperationalSnapshotPanels";
+import { HealthOverview } from "./components/HealthOverview";
+import { RefreshCw } from "lucide-react";
+import { useMemo, useState } from "react";
+import { createPollingResource } from "../../lib/polling/pollingResource";
+import { usePollingResource } from "../../lib/polling/usePollingResource";
 import {
   observabilityApi,
   type ObservabilityRange,
 } from "../../lib/api/observability.api";
 import type {
-  HealthcheckResponse,
-  MetricSnapshot,
   ObservabilityDashboard,
 } from "../../lib/api/types";
-import { InfrastructureUsage } from "./components/InfrastructureUsage";
-import { MetricSummaryCard } from "./components/MetricSummaryCard";
 import { ObservabilityPanelCard } from "./components/ObservabilityPanelCard";
-import type {
-  InfraUsage,
-  ObservabilityMetric,
-} from "./schemas/observability.schemas";
-
 const RANGES: Array<{ label: string; value: ObservabilityRange }> = [
   { label: "5 min", value: "5m" },
   { label: "15 min", value: "15m" },
@@ -169,8 +167,8 @@ const DASHBOARD_SHELLS: ObservabilityDashboard[] = [
   },
   {
     id: "scraper-health",
-    title: "Scraper Health",
-    description: "Execucoes, erros, duracao e volume por adapter.",
+    title: "Saúde do processamento",
+    description: "Estado e progresso agregado do Processor; leitura operacional independente do Prometheus.",
     panels: [
       {
         id: "adapter-runs",
@@ -218,279 +216,88 @@ const DASHBOARD_SHELLS: ObservabilityDashboard[] = [
   },
 ];
 
-function formatMetric(value: number | null, suffix = ""): string {
-  return value === null ? "N/D" : `${value}${suffix}`;
-}
-
-function metricTone(
-  value: number | null,
-  limit: number,
-): ObservabilityMetric["tone"] {
-  if (value === null) return "warning";
-  return value <= limit ? "success" : "danger";
-}
-
-function healthPercentage(status: HealthcheckResponse["status"]): number {
-  if (status === "ok") return 100;
-  if (status === "degraded") return 65;
-  return 0;
-}
-
-function buildMetrics(metrics: MetricSnapshot): ObservabilityMetric[] {
-  return [
-    {
-      label: "Requisicoes por minuto",
-      value: formatMetric(metrics.requestRatePerMinute),
-      note: "Prometheus - ultimos 5 minutos",
-      tone: "success",
-    },
-    {
-      label: "Latencia p95",
-      value: formatMetric(metrics.p95LatencyMs, "ms"),
-      note: "Limite de atencao: 150ms",
-      tone: metricTone(metrics.p95LatencyMs, 150),
-    },
-    {
-      label: "Taxa de erro",
-      value: formatMetric(metrics.errorRatePct, "%"),
-      note: "Respostas 5xx no periodo",
-      tone: metricTone(metrics.errorRatePct, 1),
-    },
-  ];
-}
-
-function buildInfra(health: HealthcheckResponse): InfraUsage[] {
-  return Object.entries(health.services).map(([name, service]) => ({
-    label: name,
-    valueLabel:
-      service.latencyMs !== undefined
-        ? `${service.status} - ${service.latencyMs}ms`
-        : (service.error ?? service.status),
-    percentage: healthPercentage(service.status),
-    color:
-      service.status === "ok"
-        ? "bg-emerald-500"
-        : service.status === "degraded"
-          ? "bg-amber-500"
-          : "bg-rose-500",
-  }));
+function createObservabilityResources(sessionKey: string) {
+  void sessionKey;
+  let seriesForbidden = false;
+  return {
+    healthResource: createPollingResource({
+      load: (signal) => observabilityApi.health(signal), intervalMs: 10_000,
+      errorMessage: "Saúde dos serviços indisponível.",
+    }),
+    metricsResource: createPollingResource({
+      load: (signal) => observabilityApi.metrics(signal), intervalMs: 10_000,
+      errorMessage: "Métricas da API indisponíveis.",
+    }),
+    dashboards: (range: ObservabilityRange) => createPollingResource({
+      load: async (signal) => {
+        if (seriesForbidden) throw new ApiError(403, "Sem autorização");
+        try { return await observabilityApi.dashboards(range, signal); }
+        catch (error) {
+          if (error instanceof ApiError && [401, 403].includes(error.status)) seriesForbidden = true;
+          throw error;
+        }
+      }, intervalMs: 10_000,
+      errorMessage: "Sem resposta das series detalhadas. Exibindo a estrutura dos dashboards.",
+    }),
+  };
 }
 
 export function ObservabilityPage() {
-  const { notify } = useNotifications();
-  const [metrics, setMetrics] = useState<ObservabilityMetric[]>([]);
-  const [infraUsage, setInfraUsage] = useState<InfraUsage[]>([]);
-  const [dashboards, setDashboards] =
-    useState<ObservabilityDashboard[]>(DASHBOARD_SHELLS);
-  const [activeDashboardId, setActiveDashboardId] = useState<string>("api");
+  const { isLoggedIn } = useAuth();
+  const canReadMetrics = isLoggedIn?.role === "admin" || isLoggedIn?.role === "super_admin";
+  const sessionKey = `${isLoggedIn?.id ?? "anonymous"}:${isLoggedIn?.role ?? "none"}`;
+  const operational = useOperationalSnapshot(canReadMetrics, 10_000, sessionKey);
   const [range, setRange] = useState<ObservabilityRange>("15m");
-  const [summaryRefreshKey, setSummaryRefreshKey] = useState(0);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDashboardsLoading, setIsDashboardsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [dashboardsError, setDashboardsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-
-    Promise.all([observabilityApi.health(), observabilityApi.metrics()])
-      .then(([health, snapshot]) => {
-        if (!active) return;
-        setMetrics(buildMetrics(snapshot));
-        setInfraUsage(buildInfra(health));
-        setError(null);
-      })
-      .catch(() => {
-        if (!active) return;
-        setError("Nao foi possivel carregar a observabilidade.");
-        notify({
-          tone: "error",
-          title: "Erro de observabilidade",
-          description:
-            "Não foi possível carregar saúde e métricas agregadas do backend.",
-        });
-      })
-      .finally(() => {
-        if (active) setIsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [summaryRefreshKey, notify]);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setSummaryRefreshKey((current) => current + 1);
-      setRefreshKey((current) => current + 1);
-    }, 10000);
-
-    return () => window.clearInterval(intervalId);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    observabilityApi
-      .dashboards(range)
-      .then((result) => {
-        if (!active) return;
-        setDashboards(result.dashboards);
-        setActiveDashboardId((current) =>
-          result.dashboards.some((dashboard) => dashboard.id === current)
-            ? current
-            : (result.dashboards[0]?.id ?? "api"),
-        );
-        setDashboardsError(null);
-      })
-      .catch(() => {
-        if (active) {
-          setDashboards(DASHBOARD_SHELLS);
-          setDashboardsError(
-            "Sem resposta das series detalhadas. Exibindo a estrutura dos dashboards.",
-          );
-          notify({
-            tone: "warning",
-            title: "Séries detalhadas indisponíveis",
-            description:
-              "A estrutura dos dashboards será exibida, mas as séries do Prometheus não foram carregadas.",
-          });
-        }
-      })
-      .finally(() => {
-        if (active) setIsDashboardsLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [range, refreshKey, notify]);
-
-  const activeDashboard =
-    dashboards.find((dashboard) => dashboard.id === activeDashboardId) ??
-    dashboards[0];
+  const resources = useMemo(() => createObservabilityResources(sessionKey), [sessionKey]);
+  const { healthResource, metricsResource } = resources;
+  const dashboardsResource = useMemo(() => resources.dashboards(range), [range, resources]);
+  const health = usePollingResource(healthResource);
+  const metricQuery = usePollingResource(metricsResource, canReadMetrics);
+  const series = usePollingResource(dashboardsResource, canReadMetrics);
+  const dashboards = series.data
+    ? [...series.data.dashboards.filter((item) => item.id !== "scraper-health"), DASHBOARD_SHELLS.find((item) => item.id === "scraper-health")!]
+    : DASHBOARD_SHELLS;
+  const isLoading = health.loading || (canReadMetrics && metricQuery.loading);
+  const isDashboardsLoading = canReadMetrics && series.loading;
+  const error = health.error || (canReadMetrics && metricQuery.error)
+    ? "Nao foi possivel carregar a observabilidade." : null;
+  const dashboardsError = canReadMetrics ? series.error : "Sem permissão para métricas e séries detalhadas.";
+  const infra = dashboards.find((item) => item.id === "infra");
+  const business = dashboards.find((item) => item.id === "business");
+  const history = dashboards.filter((item) => !["infra", "business", "scraper-health"].includes(item.id)).flatMap((item) => item.panels);
+  const refresh = () => Promise.all([health.refresh(), ...(canReadMetrics ? [metricQuery.refresh(), series.refresh(), operational.refresh()] : [])]);
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#0f131a]">
-        <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              Painel de Observabilidade
-            </h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Mapeamento em tempo real do tráfego, latência dos microsserviços e
-              consumo geral de hardware
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {RANGES.map((item) => (
-              <button
-                key={item.value}
-                onClick={() => {
-                  setIsDashboardsLoading(true);
-                  setRange(item.value);
-                }}
-                className={`rounded-lg border px-3 py-2 text-xs font-bold transition-colors ${
-                  range === item.value
-                    ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-300"
-                    : "border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:text-slate-400 dark:hover:border-slate-700"
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-            <button
-              onClick={() => {
-                setIsDashboardsLoading(true);
-                setSummaryRefreshKey((current) => current + 1);
-                setRefreshKey((current) => current + 1);
-              }}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-500 transition-colors hover:border-slate-300 dark:border-slate-800 dark:text-slate-400 dark:hover:border-slate-700"
-            >
-              <RefreshCw size={14} />
-              Atualizar
-            </button>
-          </div>
-        </div>
-        {isLoading && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Carregando metricas...
-          </p>
-        )}
-        {error && (
-          <p className="text-sm font-semibold text-rose-600 dark:text-rose-300">
-            {error}
-          </p>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {metrics.map((metric) => (
-            <MetricSummaryCard key={metric.label} metric={metric} />
-          ))}
-        </div>
+    <div data-observability-page className="space-y-7">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-slate-500 dark:text-slate-400">Leitura operacional e histórico • atualização a cada 10s</p>
+        <button onClick={() => void refresh()} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-500 dark:border-slate-800 dark:text-slate-400"><RefreshCw size={14} />Atualizar</button>
       </div>
-
-      <InfrastructureUsage usage={infraUsage} />
-
-      <section className="rounded-xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-[#0f131a]">
-        <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-              Dashboards
-            </h3>
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Pastas operacionais com as mesmas leituras do Prometheus usadas no
-              Grafana.
-            </p>
-          </div>
-          {isDashboardsLoading && (
-            <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
-              Carregando paineis...
-            </span>
-          )}
-        </div>
-
-        {dashboardsError && (
-          <p className="mb-4 rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
-            {dashboardsError}
-          </p>
-        )}
-
-        <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
-          {dashboards.map((dashboard) => (
-            <button
-              key={dashboard.id}
-              onClick={() => setActiveDashboardId(dashboard.id)}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-bold transition-colors ${
-                activeDashboard?.id === dashboard.id
-                  ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-300"
-                  : "border-slate-200 text-slate-500 hover:border-slate-300 dark:border-slate-800 dark:text-slate-400 dark:hover:border-slate-700"
-              }`}
-            >
-              <Folder size={15} />
-              {dashboard.title}
-            </button>
-          ))}
-        </div>
-
-        {activeDashboard && (
-          <>
-            <div className="mb-5">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                {activeDashboard.title}
-              </h4>
-              <p className="text-xs text-slate-400 dark:text-slate-500">
-                {activeDashboard.description}
-              </p>
-            </div>
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              {activeDashboard.panels.map((panel) => (
-                <ObservabilityPanelCard key={panel.id} panel={panel} />
-              ))}
-            </div>
-          </>
-        )}
+      <nav aria-label="Seções da observabilidade" className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-slate-500 dark:text-slate-400">{[["health", "Saúde geral"], ["processor", "Execução atual"], ["pipeline", "Pipeline"], ["infra", "Infraestrutura"], ["business", "Business"], ["history", "Histórico"]].map(([id, label]) => <a key={id} href={`#${id}-heading`} className="hover:text-emerald-600 dark:hover:text-emerald-300">{label}</a>)}</nav>
+      {isLoading && <p className="text-sm text-slate-500 dark:text-slate-400">Carregando metricas...</p>}
+      {error && <p className="text-sm font-semibold text-rose-600 dark:text-rose-300">Nao foi possivel carregar a observabilidade.{(health.stale || metricQuery.stale) && " Última leitura desatualizada, quando disponível."}</p>}
+      <HealthOverview health={health.data} metrics={metricQuery.data} healthStale={health.stale} metricsStale={metricQuery.stale} canReadMetrics={canReadMetrics} metricsError={metricQuery.error} />
+      <OperationalSnapshotPanels operational={operational} />
+      <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 py-3 dark:border-slate-800">
+        <p className="text-xs text-slate-500 dark:text-slate-400">Janela dos gráficos • não altera o contexto das métricas de 5 min e 24h</p>
+        <div className="flex flex-wrap gap-2">{RANGES.map(item => <button key={item.value} onClick={() => setRange(item.value)} aria-pressed={range === item.value} className={`rounded-lg border px-3 py-2 text-xs font-bold ${range === item.value ? "border-emerald-600 bg-emerald-50 text-emerald-700 dark:border-emerald-400 dark:bg-emerald-500/10 dark:text-emerald-300" : "border-slate-200 text-slate-500 dark:border-slate-800 dark:text-slate-400"}`}>{item.label}</button>)}</div>
+      </div>
+      {isDashboardsLoading && <p className="text-xs text-slate-500">Carregando paineis...</p>}
+      {dashboardsError && <p className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-sm font-semibold text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">{dashboardsError}{series.stale && series.data && " Última leitura desatualizada."}</p>}
+      <section aria-labelledby="infra-heading">
+        <h2 id="infra-heading" className="scroll-mt-28 mb-1 text-base font-bold text-slate-900 dark:text-white">Infraestrutura</h2>
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">{infra?.description ?? "Containers, host, Postgres e Valkey."}{series.stale && " • Histórico desatualizado"}</p>
+        <ProcessorResources operational={operational} />
+        <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">{infra?.panels.map(panel => <ObservabilityPanelCard key={panel.id} panel={panel} />)}</div>
+      </section>
+      <section aria-labelledby="business-heading">
+        <h2 id="business-heading" className="scroll-mt-28 mb-1 text-base font-bold text-slate-900 dark:text-white">Business</h2>
+        <p className="mb-4 text-xs text-slate-500 dark:text-slate-400">Indicadores de negócio; contexto próprio de cada métrica.{series.stale && " • Leitura desatualizada"}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">{business?.panels.filter(panel => panel.visualization === "stat").map(panel => <ObservabilityPanelCard key={panel.id} panel={panel} />)}</div>
+      </section>
+      <section aria-labelledby="history-heading">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 id="history-heading" className="scroll-mt-28 text-base font-bold text-slate-900 dark:text-white">Histórico</h2><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Tráfego, latência, erros e cache • janela {RANGES.find(item => item.value === range)?.label}{series.stale && " • Leitura desatualizada"}</p></div><span className="text-xs text-slate-500 dark:text-slate-400">Requisições por minuto: {metricQuery.data?.requestRatePerMinute ?? "N/D"} • últimos 5 min</span></div>
+        <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-2">{[...history, ...(business?.panels.filter(panel => panel.visualization !== "stat") ?? [])].map(panel => <ObservabilityPanelCard key={panel.id} panel={panel} />)}</div>
       </section>
     </div>
   );

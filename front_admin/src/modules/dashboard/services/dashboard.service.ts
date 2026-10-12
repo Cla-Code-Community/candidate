@@ -22,7 +22,7 @@ const SERVICE_LABELS: Record<
 > = {
   postgres: "Postgres",
   valkey: "Valkey",
-  scraper: "Scraper",
+  scraper: "Processamento",
 };
 
 function statusLabel(status: string): string {
@@ -37,12 +37,6 @@ function statusTone(status: string): ServiceHealth["tone"] {
   if (status === "ok") return "success";
   if (status === "degraded") return "warning";
   return "danger";
-}
-
-function healthScore(status: string): number {
-  if (status === "ok") return 99;
-  if (status === "degraded") return 65;
-  return 0;
 }
 
 function formatLastRun(value: string | null): string {
@@ -69,7 +63,7 @@ function toViewModel(overview: BackendDashboardOverview): DashboardViewModel {
         service.latencyMs !== undefined
           ? `${service.latencyMs}ms`
           : service.error ?? "Sem resposta",
-      health: healthScore(service.status),
+      health: service.status,
       tone: statusTone(service.status),
     }),
   );
@@ -83,7 +77,7 @@ function toViewModel(overview: BackendDashboardOverview): DashboardViewModel {
       },
       activeUsers: {
         value: overview.stats.activeUsers,
-        trend: "contas ativas",
+        trend: "contas não bloqueadas",
         positive: true,
       },
       totalJobs: {
@@ -93,14 +87,14 @@ function toViewModel(overview: BackendDashboardOverview): DashboardViewModel {
       },
       jobsToday: {
         value: overview.stats.jobsCollectedToday,
-        trend: "coletadas hoje",
+        trend: "timestamps do índice hoje",
         positive: true,
       },
     },
     resources: {
-      scraper: healthScore(overview.services.services.scraper.status),
-      postgres: healthScore(overview.services.services.postgres.status),
-      valkey: healthScore(overview.services.services.valkey.status),
+      scraper: overview.services.services.scraper.status,
+      postgres: overview.services.services.postgres.status,
+      valkey: overview.services.services.valkey.status,
     },
     services,
     scrapers: overview.scrapers.map((scraper) => ({
@@ -108,15 +102,15 @@ function toViewModel(overview: BackendDashboardOverview): DashboardViewModel {
       name: scraper.name,
       status: statusLabel(scraper.status),
       lastRun: formatLastRun(scraper.lastRunAt),
-      collected24h: scraper.jobsCollected ?? 0,
+      catalogJobs: scraper.jobsCollected,
       active: scraper.running,
     })),
     generatedAt: overview.generatedAt,
   };
 }
 
-async function getOverview(): Promise<DashboardViewModel> {
-  return dashboardApi.getOverview().then(toViewModel);
+async function getOverview(signal?: AbortSignal): Promise<DashboardViewModel> {
+  return dashboardApi.getOverview(signal).then(toViewModel);
 }
 
 export const dashboardService = {
@@ -140,7 +134,7 @@ export const dashboardService = {
 
   async toggleScraper(id: string, active: boolean): Promise<void> {
     if (!active) {
-      throw new Error("pausar scraper ainda nao esta disponivel");
+      throw new Error("pausar processamento ainda nao esta disponivel");
     }
 
     await scrapersApi.triggerOne(id);

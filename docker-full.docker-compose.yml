@@ -1,0 +1,14 @@
+name: candidate-full
+
+include:
+  - path: ./docker/docker-compose.infra.yml
+    project_directory: .
+
+  - path: ./docker/docker-compose.migrate.yml
+    project_directory: .
+
+  - path: ./docker/docker-compose.app.yml
+    project_directory: .
+
+  - path: ./docker/docker-compose.observability.yml
+    project_directory: .

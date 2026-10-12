@@ -15,18 +15,18 @@ export function ResourceUsage({ resources, onViewMore }: ResourceUsageProps) {
             Disponibilidade
           </h3>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Score calculado a partir do healthcheck atual
+            Saúde atual segundo os probes do backend
           </p>
         </div>
         <div className="grid grid-cols-3 gap-3 text-center">
-          <ProgressCircle value={resources.scraper} color="#10b981" label="Scraper" />
+          <ProgressCircle status={resources.scraper} color="#10b981" label="Processamento" />
           <ProgressCircle
-            value={resources.postgres}
+            status={resources.postgres}
             color="#8b5cf6"
             label="Postgres"
           />
           <ProgressCircle
-            value={resources.valkey}
+            status={resources.valkey}
             color="#3b82f6"
             label="Valkey"
           />

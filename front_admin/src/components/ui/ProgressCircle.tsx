@@ -1,5 +1,6 @@
 interface ProgressCircleProps {
-  value: number;
+  value?: number;
+  status?: "ok" | "degraded" | "down" | null;
   color: string;
   size?: number;
   strokeWidth?: number;
@@ -10,7 +11,8 @@ interface ProgressCircleProps {
  * Círculo de progresso usado nos widgets de uso de recursos (CPU, memória, disco).
  */
 export function ProgressCircle({
-  value,
+  value = 0,
+  status,
   color,
   size = 80,
   strokeWidth = 5.5,
@@ -19,7 +21,8 @@ export function ProgressCircle({
   const radius = size / 2 - strokeWidth * 1.5;
   const center = size / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - value / 100);
+  const offset = status !== undefined ? 0 : circumference * (1 - value / 100);
+  const statusLabel = status === "ok" ? "Online" : status === "degraded" ? "Instável" : status === "down" ? "Offline" : "N/D";
 
   return (
     <div className="flex flex-col items-center">
@@ -40,7 +43,7 @@ export function ProgressCircle({
             cx={center}
             cy={center}
             r={radius}
-            stroke={color}
+            stroke={status === null ? "#94a3b8" : status === "degraded" ? "#f59e0b" : status === "down" ? "#f43f5e" : color}
             strokeWidth={strokeWidth}
             fill="none"
             strokeDasharray={circumference}
@@ -49,7 +52,7 @@ export function ProgressCircle({
           />
         </svg>
         <span className="absolute text-sm font-extrabold text-slate-800 dark:text-slate-100">
-          {value}%
+          {status !== undefined ? statusLabel : `${value}%`}
         </span>
       </div>
       {label && (

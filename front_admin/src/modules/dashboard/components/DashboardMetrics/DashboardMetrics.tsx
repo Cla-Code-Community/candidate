@@ -24,7 +24,7 @@ export function DashboardMetrics({ stats }: DashboardMetricsProps) {
         metric={stats.totalJobs}
         icon={Briefcase}
       />
-      <MetricCard label="Vagas Hoje" metric={stats.jobsToday} icon={Calendar} />
+      <MetricCard label="Vagas no índice hoje" metric={stats.jobsToday} icon={Calendar} />
     </div>
   );
 }
