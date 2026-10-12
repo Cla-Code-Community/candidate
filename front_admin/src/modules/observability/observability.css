@@ -1,0 +1,23 @@
+/* Only the Observability route gets the compact navigation on small screens.
+   Shared sidebar/header components and other routes retain their layout. */
+@media (max-width: 767px) {
+  body:has([data-observability-page]) aside { width: 64px; }
+  body:has([data-observability-page]) aside nav { padding-inline: 8px; }
+  body:has([data-observability-page]) aside button { padding-inline: 12px; gap: 0; }
+  body:has([data-observability-page]) aside button svg { flex-shrink: 0; }
+  body:has([data-observability-page]) aside button span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip-path: inset(50%); white-space: nowrap;
+  }
+  body:has([data-observability-page]) aside > div > div:first-child { padding: 24px 4px; }
+  body:has([data-observability-page]) aside [aria-label="Cand!Date!"] span { font-size: 9px; }
+  body:has([data-observability-page]) main { min-width: 0; }
+  body:has([data-observability-page]) main > div { padding: 16px; }
+  body:has([data-observability-page]) header { padding: 12px; gap: 8px; flex-wrap: wrap; }
+  body:has([data-observability-page]) header > div:first-child { min-width: 0; gap: 8px; flex-basis: 100%; }
+  body:has([data-observability-page]) header h1 { font-size: 18px; }
+  body:has([data-observability-page]) header > div:first-child > div:nth-child(2) { display: none; }
+  body:has([data-observability-page]) header > div:last-child { gap: 8px; margin-left: auto; }
+  body:has([data-observability-page]) aside > div:last-child { padding: 8px; }
+  [data-observability-page] h2[id] { scroll-margin-top: 160px; }
+}

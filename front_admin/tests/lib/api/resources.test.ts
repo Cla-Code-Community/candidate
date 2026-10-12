@@ -41,7 +41,7 @@ describe("api resources", () => {
   it("calls dashboard overview endpoint", () => {
     dashboardApi.getOverview();
 
-    expect(mockedApi.get).toHaveBeenCalledWith("/admin/dashboard");
+    expect(mockedApi.get).toHaveBeenCalledWith("/admin/dashboard", { signal: undefined });
   });
 
   it("calls observability endpoints with expected options", () => {
@@ -52,15 +52,15 @@ describe("api resources", () => {
     expect(mockedApi.get).toHaveBeenNthCalledWith(
       1,
       "/admin/observability/health",
-      { acceptedStatuses: [503] },
+      { acceptedStatuses: [503], signal: undefined },
     );
     expect(mockedApi.get).toHaveBeenNthCalledWith(
       2,
-      "/admin/observability/metrics",
+      "/admin/observability/metrics", { signal: undefined },
     );
     expect(mockedApi.get).toHaveBeenNthCalledWith(
       3,
-      "/admin/observability/dashboards?range=1h",
+      "/admin/observability/dashboards?range=1h", { signal: undefined },
     );
   });
 
@@ -79,23 +79,24 @@ describe("api resources", () => {
     );
   });
 
-  it("calls scraper endpoints", () => {
+  it("calls scraper endpoints", async () => {
     scrapersApi.list();
     scrapersApi.status();
     scrapersApi.jobs();
-    scrapersApi.jobsCount();
+    mockedApi.get.mockResolvedValueOnce({ total: 0 });
+    await expect(scrapersApi.jobsCount()).resolves.toEqual({ total: 0 });
     scrapersApi.trigger();
     scrapersApi.clearJobsCache();
 
-    expect(mockedApi.get).toHaveBeenNthCalledWith(1, "/admin/scrapers");
+    expect(mockedApi.get).toHaveBeenNthCalledWith(1, "/admin/scrapers", { signal: undefined });
     expect(mockedApi.get).toHaveBeenNthCalledWith(2, "/admin/scrapers/status");
     expect(mockedApi.get).toHaveBeenNthCalledWith(
       3,
-      "/admin/scrapers/jobs?limit=200",
+      "/admin/scrapers/jobs?limit=200", { signal: undefined },
     );
     expect(mockedApi.get).toHaveBeenNthCalledWith(
       4,
-      "/admin/scrapers/jobs/count",
+      "/admin/scrapers/jobs/count", { signal: undefined },
     );
     expect(mockedApi.post).toHaveBeenCalledWith("/admin/scrapers/run");
     expect(mockedApi.delete).toHaveBeenCalledWith("/admin/jobs/cache");

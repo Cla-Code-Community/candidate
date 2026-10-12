@@ -27,6 +27,8 @@ export function DashboardPage() {
     refresh,
     refreshIntervalMs,
     toggleScraper,
+    operationalMessage,
+    stale,
   } = useDashboard();
 
   if (isLoading) {
@@ -83,7 +85,7 @@ export function DashboardPage() {
         <div className="flex items-center gap-3">
           {error && (
             <span className="text-xs font-semibold text-amber-600 dark:text-amber-300">
-              {error}
+              {error}{stale && " Última leitura desatualizada."}
             </span>
           )}
           <button
@@ -114,6 +116,7 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <RunningScrapers
           scrapers={scrapers}
+          operationalMessage={operationalMessage}
           onToggle={toggleScraper}
           onViewAll={() => navigate(ROUTES.scrapers)}
         />

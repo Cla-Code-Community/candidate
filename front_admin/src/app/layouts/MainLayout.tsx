@@ -7,7 +7,7 @@ const PAGE_META: Record<string, { activeTab: string; title: string; subtitle: st
   [ROUTES.dashboard]: {
     activeTab: "dashboard",
     title: "Dashboard",
-    subtitle: "Visão geral da plataforma e operação dos scrapers",
+    subtitle: "Visão geral da plataforma e processamento de vagas",
   },
   [ROUTES.users]: {
     activeTab: "usuarios",
@@ -16,8 +16,8 @@ const PAGE_META: Record<string, { activeTab: string; title: string; subtitle: st
   },
   [ROUTES.scrapers]: {
     activeTab: "scrapers",
-    title: "Scrapers",
-    subtitle: "Controle dos coletores e execuções automatizadas",
+    title: "Processamento de Vagas",
+    subtitle: "Controle de fontes, providers e execuções automatizadas",
   },
   [ROUTES.observability]: {
     activeTab: "observabilidade",

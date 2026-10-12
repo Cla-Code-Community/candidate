@@ -1,3 +1,4 @@
+import { JobsCountResultSchema } from "./scrapers.types";
 import { config } from "../../../config";
 import type {
   GetJobsResult,
@@ -67,8 +68,8 @@ export const scraperClient = {
     return request<GetJobsResult>(`/admin/jobs${suffix}`);
   },
 
-  getJobsCount(): Promise<JobsCountResult> {
-    return request<JobsCountResult>("/admin/jobs/count");
+  async getJobsCount(): Promise<JobsCountResult> {
+    return JobsCountResultSchema.parse(await request<unknown>("/admin/jobs/count"));
   },
 
   reprocessJobs(): Promise<ReprocessScrapeResult> {

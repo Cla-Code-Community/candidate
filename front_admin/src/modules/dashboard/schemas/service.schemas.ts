@@ -4,7 +4,7 @@ export const ServiceHealthSchema = z.object({
   name: z.string(),
   status: z.string(),
   sla: z.string(),
-  health: z.number().min(0).max(100),
+  health: z.enum(["ok", "degraded", "down"]).nullable(),
   tone: z.enum(["success", "warning", "danger", "neutral"]),
 });
 

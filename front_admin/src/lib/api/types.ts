@@ -112,8 +112,14 @@ export const ScraperJobsResponseSchema = z.object({
 
 export type ScraperJobsResponse = z.infer<typeof ScraperJobsResponseSchema>;
 
+const providerId = z.enum(["linkedin", "adzuna", "themuse", "gupy", "inhire", "jooble", "greenhouse", "lever", "unknown"]);
 export const ScraperJobsCountResponseSchema = z.object({
   total: z.number().int().nonnegative(),
+  sources: z.array(z.object({ source: z.string().nullable(), provider: providerId, total: z.number().int().nonnegative() })).nullable().optional(),
+  configuredProviders: z.array(providerId).max(9).refine((ids) => new Set(ids).size === ids.length, "Providers duplicados").nullable().optional(),
+}).superRefine((value, ctx) => {
+  if (value.sources != null && value.sources.reduce((sum, source) => sum + source.total, 0) !== value.total)
+    ctx.addIssue({ code: "custom", message: "Distribuição incompatível com total do catálogo", path: ["sources"] });
 });
 
 export type ScraperJobsCountResponse = z.infer<

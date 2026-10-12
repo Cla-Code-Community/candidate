@@ -15,9 +15,9 @@ describe("scraper schemas", () => {
       name: "Lever",
       status: "Ocioso",
       lastRun: "Sem execucao",
-      indexedJobs: 20,
+      catalogJobs: 20,
       active: false,
-      sla: "Operacional",
+      availability: "Operacional",
     });
 
     expect(
@@ -34,7 +34,6 @@ describe("scraper schemas", () => {
         name: "Adzuna",
         jobs: 1,
         sources: 1,
-        configuredSources: 1,
         keywords: 1,
         sampleTitle: "Frontend",
       }).sampleTitle,
@@ -54,7 +53,7 @@ describe("scraper schemas", () => {
 
     expect(() =>
       ScraperOverviewSchema.parse({
-        indexedJobs: -1,
+        catalogJobs: -1,
         loadedJobs: 1,
         adaptersCount: 1,
         sourcesCount: 1,

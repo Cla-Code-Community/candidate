@@ -52,7 +52,7 @@ describe("PlatformChart", () => {
       />,
     );
     expect(screen.getAllByText("0").length).toBeGreaterThan(0);
-    expect(screen.getByText("Todos os intervalos ficaram em 0. O scraper não alterou o total indexado durante esta janela.")).toBeInTheDocument();
+    expect(screen.getByText("Todos os intervalos ficaram em 0. Sem variação líquida do total nas leituras locais.")).toBeInTheDocument();
 
     rerender(
       <PlatformChart

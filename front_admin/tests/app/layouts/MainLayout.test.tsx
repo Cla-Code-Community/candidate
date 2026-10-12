@@ -71,6 +71,7 @@ describe("MainLayout", () => {
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<div>Conteúdo dashboard</div>} />
           <Route path="/users" element={<div>Conteúdo usuários</div>} />
+          <Route path="/scrapers" element={<div>Conteúdo processamento</div>} />
         </Route>
         <Route path="/login" element={<div>Login route</div>} />
       </Routes>,
@@ -80,10 +81,16 @@ describe("MainLayout", () => {
     expect(screen.getAllByText("Dashboard")).toHaveLength(2);
     expect(screen.getByText("Conteúdo dashboard")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByPlaceholderText("Buscar vagas, scrapers, logs..."), {
+    fireEvent.change(screen.getByPlaceholderText("Buscar vagas, processamento, logs..."), {
       target: { value: "logs" },
     });
     expect(screen.getByDisplayValue("logs")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Processamento" }));
+    expect(screen.getByText("Conteúdo processamento")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Processamento de Vagas" })).toBeInTheDocument();
+    expect(screen.getByText("Controle de fontes, providers e execuções automatizadas")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Scrapers" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /últimas 24 horas/i }));
     expect(screen.getByRole("button", { name: /últimos 7 dias/i })).toBeInTheDocument();
@@ -93,7 +100,7 @@ describe("MainLayout", () => {
     expect(await screen.findByText("go-scraper em execução")).toBeInTheDocument();
     fireEvent.click(screen.getByText("go-scraper em execução"));
     expect(
-      await screen.findAllByText("O scraper está rodando neste momento."),
+      await screen.findAllByText("O processamento está em execução neste momento."),
     ).toHaveLength(2);
 
     fireEvent.click(screen.getByText("Ada Lovelace"));

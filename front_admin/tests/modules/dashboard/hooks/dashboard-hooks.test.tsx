@@ -1,3 +1,4 @@
+import { operationalFixture } from "../../../fixtures/operationalSnapshot";
 import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,15 +21,22 @@ vi.mock("../../../../src/modules/dashboard/services/dashboard.service", () => ({
   },
 }));
 
+vi.mock("../../../../src/modules/auth/hooks/useAuth", () => ({
+  useAuth: () => ({ isLoggedIn: { id: "test-admin", role: "super_admin" } }),
+}));
+vi.mock("../../../../src/modules/observability/hooks/useOperationalSnapshot", () => ({
+  useOperationalSnapshot: () => ({ snapshot: operationalFixture, stale: false, loading: false, forbidden: false, error: null, refresh: async () => {} }),
+}));
+
 const stats = {
   totalUsers: { value: 10, trend: "ok", positive: true },
   activeUsers: { value: 8, trend: "ok", positive: true },
   totalJobs: { value: 100, trend: "ok", positive: true },
   jobsToday: { value: 5, trend: "ok", positive: true },
 };
-const resources = { scraper: 99, postgres: 99, valkey: 65 };
+const resources = { scraper: "ok", postgres: "ok", valkey: "degraded" };
 const services = [
-  { name: "Postgres", status: "Online", sla: "10ms", health: 99, tone: "success" as const },
+  { name: "Postgres", status: "Online", sla: "10ms", health: "ok", tone: "success" as const },
 ];
 const scrapers = [
   {
@@ -36,8 +44,8 @@ const scrapers = [
     name: "Adzuna",
     status: "Online",
     lastRun: "Hoje",
-    collected24h: 2,
-    active: true,
+    catalogJobs: 2,
+    active: false,
   },
 ];
 
@@ -69,13 +77,13 @@ describe("dashboard hooks", () => {
     expect(result.current.chartPoints).toHaveLength(1);
     expect(result.current.stats?.totalJobs.value).toBe(100);
 
-    result.current.toggleScraper("adzuna");
-    expect(dashboardService.toggleScraper).toHaveBeenCalledWith("adzuna", false);
+    await act(async () => { await result.current.toggleScraper("adzuna"); });
+    expect(dashboardService.toggleScraper).toHaveBeenCalledWith("adzuna", true);
     await waitFor(() =>
       expect(dashboardService.getOverview).toHaveBeenCalledTimes(2),
     );
 
-    result.current.toggleScraper("missing");
+    await act(async () => { await result.current.toggleScraper("missing"); });
     expect(dashboardService.toggleScraper).toHaveBeenCalledTimes(1);
 
     vi.mocked(dashboardService.getOverview).mockResolvedValue({
@@ -142,8 +150,8 @@ describe("dashboard hooks", () => {
     vi.mocked(dashboardService.toggleScraper).mockRejectedValueOnce(
       new ApiError(409, { message: "already running" }),
     );
-    act(() => result.current.toggleScraper("adzuna"));
-    expect(await screen.findByText("Scraper já em execução")).toBeInTheDocument();
+    await act(async () => { await result.current.toggleScraper("adzuna"); });
+    expect(await screen.findByText("Processamento já em execução")).toBeInTheDocument();
     await waitFor(() =>
       expect(dashboardService.getOverview).toHaveBeenCalledTimes(2),
     );
@@ -151,8 +159,8 @@ describe("dashboard hooks", () => {
     vi.mocked(dashboardService.toggleScraper).mockRejectedValueOnce(
       new Error("backend unavailable"),
     );
-    act(() => result.current.toggleScraper("adzuna"));
-    expect(await screen.findByText("Pausa indisponível")).toBeInTheDocument();
+    await act(async () => { await result.current.toggleScraper("adzuna"); });
+    expect(await screen.findByText("Erro ao iniciar processamento")).toBeInTheDocument();
   });
 
   it("reports a failed start distinctly for an idle scraper", async () => {
@@ -169,9 +177,9 @@ describe("dashboard hooks", () => {
       new Error("cannot start"),
     );
 
-    act(() => result.current.toggleScraper("adzuna"));
+    await act(async () => { await result.current.toggleScraper("adzuna"); });
 
-    expect(await screen.findByText("Erro ao iniciar scraper")).toBeInTheDocument();
+    expect(await screen.findByText("Erro ao iniciar processamento")).toBeInTheDocument();
     expect(screen.getByText("Não foi possível iniciar Adzuna.")).toBeInTheDocument();
   });
 
@@ -186,7 +194,7 @@ describe("dashboard hooks", () => {
     const scraperHook = renderHook(() => useDashboardScrapers());
     await waitFor(() => expect(scraperHook.result.current.scrapers).toEqual(scrapers));
     scraperHook.result.current.toggleScraper("adzuna");
-    expect(dashboardService.toggleScraper).toHaveBeenCalledWith("adzuna", false);
+    expect(dashboardService.toggleScraper).toHaveBeenCalledWith("adzuna", true);
   });
 
   it("falls back to empty segmented hook states on errors", async () => {

@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	gupyDefaultBaseURL    = "https://employability-portal.gupy.io/api/v1/jobs"
+	gupyDefaultBaseURL    = "https://portal.gupy.io/api/job-search/jobs"
 	gupyDefaultPageLimit  = 100
 	gupyDefaultMaxOffset  = 10000
 	gupyDefaultQueryLimit = 60

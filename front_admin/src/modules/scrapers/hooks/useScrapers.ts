@@ -1,5 +1,11 @@
+import { buildCatalogInventory } from "../services/catalogInventory";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNotifications } from "../../../components/notifications/useNotifications";
+import { useAuth } from "../../auth/hooks/useAuth";
+import { useOperationalSnapshot } from "../../observability/hooks/useOperationalSnapshot";
+import { operationalNotice, withOperationalExecution } from "../../observability/services/operationalPresentation";
+import { createPollingResource } from "../../../lib/polling/pollingResource";
+import { usePollingResource } from "../../../lib/polling/usePollingResource";
 import { ApiError } from "../../../lib/api/client";
 import { scrapersApi } from "../../../lib/api/scrapers.api";
 import type {
@@ -16,19 +22,6 @@ import type {
 
 const REFRESH_INTERVAL_MS = 15_000;
 const JOBS_PREVIEW_LIMIT = 8;
-const CONFIGURED_SOURCE_COUNTS: Record<string, number> = {
-  "Adzuna": 1,
-  "Green House": 32,
-  "Jooble": 1,
-  "Lever": 34,
-  "The Muse": 1,
-  "linkedin": 1,
-};
-const CONFIGURED_SOURCES_TOTAL = Object.values(CONFIGURED_SOURCE_COUNTS).reduce(
-  (total, count) => total + count,
-  0,
-);
-
 function nowTime(): string {
   return new Date().toTimeString().split(" ")[0];
 }
@@ -50,15 +43,15 @@ function statusLabel(scraper: BackendScraper): string {
   return scraper.running ? "Executando" : "Ocioso";
 }
 
-function mapScraper(scraper: BackendScraper, fallbackTotal: number): Scraper {
+function mapScraper(scraper: BackendScraper, catalogTotal: number | null): Scraper {
   return {
     id: scraper.name,
     name: scraper.name,
     status: statusLabel(scraper),
     lastRun: formatLastRun(scraper.lastRunAt),
-    indexedJobs: scraper.jobsCollected ?? fallbackTotal,
+    catalogJobs: catalogTotal,
     active: scraper.running,
-    sla: scraper.status === "down" ? "Indisponivel" : "Operacional",
+    availability: scraper.status === "down" ? "Indisponivel" : "Operacional",
   };
 }
 
@@ -84,32 +77,6 @@ function keywordFrom(job: ScraperJob): string {
   return job.keyword || job.keywords[0] || "sem keyword";
 }
 
-function adapterFamilyFrom(source: string): string {
-  if (source.startsWith("Adzuna")) return "Adzuna";
-  if (source.startsWith("Green House")) return "Green House";
-  if (source.startsWith("Lever")) return "Lever";
-  if (source.startsWith("The Muse")) return "The Muse";
-  if (source.toLowerCase().startsWith("linkedin")) return "linkedin";
-  if (source.startsWith("Jooble")) return "Jooble";
-  return source;
-}
-
-function configuredSourcesFor(adapterName: string): number {
-  const families = new Set(sourceEntriesFromName(adapterName).map(adapterFamilyFrom));
-  let total = 0;
-
-  for (const family of families) {
-    total += CONFIGURED_SOURCE_COUNTS[family] ?? 1;
-  }
-
-  return total;
-}
-
-function sourceEntriesFromName(value: string): string[] {
-  const sources = splitSource(value);
-  return sources.length > 0 ? sources : [value];
-}
-
 function buildAdapters(jobs: ScraperJob[]): ScraperAdapter[] {
   const adapters = new Map<
     string,
@@ -131,7 +98,9 @@ function buildAdapters(jobs: ScraperJob[]): ScraperAdapter[] {
       };
 
     current.jobs += 1;
-    current.keywords.add(keywordFrom(job));
+    for (const keyword of [job.keyword, ...job.keywords]) {
+      if (keyword) current.keywords.add(keyword);
+    }
     sourceEntriesFrom(job).forEach((entry) => current.sources.add(entry));
     current.sampleTitle ??= job.title;
     adapters.set(source, current);
@@ -142,7 +111,6 @@ function buildAdapters(jobs: ScraperJob[]): ScraperAdapter[] {
       name,
       jobs: adapter.jobs,
       sources: adapter.sources.size,
-      configuredSources: configuredSourcesFor(name),
       keywords: adapter.keywords.size,
       sampleTitle: adapter.sampleTitle,
     }))
@@ -170,150 +138,136 @@ function buildJobPreviews(jobs: ScraperJob[]): ScraperJobPreview[] {
     }));
 }
 
+const EMPTY_JOBS: ScraperJob[] = [];
+function createScraperResources(sessionKey: string) {
+  void sessionKey; // Resource lifetime follows the authenticated session.
+  return {
+    listResource: createPollingResource({
+      load: (signal) => scrapersApi.list(signal), intervalMs: REFRESH_INTERVAL_MS,
+      errorMessage: "Nao foi possivel carregar os dados do processamento.",
+    }),
+    countResource: createPollingResource({
+      load: (signal) => scrapersApi.jobsCount(signal), intervalMs: REFRESH_INTERVAL_MS,
+      errorMessage: "Nao foi possivel carregar a contagem do catálogo.",
+    }),
+    jobsResource: createPollingResource({
+      load: (signal) => scrapersApi.jobs(200, signal), intervalMs: 0,
+      errorMessage: "Amostra do catálogo indisponível.",
+    }),
+  };
+}
+
 export function useScrapers() {
   const { notify } = useNotifications();
-  const previousRunningRef = useRef<boolean | null>(null);
-  const [scrapers, setScrapers] = useState<Scraper[]>([]);
-  const [jobs, setJobs] = useState<ScraperJob[]>([]);
-  const [indexedJobs, setIndexedJobs] = useState(0);
+  const { isLoggedIn } = useAuth();
+  const canReadOperational = isLoggedIn?.role === "admin" || isLoggedIn?.role === "super_admin";
+  const sessionKey = `${isLoggedIn?.id ?? "anonymous"}:${isLoggedIn?.role ?? "none"}`;
+  const operational = useOperationalSnapshot(canReadOperational, 10_000, sessionKey);
+  const mountedRef = useRef(false);
+  const pendingRef = useRef(false);
+  const clearingRef = useRef(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
   const [startingScraperId, setStartingScraperId] = useState<string | null>(null);
   const [isClearingJobsCache, setIsClearingJobsCache] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const addLog = useCallback((text: string) => {
-    setLogs((prev) => [{ time: nowTime(), text }, ...prev].slice(0, 80));
-  }, []);
-
-  const refresh = useCallback(
-    async ({ silent = false, includeJobs = false } = {}) => {
-      if (!silent) setIsRefreshing(true);
-
-      try {
-        const [listResult, countResult] = await Promise.all([
-          scrapersApi.list(),
-          scrapersApi.jobsCount(),
-        ]);
-        const nextTotal = countResult.total;
-        const nextScrapers = listResult.scrapers.map((scraper) =>
-          mapScraper(scraper, nextTotal),
-        );
-        const running = nextScrapers.some((scraper) => scraper.active);
-
-        if (
-          previousRunningRef.current !== null &&
-          previousRunningRef.current !== running
-        ) {
-          addLog(
-            running
-              ? "Scheduler reportou execução em andamento."
-              : "Scheduler reportou scraper ocioso.",
-          );
-        }
-
-        previousRunningRef.current = running;
-        setScrapers(nextScrapers);
-        setIndexedJobs(nextTotal);
-        setLastUpdatedAt(new Date().toISOString());
-        setError(null);
-
-        if (includeJobs) {
-          scrapersApi
-            .jobs()
-            .then((jobsResult) => {
-              setJobs(jobsResult.jobs);
-              setLastUpdatedAt(new Date().toISOString());
-            })
-            .catch(() => {
-              addLog("Nao foi possivel carregar a lista detalhada de vagas.");
-            });
-        }
-      } catch {
-        setError("Nao foi possivel carregar os dados dos scrapers.");
-        notify({
-          tone: "error",
-          title: "Erro ao carregar scrapers",
-          description:
-            "Não foi possível consultar status, contagem ou vagas do scraper.",
-        });
-      } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    },
-    [addLog, notify],
-  );
-
+  const [triggerForbidden, setTriggerForbidden] = useState(false);
   useEffect(() => {
-    void refresh({ includeJobs: true });
-    const interval = window.setInterval(
-      () => void refresh({ silent: true }),
-      REFRESH_INTERVAL_MS,
-    );
-
-    return () => window.clearInterval(interval);
-  }, [refresh]);
-
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const addLog = useCallback((text: string) => {
+    if (mountedRef.current) setLogs((prev) => [{ time: nowTime(), text }, ...prev].slice(0, 80));
+  }, [setLogs]);
+  const resources = useMemo(() => createScraperResources(sessionKey), [sessionKey]);
+  const { listResource, countResource, jobsResource } = resources;
+  useEffect(() => {
+    let previousRunning: boolean | null = null;
+    let previousSampleError: string | null = null;
+    const unsubscribeList = listResource.subscribe(() => {
+      const data = listResource.getSnapshot().data;
+      if (!data) return;
+      const running = data.scrapers.some((scraper) => scraper.running);
+      if (previousRunning !== null && previousRunning !== running) {
+        addLog(running ? "Scheduler reportou execução em andamento." : "Scheduler reportou processamento ocioso.");
+      }
+      previousRunning = running;
+    });
+    const unsubscribeJobs = jobsResource.subscribe(() => {
+      const error = jobsResource.getSnapshot().error;
+      if (error && error !== previousSampleError) addLog("Nao foi possivel carregar a lista detalhada de vagas.");
+      previousSampleError = error;
+    });
+    return () => { unsubscribeList(); unsubscribeJobs(); };
+  }, [listResource, jobsResource, addLog]);
+  const list = usePollingResource(listResource);
+  const count = usePollingResource(countResource);
+  const sample = usePollingResource(jobsResource);
+  const catalogJobs = count.data?.total ?? null;
+  const jobs = sample.data?.jobs ?? EMPTY_JOBS;
+  const scrapers = (list.data?.scrapers ?? []).map((item) => {
+    const mapped = mapScraper(item, catalogJobs);
+    const merged = withOperationalExecution(mapped, operational, canReadOperational);
+    return { ...merged,
+      availability: canReadOperational && item.name === "go-scraper"
+        ? operational.snapshot?.processor && !operational.stale ? "Processor acessível" : "N/D"
+        : mapped.availability,
+      runDisabled: !canReadOperational || triggerForbidden || list.stale || merged.runDisabled || merged.active ,
+    };
+  });
+  const refresh = async ({ includeJobs = false } = {}) => {
+    await Promise.all([list.refresh(), count.refresh(), operational.refresh(), ...(includeJobs ? [sample.refresh()] : [])]);
+  };
+  const catalogInventory = useMemo(() => buildCatalogInventory(count.data), [count.data]);
   const adapterStats = useMemo(() => buildAdapters(jobs), [jobs]);
   const jobPreviews = useMemo(() => buildJobPreviews(jobs), [jobs]);
-  const keywordsCount = useMemo(() => {
-    const keywords = new Set<string>();
-    for (const job of jobs) keywords.add(keywordFrom(job));
-    return keywords.size;
-  }, [jobs]);
-  const sourcesCount = useMemo(() => {
-    const sources = new Set<string>();
-    for (const job of jobs) {
-      sourceEntriesFrom(job).forEach((source) => sources.add(source));
-    }
-    return sources.size;
-  }, [jobs]);
-
+  const keywords = new Set(jobs.flatMap((job) => [job.keyword, ...job.keywords]).filter(Boolean));
+  const sources = new Set(jobs.flatMap(sourceEntriesFrom).filter((source) => source !== "desconhecido"));
   const overview: ScraperOverview = {
-    indexedJobs,
-    loadedJobs: jobs.length,
-    adaptersCount: adapterStats.length,
-    sourcesCount,
-    configuredSourcesCount: CONFIGURED_SOURCES_TOTAL,
-    keywordsCount,
-    runningCount: scrapers.filter((scraper) => scraper.active).length,
-    totalScrapers: scrapers.length,
-    lastUpdatedAt,
+    catalogJobs,
+    loadedJobs: sample.data ? jobs.length : null,
+    adaptersCount: sample.data ? adapterStats.length : null,
+    sourcesCount: sample.data ? sources.size : null,
+    configuredSourcesCount: count.data?.configuredProviders?.length ?? null,
+    keywordsCount: sample.data ? keywords.size : null,
+    runningCount: list.data ? scrapers.filter((scraper) => scraper.active).length : null,
+    totalScrapers: list.data ? scrapers.length : null,
+    lastUpdatedAt: list.updatedAt,
   };
-
   const runScraper = async (id: string) => {
     const scraper = scrapers.find((item) => item.id === id);
-    if (!scraper) return;
+    if (!scraper || pendingRef.current) return;
 
     if (scraper.active) {
       addLog(`${scraper.name} ja esta em execucao.`);
       notify({
         tone: "warning",
-        title: "Scraper já em execução",
+        title: "Processamento já em execução",
         description: `${scraper.name} já está rodando neste momento.`,
       });
       return;
     }
 
+    if (scraper.runDisabled) return;
+    pendingRef.current = true;
     setStartingScraperId(id);
     try {
       const result = await scrapersApi.triggerOne(id);
+      if (!mountedRef.current) return;
       addLog(result.message || `${scraper.name} iniciado.`);
       notify({
         tone: "success",
-        title: "Scraper iniciado",
-        description: result.message || `${scraper.name} começou a executar.`,
+        title: "Execução solicitada",
+        description: result.message || `Solicitação aceita para ${scraper.name}.`,
       });
       await refresh({ includeJobs: true });
     } catch (error) {
+      if (!mountedRef.current) return;
+      if (error instanceof ApiError && [401, 403].includes(error.status)) setTriggerForbidden(true);
       if (error instanceof ApiError && error.status === 409) {
         addLog(`${scraper.name} ja esta em execucao.`);
         notify({
           tone: "warning",
-          title: "Scraper já em execução",
+          title: "Processamento já em execução",
           description: "A execução atual ainda não terminou.",
         });
         await refresh({ includeJobs: true });
@@ -324,83 +278,97 @@ export function useScrapers() {
       addLog(`Falha ao solicitar execucao de ${scraper.name}.`);
       notify({
         tone: "error",
-        title: "Erro ao iniciar scraper",
+        title: "Erro ao iniciar processamento",
         description: `O backend não conseguiu disparar ${scraper.name}.`,
       });
     } finally {
-      setStartingScraperId(null);
+      pendingRef.current = false;
+      if (mountedRef.current) setStartingScraperId(null);
     }
   };
 
   const startAll = async () => {
+    if (!canReadOperational || triggerForbidden || pendingRef.current || !operational.snapshot || operational.stale || ["running", "canceling"].includes(operational.snapshot.processor?.execution.status ?? "")) return;
+    pendingRef.current = true;
     setStartingScraperId("__all__");
     try {
       const result = await scrapersApi.trigger();
-      addLog(result.message || "Execucao dos scrapers iniciada.");
+      if (!mountedRef.current) return;
+      addLog(result.message || "Execucao do processamento iniciada.");
       notify({
         tone: "success",
-        title: "Scrapers iniciados",
-        description: result.message || "A execução dos scrapers foi solicitada.",
+        title: "Execução solicitada",
+        description: result.message || "A execução do processamento foi solicitada.",
       });
       await refresh({ includeJobs: true });
     } catch (error) {
+      if (!mountedRef.current) return;
+      if (error instanceof ApiError && [401, 403].includes(error.status)) setTriggerForbidden(true);
       if (error instanceof ApiError && error.status === 409) {
-        addLog("Scraper ja esta em execucao.");
+        addLog("Processamento ja esta em execucao.");
         notify({
           tone: "warning",
-          title: "Scraper já em execução",
+          title: "Processamento já em execução",
           description: "A execução atual ainda não terminou.",
         });
         await refresh({ includeJobs: true });
         return;
       }
 
-      setError("Nao foi possivel iniciar os scrapers.");
-      addLog("Falha ao solicitar execucao dos scrapers.");
+      setError("Nao foi possivel iniciar o processamento.");
+      addLog("Falha ao solicitar execucao do processamento.");
       notify({
         tone: "error",
-        title: "Erro ao iniciar scrapers",
+        title: "Erro ao iniciar processamento",
         description:
-          "O backend não conseguiu disparar a execução dos scrapers.",
+          "O backend não conseguiu disparar a execução do processamento.",
       });
     } finally {
-      setStartingScraperId(null);
+      pendingRef.current = false;
+      if (mountedRef.current) setStartingScraperId(null);
     }
   };
 
   const pauseAll = () => {
-    addLog("Pausar scrapers ainda nao esta disponivel no backend.");
+    addLog("Pausar processamento ainda nao esta disponivel no backend.");
     notify({
       tone: "warning",
       title: "Pausa indisponível",
-      description: "Ainda não existe endpoint para pausar todos os scrapers.",
+      description: "Ainda não existe endpoint para pausar o processamento.",
     });
   };
 
   const clearJobsCache = async () => {
+    if (clearingRef.current || isLoggedIn?.role !== "super_admin") return;
+    clearingRef.current = true;
     setIsClearingJobsCache(true);
     try {
       const result = await scrapersApi.clearJobsCache();
-      setJobs([]);
-      setIndexedJobs(0);
-      addLog(`Cache de vagas limpo no Valkey: ${result.deleted} chaves removidas.`);
+      if (!mountedRef.current) return;
+      const versioned = result.patterns.includes("jobs:search:generation");
+      const description = versioned
+        ? "Cache de buscas invalidado. Catálogo e índice ativo preservados."
+        : `Cache legado: ${result.deleted} chaves removidas do Valkey (${result.patterns.join(", ")}). Catálogo PostgreSQL preservado.`;
+      addLog(description);
       notify({
         tone: "success",
-        title: "Cache de vagas limpo",
-        description: `${result.deleted} chaves de vagas foram removidas do Valkey.`,
+        title: "Cache atualizado",
+        description,
       });
       await refresh({ includeJobs: true });
     } catch {
+      if (!mountedRef.current) return;
       setError("Nao foi possivel limpar o cache de vagas.");
       addLog("Falha ao limpar cache de vagas no Valkey.");
       notify({
         tone: "error",
         title: "Erro ao limpar cache",
         description:
-          "A API administrativa não conseguiu limpar as vagas do Valkey.",
+          "A API administrativa não conseguiu atualizar o cache de buscas.",
       });
     } finally {
-      setIsClearingJobsCache(false);
+      clearingRef.current = false;
+      if (mountedRef.current) setIsClearingJobsCache(false);
     }
   };
 
@@ -408,27 +376,23 @@ export function useScrapers() {
     await refresh({ includeJobs: true });
     addLog("Lista de vagas e adapters recarregada a partir do backend.");
   };
-
   const clearLogs = () => setLogs([]);
-
   return {
-    scrapers,
-    adapterStats,
-    jobPreviews,
-    overview,
-    logs,
-    isLoading,
-    isRefreshing,
-    isStarting: startingScraperId !== null,
-    startingScraperId,
-    isClearingJobsCache,
-    error,
-    refresh: reloadJobs,
-    toggleScraper: runScraper,
-    startAll,
-    pauseAll,
-    clearJobsCache,
-    clearLogs,
-    refreshIntervalMs: REFRESH_INTERVAL_MS,
+    scrapers, adapterStats, catalogInventory, jobPreviews, overview, logs,
+    inventoryMessage: count.stale ? "Inventário/contagens desatualizados; última leitura válida." : count.data?.sources == null ? "Distribuição global N/D; não inferida da prévia." : "Contagens globais do catálogo ativo por fonte principal; cada vaga conta uma vez.",
+    inventoryAvailable: count.data?.sources != null,
+    configurationAvailable: count.data?.configuredProviders != null,
+    isLoading: list.loading || count.loading,
+    isRefreshing: list.refreshing || count.refreshing || sample.refreshing,
+    isStarting: startingScraperId !== null, startingScraperId, isClearingJobsCache,
+    error: error ?? list.error ?? count.error,
+    catalogMessage: count.stale ? "Catálogo desatualizado ou indisponível." : count.data ? "Catálogo ativo PostgreSQL" : "Catálogo N/D",
+    sampleMessage: sample.error ?? (sample.stale ? "Amostra desatualizada." : sample.updatedAt ? `Amostra consultada em ${new Date(sample.updatedAt).toLocaleTimeString("pt-BR")}` : "Amostra N/D"),
+    sampleUnavailable: sample.data === null,
+    listUnavailable: list.data === null,
+    operational, canReadOperational,
+    operationalMessage: operationalNotice(operational, canReadOperational),
+    refresh: reloadJobs, toggleScraper: runScraper, startAll, pauseAll,
+    clearJobsCache, clearLogs, refreshIntervalMs: REFRESH_INTERVAL_MS,
   };
 }

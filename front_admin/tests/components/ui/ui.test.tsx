@@ -48,7 +48,7 @@ describe("shared ui components", () => {
           percentage={42}
           color="bg-blue-500"
         />
-        <ProgressCircle value={75} color="#10b981" label="Scraper" />
+        <ProgressCircle value={75} color="#10b981" label="Processamento" />
       </>,
     );
 

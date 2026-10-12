@@ -17,18 +17,20 @@ export function ScraperRow({ scraper, onToggle, onConfigure }: ScraperRowProps) 
       <td className="py-3.5">
         <StatusBadge
           label={scraper.status}
-          tone={scraper.active ? "success" : "neutral"}
+          tone={scraper.status === "Falhou" ? "danger" : scraper.status === "Cancelando" ? "warning" : scraper.active ? "success" : "neutral"}
         />
       </td>
-      <td className="py-3.5 text-slate-500 dark:text-slate-400 font-medium">{scraper.lastRun}</td>
+      <td className="py-3.5 text-slate-500 dark:text-slate-400 font-medium">{scraper.lastRun}
+        {scraper.executionDetail && <p className="mt-1 max-w-sm truncate text-[10px]" title={scraper.executionDetail}>{scraper.executionDetail}</p>}
+      </td>
       <td className="py-3.5 font-bold text-slate-800 dark:text-slate-100">
-        {formatNumber(scraper.collected24h)}
+        {scraper.catalogJobs === null ? "N/D" : formatNumber(scraper.catalogJobs)}
       </td>
       <td className="py-3.5 text-right space-x-1">
         <button
           onClick={() => onToggle(scraper.id)}
-          disabled={scraper.active}
-          title={scraper.active ? "Scraper em execução" : "Iniciar Scraper"}
+          disabled={scraper.active || scraper.runDisabled}
+          title={scraper.active ? "Processamento em execução" : "Iniciar processamento"}
           className={`p-1.5 rounded-md inline-flex items-center justify-center transition-colors ${
             scraper.active
               ? "cursor-not-allowed text-slate-400 opacity-60"

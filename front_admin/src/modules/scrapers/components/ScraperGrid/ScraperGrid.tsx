@@ -3,12 +3,14 @@ import { ScraperCard } from "./ScraperCard";
 
 interface ScraperGridProps {
   scrapers: Scraper[];
+  unavailable?: boolean;
   startingScraperId: string | null;
   onToggle: (id: string) => void;
 }
 
 export function ScraperGrid({
   scrapers,
+  unavailable = false,
   startingScraperId,
   onToggle,
 }: ScraperGridProps) {
@@ -17,22 +19,22 @@ export function ScraperGrid({
       <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
         <div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-            Status Geral dos Scrapers
+            Status geral do processamento
           </h3>
           <p className="text-xs text-slate-400 dark:text-slate-500">
-            Consulte o desempenho, volume de dados e inicie/interrompa o fluxo
-            de scraping de vagas
+            Consulte o desempenho, volume de dados e solicite o fluxo
+            de coleta de vagas
           </p>
         </div>
         <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300">
-          Rode cada scraper pelo card
+          Inicie o processamento pelo card
         </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {scrapers.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-sm font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400 md:col-span-2 lg:col-span-4">
-            Nenhum scraper retornado pelo backend.
+            {unavailable ? "Lista do scheduler indisponível; processamento N/D." : "Nenhum processamento retornado pelo backend."}
           </div>
         ) : (
           scrapers.map((scraper) => (

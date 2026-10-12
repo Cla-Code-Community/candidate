@@ -200,7 +200,7 @@ export function PlatformChart({ points }: PlatformChartProps) {
                 Índice estável
               </p>
               <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Nenhuma vaga nova ou removida foi detectada nesta janela.
+                O total indexado permaneceu igual nas leituras locais; atualizações e trocas de vagas não são medidas.
               </p>
             </div>
             <strong className="text-3xl font-extrabold text-emerald-500">
@@ -249,8 +249,7 @@ export function PlatformChart({ points }: PlatformChartProps) {
         ) : deltas.length > 0 ? (
           <div className="flex min-h-14 items-center justify-between gap-4 rounded-md bg-slate-900/40 px-3 py-3">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-              Todos os intervalos ficaram em 0. O scraper não alterou o total
-              indexado durante esta janela.
+              Todos os intervalos ficaram em 0. Sem variação líquida do total nas leituras locais.
             </span>
             <span className="text-sm font-extrabold text-slate-300">0</span>
           </div>

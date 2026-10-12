@@ -1,4 +1,4 @@
-import { Github } from "lucide-react";
+import { FaGithub as Github } from "react-icons/fa";
 import LogoWhite from "@/shared/assets/logo-painel-vagas.svg";
 import LogoBlack from "@/shared/assets/black.svg";
 import { Link } from "react-router-dom";
