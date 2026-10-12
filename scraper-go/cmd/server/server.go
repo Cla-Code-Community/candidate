@@ -153,7 +153,7 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	mux.Handle("POST /admin/scrape", handleTriggerScrape(scheduler, bgCtx))
 	mux.Handle("GET /admin/scrape/status", handleScraperStatus(scheduler))
 	mux.Handle("GET /admin/jobs", handleGetJobs(jobStore))
-	mux.Handle("GET /admin/jobs/count", handleJobsCount(jobStore))
+	mux.Handle("GET /admin/jobs/count", handleJobsCount(jobStore, adapterList))
 
 	srv := &http.Server{
 		Addr:         addr,

@@ -13,10 +13,11 @@ export const DashboardStatsSchema = z.object({
   jobsToday: MetricValueSchema,
 });
 
+const HealthSchema = z.enum(["ok", "degraded", "down"]).nullable();
 export const ResourceUsageSchema = z.object({
-  scraper: z.number(),
-  postgres: z.number(),
-  valkey: z.number(),
+  scraper: HealthSchema,
+  postgres: HealthSchema,
+  valkey: HealthSchema,
 });
 
 export const DashboardChartPointSchema = z.object({

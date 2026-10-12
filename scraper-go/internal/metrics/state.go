@@ -15,6 +15,7 @@ import (
 )
 
 type Execution struct {
+	RunID               *string    `json:"runId"`
 	Status              string     `json:"status"`
 	Source              *string    `json:"source"`
 	StartedAt           *time.Time `json:"startedAt"`
@@ -66,12 +67,15 @@ func (s MaintenanceSummary) Valid() bool {
 }
 
 type Snapshot struct {
-	Execution   Execution        `json:"execution"`
-	Lock        Lock             `json:"lock"`
-	Concurrency Concurrency      `json:"concurrency"`
-	Progress    map[string]int   `json:"progress"`
-	Queues      map[string]Queue `json:"queues"`
-	Errors      struct {
+	Providers      []ProviderState       `json:"providers"`
+	Classification *ClassificationTotals `json:"classification"`
+	Persistence    *PersistenceTotals    `json:"persistence"`
+	Execution      Execution             `json:"execution"`
+	Lock           Lock                  `json:"lock"`
+	Concurrency    Concurrency           `json:"concurrency"`
+	Progress       map[string]int        `json:"progress"`
+	Queues         map[string]Queue      `json:"queues"`
+	Errors         struct {
 		Total    int `json:"total"`
 		Timeouts int `json:"timeouts"`
 	} `json:"errors"`
@@ -81,6 +85,9 @@ type Snapshot struct {
 
 var state = struct {
 	sync.Mutex
+	classification    *ClassificationTotals
+	persistence       *PersistenceTotals
+	providers         map[string]ProviderState
 	runID             string
 	lockRunID         string
 	execution         Execution
@@ -169,6 +176,15 @@ func StartRun(source string, started time.Time, runID ...string) {
 	if len(runID) > 0 {
 		state.runID = runID[0]
 	}
+	state.execution.RunID = nil
+	if state.runID != "" {
+		id := state.runID
+		state.execution.RunID = &id
+	}
+	state.execution.FinishedAt = nil
+	state.classification = nil
+	state.persistence = nil
+	state.providers = nil
 	s := Source(source)
 	state.execution.Status = "running"
 	state.execution.Source = &s
@@ -287,7 +303,7 @@ func addProgress(kind string, n int) {
 	Progress.WithLabelValues(kind).Set(float64(state.progress[kind]))
 	LastProgress.Set(float64(time.Now().Unix()))
 }
-func Configure(configured, effective int, sources []ports.JobSource, keywords int, limit func(ports.ProviderID) int) {
+func Configure(configured, effective int, sources []ports.JobSource, keywords int, limit func(ports.ProviderID) int, runID ...string) {
 	state.Lock()
 	defer state.Unlock()
 	if configured > 0 {
@@ -297,6 +313,10 @@ func Configure(configured, effective int, sources []ports.JobSource, keywords in
 	state.providerRemaining = map[string]int{}
 	state.adapterRemaining = map[int]int{}
 	ProviderConfigured.Reset()
+	trackRun := len(runID) > 0 && activeRun(runID[0])
+	if trackRun {
+		state.providers = map[string]ProviderState{}
+	}
 	tasks := 0
 	for i, a := range sources {
 		c := ports.CapabilitiesOf(a)
@@ -305,6 +325,13 @@ func Configure(configured, effective int, sources []ports.JobSource, keywords in
 			n = keywords
 		}
 		p := Provider(string(c.Provider))
+		if trackRun {
+			detail := state.providers[p]
+			detail.ID = p
+			detail.ConfiguredConcurrency = limit(c.Provider)
+			detail.TasksTotal += n
+			state.providers[p] = detail
+		}
 		state.providerRemaining[p] += n
 		state.adapterRemaining[i] = n
 		tasks += n
@@ -382,6 +409,28 @@ func Current() Snapshot {
 	state.Lock()
 	defer state.Unlock()
 	s := Snapshot{Execution: state.execution, Concurrency: state.concurrency, Lock: Lock{Held: state.held, TTLSeconds: max(0, time.Until(state.expiry).Seconds())}, Progress: map[string]int{}, Queues: map[string]Queue{}, RejectedTitles: []RejectedTitle{}, RejectedTitlesSince: state.titlesSince}
+	s.Execution.RunID = copyPointer(s.Execution.RunID)
+	if state.classification != nil {
+		v := *state.classification
+		s.Classification = &v
+	}
+	if state.persistence != nil {
+		v := *state.persistence
+		s.Persistence = &v
+	}
+	if state.providers != nil {
+		s.Providers = make([]ProviderState, 0, len(state.providers))
+		for id, p := range state.providers {
+			p.LastTaskStatus = copyPointer(p.LastTaskStatus)
+			p.LastTaskFinishedAt = copyPointer(p.LastTaskFinishedAt)
+			p.LastTaskDurationSeconds = copyPointer(p.LastTaskDurationSeconds)
+			p.LastErrorType = copyPointer(p.LastErrorType)
+			p.Active = state.active[id]
+			p.Waiting = state.waiting[id]
+			s.Providers = append(s.Providers, p)
+		}
+		sort.Slice(s.Providers, func(i, j int) bool { return s.Providers[i].ID < s.Providers[j].ID })
+	}
 	if s.Execution.StartedAt != nil {
 		if s.Execution.Status == "running" || s.Execution.Status == "canceling" {
 			s.Execution.DurationSeconds = max(0, time.Since(*s.Execution.StartedAt).Seconds())

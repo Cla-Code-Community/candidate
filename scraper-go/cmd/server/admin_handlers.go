@@ -6,8 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strconv"
 	"time"
 
@@ -176,18 +179,51 @@ func handleGetJobs(js *jobstore.Store) http.HandlerFunc {
 	}
 }
 
-// handleJobsCount retorna o total de vagas no índice via GET /admin/jobs/count
-func handleJobsCount(js *jobstore.Store) http.HandlerFunc {
+// handleJobsCount keeps the legacy total and adds full catalog attribution and
+// the startup inventory, independent of providers selected for the latest run.
+func handleJobsCount(js *jobstore.Store, inventory ...[]ports.JobSource) http.HandlerFunc {
+	type sourceTotal struct {
+		Source   *string `json:"source"`
+		Provider string  `json:"provider"`
+		Total    int64   `json:"total"`
+	}
+	var configured []string
+	if len(inventory) > 0 {
+		configured = make([]string, 0)
+		seen := map[string]bool{}
+		for _, a := range inventory[0] {
+			id := metrics.Provider(string(ports.CapabilitiesOf(a).Provider))
+			if !seen[id] {
+				configured = append(configured, id)
+				seen[id] = true
+			}
+		}
+		sort.Strings(configured)
+	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		count, err := js.Count(r.Context())
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		groups, err := js.SourceCounts(ctx)
+		var count int64
+		var sources []sourceTotal
+		if err == nil {
+			sources = make([]sourceTotal, 0, len(groups))
+			for _, g := range groups {
+				provider := "unknown"
+				if g.Source != nil {
+					provider = metrics.Provider(*g.Source)
+				}
+				sources = append(sources, sourceTotal{g.Source, provider, g.Total})
+				count += g.Total
+			}
+		} else {
+			count, err = js.Count(ctx)
+		}
 		if err != nil {
 			http.Error(w, "erro ao contar vagas", http.StatusInternalServerError)
 			return
 		}
-
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"total": count,
-		})
+		json.NewEncoder(w).Encode(map[string]any{"total": count, "sources": sources, "configuredProviders": configured})
 	}
 }

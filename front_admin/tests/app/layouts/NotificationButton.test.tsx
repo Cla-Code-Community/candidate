@@ -103,7 +103,7 @@ describe("NotificationButton", () => {
     expect(screen.getByText("Latência atual: 88ms.")).not.toBeNull();
     expect(screen.getByText("Lever em execução")).not.toBeNull();
     expect(screen.getByText("Adzuna indisponível")).not.toBeNull();
-    expect(screen.queryByText("Scraper indisponível")).toBeNull();
+    expect(screen.queryByText("Processamento indisponível")).toBeNull();
   });
 
   it("limits notifications to five and routes a selected item to the provider", async () => {

@@ -16,7 +16,7 @@ import (
 )
 
 func TestOperationalSnapshotPartialResourcesAndNoSecrets(t *testing.T) {
-	metrics.StartRun("cron", time.Now())
+	metrics.StartRun("cron", time.Now(), "public-run-id")
 	metrics.LockAcquired(time.Second)
 	r := httptest.NewRecorder()
 	handleOperationalSnapshot(nil, nil)(r, httptest.NewRequest("GET", "/admin/observability", nil))
@@ -35,8 +35,11 @@ func TestOperationalSnapshotPartialResourcesAndNoSecrets(t *testing.T) {
 	if body.Status != "partial" || body.Execution.Status != "running" || body.Resources.Goroutines < 1 || !body.Lock.Held {
 		t.Fatal(r.Body.String())
 	}
-	if strings.Contains(r.Body.String(), "token") || strings.Contains(r.Body.String(), "runId") {
+	if strings.Contains(r.Body.String(), "token") || strings.Contains(r.Body.String(), "private-secret") {
 		t.Fatal("secret exposure")
+	}
+	if body.Execution.RunID == nil || *body.Execution.RunID != "public-run-id" {
+		t.Fatal("real run identity missing")
 	}
 	metrics.LockReleased()
 	metrics.FinishRun(nil)

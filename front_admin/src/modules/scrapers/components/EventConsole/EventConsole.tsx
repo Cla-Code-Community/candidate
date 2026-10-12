@@ -31,8 +31,8 @@ export function EventConsole({ logs, onClear }: EventConsoleProps) {
       <div className="space-y-2 max-h-48 overflow-y-auto">
         {logs.length === 0 ? (
           <div className="text-slate-500 py-4 text-center italic">
-            Nenhum evento registrado ainda. Execute alguma alteração nos
-            scrapers para ver.
+            Nenhum evento registrado ainda. Solicite uma execução de
+            processamento para ver.
           </div>
         ) : (
           logs.map((log, i) => (

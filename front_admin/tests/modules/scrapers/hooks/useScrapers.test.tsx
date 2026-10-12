@@ -1,3 +1,4 @@
+import { operationalFixture } from "../../../fixtures/operationalSnapshot";
 import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -15,6 +16,13 @@ vi.mock("../../../../src/lib/api/scrapers.api", () => ({
     triggerOne: vi.fn(),
     clearJobsCache: vi.fn(),
   },
+}));
+
+vi.mock("../../../../src/modules/auth/hooks/useAuth", () => ({
+  useAuth: () => ({ isLoggedIn: { id: "test-admin", role: "super_admin" } }),
+}));
+vi.mock("../../../../src/modules/observability/hooks/useOperationalSnapshot", () => ({
+  useOperationalSnapshot: () => ({ snapshot: operationalFixture, stale: false, loading: false, forbidden: false, error: null, refresh: async () => {} }),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -70,6 +78,18 @@ const jobsPayload = {
 };
 
 describe("useScrapers", () => {
+  it("uses global counts even with a smaller unrelated preview", async () => {
+    vi.mocked(scrapersApi.jobsCount).mockResolvedValue({total:205,configuredProviders:["greenhouse","themuse"],sources:[{source:"Green House",provider:"greenhouse",total:200},{source:"LinkedIn",provider:"linkedin",total:4},{source:null,provider:"unknown",total:1}]});
+    const {result}=renderHook(()=>useScrapers(),{wrapper});
+    await waitFor(()=>expect(result.current.isLoading).toBe(false));
+    await waitFor(()=>expect(result.current.overview.loadedJobs).toBe(2));
+    expect(result.current.catalogInventory.find(row=>row.id==="greenhouse")?.catalogJobs).toBe(200);
+    expect(result.current.catalogInventory.find(row=>row.id==="themuse")?.catalogJobs).toBe(0);
+    expect(result.current.catalogInventory.some(row=>row.id==="lever")).toBe(false);
+    expect(result.current.overview.configuredSourcesCount).toBe(2);
+    expect(result.current.catalogInventory.reduce((sum,row)=>sum+(row.catalogJobs??0),0)).toBe(result.current.overview.catalogJobs);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(scrapersApi.list).mockResolvedValue(scraperList);
@@ -99,7 +119,7 @@ describe("useScrapers", () => {
 
     expect(result.current.scrapers[0]).toMatchObject({
       id: "Adzuna",
-      indexedJobs: 2,
+      catalogJobs: 2,
       status: "Ocioso",
     });
     expect(result.current.adapterStats[0].jobs).toBeGreaterThan(0);
@@ -112,7 +132,7 @@ describe("useScrapers", () => {
     expect(result.current.logs[0].text).toBe("Execução individual iniciada");
 
     act(() => result.current.pauseAll());
-    expect(result.current.logs[0].text).toContain("Pausar scrapers");
+    expect(result.current.logs[0].text).toContain("Pausar processamento");
 
     act(() => result.current.clearLogs());
     expect(result.current.logs).toEqual([]);
@@ -139,7 +159,7 @@ describe("useScrapers", () => {
     });
 
     expect(scrapersApi.clearJobsCache).toHaveBeenCalledTimes(1);
-    expect(result.current.logs[0].text).toContain("Cache de vagas limpo");
+    expect(result.current.logs[0].text).toContain("Cache legado: 4 chaves removidas");
   });
 
   it("handles list and trigger failures", async () => {
@@ -147,14 +167,14 @@ describe("useScrapers", () => {
 
     const { result } = renderHook(() => useScrapers(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    expect(result.current.error).toBe("Nao foi possivel carregar os dados dos scrapers.");
+    expect(result.current.error).toBe("Nao foi possivel carregar os dados do processamento.");
 
     vi.mocked(scrapersApi.trigger).mockRejectedValueOnce(new Error("fail"));
     await act(async () => {
       await result.current.startAll();
     });
 
-    expect(result.current.error).toBe("Nao foi possivel iniciar os scrapers.");
+    expect(result.current.error).toBe("Nao foi possivel iniciar o processamento.");
   });
 
   it("handles individual scraper trigger failures", async () => {
@@ -182,7 +202,7 @@ describe("useScrapers", () => {
     });
 
     expect(result.current.error).toBeNull();
-    expect(result.current.logs[0].text).toContain("Scraper ja esta em execucao");
+    expect(result.current.logs[0].text).toContain("Processamento ja esta em execucao");
   });
 
   it("does not trigger an active scraper and reports its running state", async () => {
@@ -198,7 +218,7 @@ describe("useScrapers", () => {
 
     expect(scrapersApi.triggerOne).not.toHaveBeenCalled();
     expect(result.current.logs[0].text).toBe("Adzuna ja esta em execucao.");
-    expect(await screen.findByText("Scraper já em execução")).toBeInTheDocument();
+    expect(await screen.findByText("Processamento já em execução")).toBeInTheDocument();
   });
 
   it("treats an individual 409 as recoverable and clears the starting state", async () => {
@@ -308,7 +328,7 @@ describe("useScrapers", () => {
     });
 
     expect(result.current.logs.map((entry) => entry.text)).toContain(
-      "Execucao dos scrapers iniciada.",
+      "Execucao do processamento iniciada.",
     );
     expect(result.current.logs.map((entry) => entry.text)).toContain(
       "Adzuna iniciado.",
@@ -326,6 +346,21 @@ describe("useScrapers", () => {
     });
 
     expect(result.current.error).toBe("Nao foi possivel limpar o cache de vagas.");
+  });
+
+  it("invalidates versioned search cache without clearing catalog or previews while refreshing", async () => {
+    const { result } = renderHook(() => useScrapers(), { wrapper });
+    await waitFor(() => expect(result.current.overview.loadedJobs).toBe(2));
+    vi.mocked(scrapersApi.clearJobsCache).mockResolvedValueOnce({ ok: true, deleted: 0, patterns: ["jobs:search:generation"] });
+    let resolve!: (value: typeof scraperList) => void;
+    vi.mocked(scrapersApi.list).mockReturnValueOnce(new Promise((r) => { resolve = r; }));
+    let clearing!: Promise<void>;
+    await act(async () => { clearing = result.current.clearJobsCache(); await Promise.resolve(); });
+    expect(result.current.overview.catalogJobs).toBe(2);
+    expect(result.current.jobPreviews).toHaveLength(2);
+    expect(result.current.logs[0].text).toBe("Cache de buscas invalidado. Catálogo e índice ativo preservados.");
+    await act(async () => { resolve(scraperList); await clearing; });
+    expect(result.current.isClearingJobsCache).toBe(false);
   });
 
   it("logs running state changes and job loading failures", async () => {
@@ -364,7 +399,7 @@ describe("useScrapers", () => {
     });
 
     expect(result.current.logs.map((entry) => entry.text)).toContain(
-      "Scheduler reportou scraper ocioso.",
+      "Scheduler reportou processamento ocioso.",
     );
   });
 });

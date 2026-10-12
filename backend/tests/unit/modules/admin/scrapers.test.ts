@@ -119,11 +119,7 @@ describe("scraperClient", () => {
       jobs: [],
       total: 0,
     });
-    await expect(scraperClient.getJobsCount()).resolves.toEqual({
-      ok: true,
-      jobs: [],
-      total: 0,
-    });
+    await expect(scraperClient.getJobsCount()).resolves.toEqual({ total: 0 });
     await expect(scraperClient.reprocessJobs()).resolves.toEqual({
       ok: true,
       jobs: [],

@@ -1,4 +1,6 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { ApiError } from "../../../src/lib/api/client";
+import { operationalFixture } from "../../fixtures/operationalSnapshot";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { observabilityApi } from "../../../src/lib/api/observability.api";
 import { ObservabilityPage } from "../../../src/modules/observability/ObservabilityPage";
@@ -6,10 +8,15 @@ import { renderWithProviders } from "../../test-utils";
 
 vi.mock("../../../src/lib/api/observability.api", () => ({
   observabilityApi: {
+    getOperationalSnapshot: vi.fn(),
     health: vi.fn(),
     metrics: vi.fn(),
     dashboards: vi.fn(),
   },
+}));
+
+vi.mock("../../../src/modules/auth/hooks/useAuth", () => ({
+  useAuth: () => ({ isLoggedIn: { role: "admin" } }),
 }));
 
 const dashboardsPayload = {
@@ -64,6 +71,7 @@ const dashboardsPayload = {
 describe("ObservabilityPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(observabilityApi.getOperationalSnapshot).mockResolvedValue(operationalFixture);
     vi.mocked(observabilityApi.health).mockResolvedValue({
       status: "ok",
       timestamp: "2026-01-01T10:00:00.000Z",
@@ -87,19 +95,40 @@ describe("ObservabilityPage", () => {
     renderWithProviders(<ObservabilityPage />);
 
     expect(screen.getByText("Carregando metricas...")).toBeInTheDocument();
-    await screen.findByText("Requisicoes por minuto");
+    await screen.findByRole("heading", { name: "Saúde geral" });
     await screen.findByText("Requests/sec");
 
-    expect(screen.getByText("Latencia p95")).toBeInTheDocument();
-    expect(screen.getByText("postgres")).toBeInTheDocument();
+    expect(screen.getByText("Latência p95")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Postgres" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Infraestrutura" }));
     expect(screen.getByText("Host")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "1 h" }));
     await waitFor(() =>
-      expect(observabilityApi.dashboards).toHaveBeenCalledWith("1h"),
+      expect(observabilityApi.dashboards).toHaveBeenCalledWith("1h", expect.any(AbortSignal)),
     );
+  });
+
+  it("keeps health, execution and pipeline before infrastructure, business and history", async () => {
+    renderWithProviders(<ObservabilityPage />);
+    await screen.findByText("Requests/sec");
+    const headings = screen.getAllByRole("heading", { level: 2 }).map(h => h.textContent);
+    expect(headings).toEqual(["Saúde geral", "Execução atual do Processor", "Pipeline", "Infraestrutura", "Business", "Histórico"]);
+    const health = screen.getByRole("region", { name: "Saúde geral" });
+    expect(within(health).getAllByRole("article")).toHaveLength(6);
+    expect(health.querySelector("svg")).toBeNull();
+  });
+
+  it("does not retry forbidden series when the range or refresh changes", async () => {
+    vi.mocked(observabilityApi.dashboards).mockRejectedValueOnce(new ApiError(403, {}));
+    renderWithProviders(<ObservabilityPage />);
+    await screen.findByText("Sem autorização para consultar este recurso.");
+    fireEvent.click(screen.getByRole("button", { name: "1 h" }));
+    await screen.findByText("Sem autorização para consultar este recurso.");
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
+    await waitFor(() => expect(observabilityApi.health).toHaveBeenCalledTimes(2));
+    expect(observabilityApi.dashboards).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("heading", { name: "Postgres" })).toBeInTheDocument();
   });
 
   it("shows errors and dashboard shells when APIs fail", async () => {
@@ -110,7 +139,7 @@ describe("ObservabilityPage", () => {
     renderWithProviders(<ObservabilityPage />);
 
     expect(
-      await screen.findByText("Nao foi possivel carregar a observabilidade."),
+      await screen.findByText(/Nao foi possivel carregar a observabilidade\./),
     ).toBeInTheDocument();
     expect(
       await screen.findByText(/Sem resposta das series detalhadas/),
@@ -141,9 +170,10 @@ describe("ObservabilityPage", () => {
 
     renderWithProviders(<ObservabilityPage />);
 
-    expect(await screen.findAllByText("N/D")).toHaveLength(3);
-    expect(screen.getByText("connection refused")).toBeInTheDocument();
-    expect(screen.getByText("degraded")).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Saúde geral" });
+    expect(screen.getAllByText("N/D").length).toBeGreaterThan(3);
+    expect(await screen.findByText("connection refused")).toBeInTheDocument();
+    expect(screen.getByText("Degradado")).toBeInTheDocument();
     expect(screen.queryByText("Requests/sec")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
@@ -165,16 +195,36 @@ describe("ObservabilityPage", () => {
 
     renderWithProviders(<ObservabilityPage />);
 
-    await screen.findByText("Requisicoes por minuto");
-    const latencyCard = screen.getByText("Latencia p95").parentElement;
-    const errorCard = screen.getByText("Taxa de erro").parentElement;
-    expect(latencyCard).toHaveTextContent("200ms");
-    expect(latencyCard?.querySelector("span.text-rose-600")).not.toBeNull();
+    await screen.findByRole("heading", { name: "Saúde geral" });
+    const latencyCard = await screen.findByRole("article", { name: "Latência p95" });
+    await waitFor(() => expect(latencyCard).toHaveTextContent("200 ms"));
+    const errorCard = screen.getByRole("article", { name: "Taxa de erro" });
+    expect(latencyCard.querySelector("p.text-rose-600")).not.toBeNull();
     expect(errorCard).toHaveTextContent("5%");
-    expect(errorCard?.querySelector("span.text-rose-600")).not.toBeNull();
+    expect(errorCard.querySelector("p.text-rose-600")).not.toBeNull();
   });
 
-  it("selects the first available dashboard when the prior selection is absent", async () => {
+  it("renders operational data despite Prometheus failure, preserving partial execution", async () => {
+    const processor = operationalFixture.processor!;
+    vi.mocked(observabilityApi.getOperationalSnapshot).mockResolvedValueOnce({
+      ...operationalFixture, status: "partial", processor: {
+        ...processor, status: "partial", execution: { ...processor.execution, status: "canceling", stage: "persistence" },
+        resources: { ...processor.resources, cpuPercent: 230 },
+      },
+    });
+    vi.mocked(observabilityApi.dashboards).mockRejectedValueOnce(new Error("Prometheus down"));
+    vi.mocked(observabilityApi.metrics).mockRejectedValueOnce(new Error("Prometheus down"));
+    renderWithProviders(<ObservabilityPage />);
+    await screen.findByText(/Sem resposta das series detalhadas/);
+    expect(await screen.findByText("Cancelando")).toBeInTheDocument();
+    expect(screen.getByText(/Etapa: Persistência/)).toBeInTheDocument();
+    expect(screen.getByText("230.0%")).toBeInTheDocument();
+    expect(screen.getByText(/Snapshot parcial/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Postgres" })).toBeInTheDocument();
+    expect(screen.queryByText("Vagas por rodada (apos dedup)")).not.toBeInTheDocument();
+  });
+
+  it("keeps sections and range controls when API history is absent", async () => {
     vi.mocked(observabilityApi.dashboards).mockResolvedValueOnce({
       ...dashboardsPayload,
       dashboards: [dashboardsPayload.dashboards[1]],
@@ -182,9 +232,9 @@ describe("ObservabilityPage", () => {
 
     renderWithProviders(<ObservabilityPage />);
 
-    expect(await screen.findByText("Infraestrutura")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Infraestrutura" })).toBeInTheDocument();
     expect(screen.getByText("Host")).toBeInTheDocument();
-    expect(screen.queryByText("API Overview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Requests/sec")).not.toBeInTheDocument();
 
     for (const [label, range] of [
       ["5 min", "5m"],
@@ -194,7 +244,7 @@ describe("ObservabilityPage", () => {
     ]) {
       fireEvent.click(screen.getByRole("button", { name: label }));
       await waitFor(() => {
-        expect(observabilityApi.dashboards).toHaveBeenCalledWith(range);
+        expect(observabilityApi.dashboards).toHaveBeenCalledWith(range, expect.any(AbortSignal));
       });
     }
   });

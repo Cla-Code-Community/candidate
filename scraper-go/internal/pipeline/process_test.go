@@ -12,6 +12,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/classifier"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -661,4 +662,62 @@ func TestProcessIncomingJobsDoesNotReconcileWithoutPersistedIDs(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, 1, stats.Failed)
 	assert.Equal(t, 0, stats.Indexed)
+}
+
+func TestRunSnapshotObservesProcessingWithoutChangingResults(t *testing.T) {
+	metrics.StartRun("manual", time.Now(), "pipeline-observation")
+	defer metrics.FinishRun(nil, "pipeline-observation")
+	cfg := processConfig{RunID: "pipeline-observation", ClassificationBatchSize: 10, PersistBatchSize: 10}
+	cfg.Persist = func(_ context.Context, jobs []domain.Job) (jobstore.SaveResult, error) {
+		return jobstore.SaveResult{Inserted: len(jobs), Persisted: jobs}, nil
+	}
+	rejected := inScopeJob(2)
+	rejected.Title = "Auxiliar Administrativo"
+	rejected.Description = "Rotinas administrativas e atendimento ao público"
+	invalid := domain.Job{Source: "gupy"}
+	got, _, err := processIncomingJobs(context.Background(), feedJobs(inScopeJob(1), rejected, invalid), cfg)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	s := metrics.Current()
+	require.NotNil(t, s.Classification)
+	require.NotNil(t, s.Persistence)
+	assert.Equal(t, 3, s.Classification.Received)
+	assert.Equal(t, 2, s.Classification.Classified)
+	assert.Equal(t, 1, s.Classification.Approved)
+	assert.Equal(t, 1, s.Classification.Rejected)
+	assert.Equal(t, 1, s.Classification.Invalid)
+	assert.Equal(t, 1, s.Persistence.Received)
+	assert.Equal(t, 1, s.Persistence.Inserted)
+}
+func TestRunSnapshotObservesTerminalPersistenceFailure(t *testing.T) {
+	metrics.StartRun("manual", time.Now(), "pipeline-failure")
+	defer metrics.FinishRun(errors.New("failure"), "pipeline-failure")
+	cfg := processConfig{RunID: "pipeline-failure", ClassificationBatchSize: 2, PersistBatchSize: 2}
+	cfg.Persist = func(context.Context, []domain.Job) (jobstore.SaveResult, error) {
+		return jobstore.SaveResult{}, errors.New("failure")
+	}
+	_, _, err := processIncomingJobs(context.Background(), feedJobs(inScopeJob(1), inScopeJob(2)), cfg)
+	require.Error(t, err)
+	p := metrics.Current().Persistence
+	require.NotNil(t, p)
+	assert.Equal(t, 2, p.Received)
+	assert.Equal(t, 2, p.Failed)
+	assert.Equal(t, 1, p.FailedBatches)
+	assert.Zero(t, p.Inserted)
+}
+
+func TestRunSnapshotProviderTracksRealScheduledTask(t *testing.T) {
+	metrics.StartRun("manual", time.Now(), "provider-pipeline")
+	defer metrics.FinishRun(nil, "provider-pipeline")
+	source := schedulerTestAdapter{provider: ports.ProviderGupy, search: func(context.Context, string) ([]domain.Job, error) { return []domain.Job{inScopeJob(1)}, nil }}
+	_, _, err := runWithConcurrency(context.Background(), []ports.JobSource{source}, domain.ScrapeRequest{Keywords: []string{"go"}, MaxConcurrency: 1}, 1, nil, processConfig{RunID: "provider-pipeline", ClassificationBatchSize: 1, PersistBatchSize: 1})
+	require.NoError(t, err)
+	providers := metrics.Current().Providers
+	require.Len(t, providers, 1)
+	assert.Equal(t, "gupy", providers[0].ID)
+	assert.Equal(t, 1, providers[0].TasksTotal)
+	assert.Equal(t, 1, providers[0].TasksCompleted)
+	assert.Equal(t, 1, providers[0].JobsCollected)
+	assert.Equal(t, "success", *providers[0].LastTaskStatus)
+	assert.Zero(t, providers[0].Active)
 }

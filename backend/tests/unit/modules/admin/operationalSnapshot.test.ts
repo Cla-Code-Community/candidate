@@ -179,3 +179,35 @@ it("honors the internal deadline signal and returns partial after abort", async 
   timeout.mockRestore();
   vi.unstubAllGlobals();
 });
+
+const classification = { received: 3, classified: 2, approved: 1, rejected: 1, invalid: 1 };
+const persistence = { received: 1, inserted: 1, updated: 0, skipped: 0, failed: 0, failedBatches: 0 };
+const provider = { id: "greenhouse", configuredConcurrency: 2, active: 0, waiting: 0, tasksTotal: 2, tasksCompleted: 1, tasksFailed: 0, tasksCanceled: 0, jobsCollected: 3, lastTaskStatus: "success", lastTaskFinishedAt: now, lastTaskDurationSeconds: 1, lastErrorType: null };
+describe("per-execution additive contract", () => {
+  it("accepts the old Processor and preserves absence instead of inventing zero", () => {
+    const result = ProcessorSnapshotSchema.parse(fixture);
+    expect(result).toMatchObject({ providers: null, classification: null, persistence: null, execution: { runId: null } });
+  });
+  it.each(["running", "completed", "failed"])("forwards real totals and identity for %s", async (status) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ...fixture, execution: { ...fixture.execution, status, runId: "real-lease-id", startedAt: now, finishedAt: status === "running" ? null : now }, providers: [{ ...provider, token: "private-secret", error: "private-secret" }], classification, persistence }) }));
+    const result = await new ObservabilityService({} as any, {} as any).getOperationalSnapshot();
+    expect(result.processor).toMatchObject({ execution: { runId: "real-lease-id", status }, classification, persistence, providers: [provider] });
+    expect(JSON.stringify(result)).not.toContain("private-secret");
+  });
+  it("keeps explicit zero, known empty plan and unavailable totals distinct", () => {
+    const result = ProcessorSnapshotSchema.parse({ ...fixture, providers: [], classification: { received: 0, classified: 0, approved: 0, rejected: 0, invalid: 0 }, persistence: null });
+    expect(result.providers).toEqual([]);
+    expect(result.classification?.classified).toBe(0);
+    expect(result.persistence).toBeNull();
+  });
+  it.each([
+    { providers: [{ ...provider, id: "company-secret" }] },
+    { providers: Array(10).fill(provider) },
+    { providers: [provider, provider] },
+    { providers: [{ ...provider, lastErrorType: "password-secret" }] },
+    { classification: { ...classification, received: -1 } },
+    { persistence: { ...persistence, failed: 0.5 } },
+  ])("rejects unbounded or invalid new state %j", (patch) => {
+    expect(ProcessorSnapshotSchema.safeParse({ ...fixture, ...patch }).success).toBe(false);
+  });
+});

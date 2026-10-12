@@ -15,10 +15,10 @@ const dashboardState = {
     totalJobs: { value: 12345, trend: "índice Valkey", positive: true },
     jobsToday: { value: 99, trend: "coletadas hoje", positive: false },
   },
-  resources: { scraper: 99, postgres: 65, valkey: 0 },
+  resources: { scraper: "ok", postgres: "degraded", valkey: "down" },
   services: [
-    { name: "Postgres", status: "Online", sla: "10ms", health: 99, tone: "success" as const },
-    { name: "Valkey", status: "Instavel", sla: "slow", health: 65, tone: "warning" as const },
+    { name: "Postgres", status: "Online", sla: "10ms", health: "ok", tone: "success" as const },
+    { name: "Valkey", status: "Instavel", sla: "slow", health: "degraded", tone: "warning" as const },
   ],
   scrapers: [
     {
@@ -26,7 +26,7 @@ const dashboardState = {
       name: "Adzuna",
       status: "Disponivel",
       lastRun: "Hoje",
-      collected24h: 1540,
+      catalogJobs: 1540,
       active: false,
     },
   ],
@@ -69,7 +69,7 @@ describe("DashboardPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Atualizar" }));
     expect(dashboardState.refresh).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByTitle("Iniciar Scraper"));
+    fireEvent.click(screen.getByTitle("Iniciar processamento"));
     expect(dashboardState.toggleScraper).toHaveBeenCalledWith("adzuna");
   });
 

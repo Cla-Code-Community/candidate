@@ -11,7 +11,7 @@ export function ScraperTable({ scrapers, onToggle, onConfigure }: ScraperTablePr
   if (scrapers.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-slate-200 p-6 text-center text-xs font-semibold text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        Nenhum scraper retornado pelo backend.
+        Nenhum processamento retornado pelo backend.
       </div>
     );
   }
@@ -21,10 +21,10 @@ export function ScraperTable({ scrapers, onToggle, onConfigure }: ScraperTablePr
       <table className="w-full text-left text-xs">
         <thead>
           <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500 font-bold">
-            <th className="pb-3 font-semibold">Scraper</th>
+            <th className="pb-3 font-semibold">Processamento</th>
             <th className="pb-3 font-semibold">Status</th>
             <th className="pb-3 font-semibold">Última Execução</th>
-            <th className="pb-3 font-semibold">Vagas no Índice</th>
+            <th className="pb-3 font-semibold">Vagas no catálogo</th>
             <th className="pb-3 font-semibold text-right">Ações</th>
           </tr>
         </thead>

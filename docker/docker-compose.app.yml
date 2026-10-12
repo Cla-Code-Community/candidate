@@ -1,0 +1,120 @@
+services:
+  scraper-go:
+    build:
+      context: ./scraper-go
+      dockerfile: Dockerfile
+    container_name: vagas-scraper-go
+    cpus: 1.5
+    mem_limit: 2g
+    env_file:
+      - ./.env
+    volumes:
+      - ./.env:/app/.env:ro
+    environment:
+      - GO_SCRAPER_ADDR=:8081
+      - VALKEY_URL=redis://valkey:6379/0
+      - SCRAPER_MAX_CONCURRENCY=${SCRAPER_MAX_CONCURRENCY-12}
+      - SCRAPER_PROVIDER_MAX_CONCURRENCY=${SCRAPER_PROVIDER_MAX_CONCURRENCY-2}
+      - SCRAPER_PROVIDER_CONCURRENCY_OVERRIDES=${SCRAPER_PROVIDER_CONCURRENCY_OVERRIDES-}
+      - SCRAPER_RUN_LOCK_TTL=${SCRAPER_RUN_LOCK_TTL-120s}
+      - SCRAPER_RUN_LOCK_RENEW_INTERVAL=${SCRAPER_RUN_LOCK_RENEW_INTERVAL-30s}
+      - SCRAPER_CLASSIFICATION_BATCH_SIZE=${SCRAPER_CLASSIFICATION_BATCH_SIZE-100}
+      - SCRAPER_PERSIST_BATCH_SIZE=${SCRAPER_PERSIST_BATCH_SIZE-100}
+      - SCRAPER_INDEX_BATCH_SIZE=${SCRAPER_INDEX_BATCH_SIZE-250}
+      - SCRAPER_CATALOG_LIFETIME=${SCRAPER_CATALOG_LIFETIME-216h}
+      - APPLICATION_VERSION=${APPLICATION_VERSION-unknown}
+      - GOMAXPROCS=${GOMAXPROCS:-2}
+      - GOMEMLIMIT=${GOMEMLIMIT:-1500MiB}
+      - GUPY_ENABLED=${GUPY_ENABLED:-true}
+      - GUPY_RAW_DISCOVERY_ENABLED=${GUPY_RAW_DISCOVERY_ENABLED:-true}
+      - GUPY_FULL_SWEEP_ENABLED=${GUPY_FULL_SWEEP_ENABLED:-true}
+      - GUPY_FULL_REMOTE_SWEEP_ENABLED=${GUPY_FULL_REMOTE_SWEEP_ENABLED:-true}
+      - INHIRE_ENABLED=${INHIRE_ENABLED:-true}
+      - INHIRE_TENANTS_FILE=/app/internal/interfaces/inhireTenants.json
+      - INHIRE_ENRICH_DETAILS=${INHIRE_ENRICH_DETAILS:-false}
+      - INHIRE_DETAILS_MODE=${INHIRE_DETAILS_MODE:-ambiguous}
+      - INHIRE_DETAILS_TIMEOUT_MS=${INHIRE_DETAILS_TIMEOUT_MS:-10000}
+      - GREENHOUSE_ENABLED=${GREENHOUSE_ENABLED:-true}
+      - GREENHOUSE_COMPANIES_FILE=/app/internal/interfaces/greenhouseCompanies.json
+      - LEVER_ENABLED=${LEVER_ENABLED:-false}
+      - LEVER_COMPANIES_FILE=/app/internal/interfaces/leverCompanies.json
+      - LEVER_INCLUDE_ALL_JOBS=${LEVER_INCLUDE_ALL_JOBS:-true}
+    expose:
+      - "8081"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://localhost:8081/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    networks:
+      - vagas-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      target: backend
+    container_name: vagas-backend
+    env_file:
+      - ./.env
+    environment:
+      - PORT=3001
+      - JOB_SEARCH_CACHE_TTL_SECONDS=${JOB_SEARCH_CACHE_TTL_SECONDS-120}
+      - PROMETHEUS_URL=http://prometheus:9090
+      - SCRAPER_URL=http://scraper-go:8081
+      - GO_SCRAPER_URL=http://scraper-go:8081
+      - KEYWORDS_STORAGE_MODE=${KEYWORDS_STORAGE_MODE:-env}
+      - CACHE_TTL_MS=${CACHE_TTL_MS:-600000}
+      - REDIS_KEY_PREFIX=${REDIS_KEY_PREFIX:-vagas-full}
+    volumes:
+      - ./backend/output:/app/output
+    ports:
+      - "3001:3001"
+    depends_on:
+      scraper-go:
+        condition: service_healthy
+    networks:
+      - vagas-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      target: frontend-runtime
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_APP_ENV: ${VITE_APP_ENV:-production}
+    container_name: vagas-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - vagas-net
+    restart: unless-stopped
+
+  front_admin:
+    build:
+      context: .
+      dockerfile: docker/node.Dockerfile
+      target: front-admin-runtime
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_APP_ENV: ${VITE_APP_ENV:-production}
+    container_name: vagas-front-admin
+    ports:
+      - "5174:80"
+    depends_on:
+      - backend
+    networks:
+      - vagas-net
+    restart: unless-stopped
+
+networks:
+  vagas-net:
+    external: true
