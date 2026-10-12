@@ -2,11 +2,14 @@
 package catalog
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"reflect"
 	"sort"
 	"time"
 
@@ -41,6 +44,18 @@ func (s *Store) Import(ctx context.Context, jobs []domain.Job) (jobstore.SaveRes
 }
 func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (result jobstore.SaveResult, returnErr error) {
 	started := time.Now()
+	var preparation, begin, lock, readExisting, decode, mergeCompare, serialization, refreshUpdate, upsert, returningDecode, commit time.Duration
+	defer func() {
+		slog.Info("catalog persist attempt", "stage", "catalog_persist", "importing", importing,
+			"received", len(jobs), "created", result.Inserted, "real_updated", result.RealUpdated,
+			"refreshed", result.Refreshed, "reactivated", result.Reactivated,
+			"status", metrics.BatchStatus(returnErr), "preparation_duration", preparation,
+			"begin_duration", begin, "lock_duration", lock, "read_existing_duration", readExisting,
+			"decode_duration", decode, "merge_compare_duration", mergeCompare,
+			"serialization_duration", serialization, "refresh_update_duration", refreshUpdate,
+			"upsert_duration", upsert, "returning_decode_duration", returningDecode,
+			"commit_duration", commit, "duration", time.Since(started))
+	}()
 	defer func() {
 		metrics.ObservePersistence(started, len(jobs), result.Inserted, result.Updated, len(jobs)-len(result.Persisted), returnErr)
 	}()
@@ -74,7 +89,10 @@ func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (re
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
+	preparation = time.Since(started)
+	phase := time.Now()
 	tx, err := s.DB.BeginTx(ctx, nil)
+	begin = time.Since(phase)
 	if err != nil {
 		return result, fmt.Errorf("catalog begin: %w", err)
 	}
@@ -84,28 +102,55 @@ func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (re
 			metrics.PersistenceRollbacks.WithLabelValues(metrics.PersistenceErrorReason(returnErr)).Inc()
 		}
 	}()
+	phase = time.Now()
 	// Fence absent IDs as well, so concurrent inserts preserve merge semantics.
-	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(id,125)) FROM (SELECT unnest($1::text[]) AS id ORDER BY 1) AS ordered_ids`, pq.Array(ids)); err != nil {
+	_, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(id,125)) FROM (SELECT unnest($1::text[]) AS id ORDER BY 1) AS ordered_ids`, pq.Array(ids))
+	lock = time.Since(phase)
+	if err != nil {
 		return result, err
 	}
+	phase = time.Now()
 	// Sorted locking avoids deadlocks between overlapping collection batches.
-	rows, err := tx.QueryContext(ctx, `SELECT id,payload FROM job_catalog WHERE id=ANY($1) ORDER BY id FOR UPDATE`, pq.Array(ids))
+	rows, err := tx.QueryContext(ctx, `SELECT id,payload,expires_at FROM job_catalog WHERE id=ANY($1) ORDER BY id FOR UPDATE`, pq.Array(ids))
+	readExisting = time.Since(phase)
 	if err != nil {
 		return result, fmt.Errorf("catalog read batch: %w", err)
 	}
 	existing := map[string]domain.Job{}
-	for rows.Next() {
+	comparable := map[string]bool{}
+	for {
+		phase = time.Now()
+		more := rows.Next()
+		readExisting += time.Since(phase)
+		if !more {
+			break
+		}
 		var id string
 		var raw []byte
-		if err = rows.Scan(&id, &raw); err != nil {
+		var expires time.Time
+		phase = time.Now()
+		if err = rows.Scan(&id, &raw, &expires); err != nil {
 			rows.Close()
 			return result, err
 		}
+		readExisting += time.Since(phase)
+		phase = time.Now()
 		var j domain.Job
-		if err = json.Unmarshal(raw, &j); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(raw))
+		decoder.DisallowUnknownFields()
+		comparable[id] = decoder.Decode(&j) == nil
+		// Unknown persisted fields must force a full rewrite, never a false refresh.
+		if !comparable[id] {
+			err = json.Unmarshal(raw, &j)
+		} else {
+			err = nil
+		}
+		if err != nil {
 			rows.Close()
 			return result, fmt.Errorf("catalog decode: %w", err)
 		}
+		decode += time.Since(phase)
+		j.CatalogExpiresAt = expires
 		existing[id] = j
 	}
 	err = rows.Err()
@@ -116,10 +161,27 @@ func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (re
 	now := s.Now().UTC()
 	payloads := make([]json.RawMessage, 0, len(ids))
 	expiry := make([]string, 0, len(ids))
+	refreshIDs := make([]string, 0, len(ids))
+	changes := make(map[string]string, len(ids))
 	for _, id := range ids {
+		phase = time.Now()
 		job := byID[id]
+		change := "job_created"
 		if old, ok := existing[id]; ok && !importing {
 			job = jobstore.MergeStored(old, job)
+			change = "job_updated"
+			if !old.CatalogExpiresAt.After(now) {
+				change = "job_reactivated"
+			} else if comparable[id] && sameContent(old, job) {
+				change = "job_refreshed"
+			}
+		}
+		mergeCompare += time.Since(phase)
+		changes[id] = change
+		if change == "job_refreshed" {
+			byID[id] = job
+			refreshIDs = append(refreshIDs, id)
+			continue
 		}
 		end := now.Add(s.Lifetime)
 		if importing {
@@ -129,46 +191,134 @@ func (s *Store) save(ctx context.Context, jobs []domain.Job, importing bool) (re
 				continue
 			}
 		}
+		phase = time.Now()
 		raw, e := json.Marshal(job)
+		serialization += time.Since(phase)
 		if e != nil {
 			return result, e
 		}
 		payloads = append(payloads, raw)
 		expiry = append(expiry, end.Format(time.RFC3339Nano))
 	}
-	if len(payloads) == 0 {
-		return jobstore.SaveResult{Invalid: result.Invalid}, nil
-	}
-	raw, _ := json.Marshal(payloads)
-	conflict := `DO UPDATE SET payload=EXCLUDED.payload,last_seen_at=EXCLUDED.last_seen_at,updated_at=EXCLUDED.updated_at,expires_at=EXCLUDED.expires_at,revision=nextval('job_catalog_revision_seq')`
-	if importing {
-		conflict = `DO NOTHING`
-	}
-	rows, err = tx.QueryContext(ctx, `INSERT INTO job_catalog(id,payload,first_seen_at,last_seen_at,updated_at,expires_at)
- SELECT p->>'id',p,$2,$2,$2,e::timestamptz FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS t(p,n) JOIN unnest($3::text[]) WITH ORDINALITY AS x(e,n) USING(n)
- ON CONFLICT(id) `+conflict+` RETURNING payload,revision,expires_at`, string(raw), now, pq.Array(expiry))
-	if err != nil {
-		return result, fmt.Errorf("catalog upsert: %w", err)
-	}
-	persisted, err := decodeRows(rows)
-	if err != nil {
-		return result, err
-	}
-	if err = tx.Commit(); err != nil {
-		return jobstore.SaveResult{Invalid: result.Invalid}, fmt.Errorf("catalog commit: %w", err)
-	}
-	for i, j := range persisted {
-		if _, ok := existing[j.ID]; ok {
-			result.Updated++
-			persisted[i].CatalogChange = "job_updated"
-		} else {
-			result.Inserted++
-			persisted[i].CatalogChange = "job_created"
+	// Refresh keeps a new mutation revision (and durable pending checkpoint),
+	// but neither serializes nor assigns payload. updated_at retains its existing
+	// meaning: time of the latest catalog mutation, including freshness.
+	persisted := make([]domain.Job, 0, len(ids))
+	if len(refreshIDs) > 0 {
+		phase = time.Now()
+		rows, err = tx.QueryContext(ctx, `UPDATE job_catalog SET last_seen_at=$2,updated_at=$2,expires_at=$3,revision=nextval('job_catalog_revision_seq') WHERE id=ANY($1) RETURNING id,revision,expires_at`, pq.Array(refreshIDs), now, now.Add(s.Lifetime))
+		if err != nil {
+			refreshUpdate = time.Since(phase)
+			return result, fmt.Errorf("catalog refresh: %w", err)
+		}
+		for rows.Next() {
+			var id string
+			var revision int64
+			var end time.Time
+			if err = rows.Scan(&id, &revision, &end); err != nil {
+				rows.Close()
+				return result, err
+			}
+			job := byID[id]
+			job.CatalogRevision, job.CatalogExpiresAt = revision, end
+			persisted = append(persisted, job)
+		}
+		err = rows.Err()
+		rows.Close()
+		refreshUpdate = time.Since(phase)
+		if err != nil {
+			return result, err
+		}
+		if len(persisted) != len(refreshIDs) {
+			return result, fmt.Errorf("catalog refresh returned incomplete batch")
 		}
 	}
+	if len(payloads) > 0 {
+		phase = time.Now()
+		raw, e := json.Marshal(payloads)
+		serialization += time.Since(phase)
+		if e != nil {
+			return result, e
+		}
+		conflict := `DO UPDATE SET payload=EXCLUDED.payload,last_seen_at=EXCLUDED.last_seen_at,updated_at=EXCLUDED.updated_at,expires_at=EXCLUDED.expires_at,revision=nextval('job_catalog_revision_seq')`
+		if importing {
+			conflict = `DO NOTHING`
+		}
+		phase = time.Now()
+		rows, err = tx.QueryContext(ctx, `INSERT INTO job_catalog(id,payload,first_seen_at,last_seen_at,updated_at,expires_at)
+ SELECT p->>'id',p,$2,$2,$2,e::timestamptz FROM jsonb_array_elements($1::jsonb) WITH ORDINALITY AS t(p,n) JOIN unnest($3::text[]) WITH ORDINALITY AS x(e,n) USING(n)
+ ON CONFLICT(id) `+conflict+` RETURNING payload,revision,expires_at`, string(raw), now, pq.Array(expiry))
+		upsert = time.Since(phase)
+		if err != nil {
+			return result, fmt.Errorf("catalog upsert: %w", err)
+		}
+		phase = time.Now()
+		applied, e := decodeRows(rows)
+		returningDecode = time.Since(phase)
+		if e != nil {
+			return result, e
+		}
+		persisted = append(persisted, applied...)
+	}
+	phase = time.Now()
+	err = tx.Commit()
+	commit = time.Since(phase)
+	if err != nil {
+		return jobstore.SaveResult{Invalid: result.Invalid}, fmt.Errorf("catalog commit: %w", err)
+	}
+	result.ContentChangeDetectionAvailable = !importing
+	for i, j := range persisted {
+		change := changes[j.ID]
+		persisted[i].CatalogChange = change
+		switch change {
+		case "job_created":
+			result.Inserted++
+		case "job_updated":
+			result.Updated++
+			result.RealUpdated++
+		case "job_refreshed":
+			result.Updated++
+			result.Refreshed++
+		case "job_reactivated":
+			result.Updated++
+			result.Reactivated++
+		}
+	}
+	// Keep a deterministic batch result independent of SQL RETURNING order.
+	sort.Slice(persisted, func(i, j int) bool { return persisted[i].ID < persisted[j].ID })
 	result.Persisted = persisted
 	return result, nil
 }
+
+// sameContent compares all modeled JSON content after MergeStored. Only the
+// json:"-" catalog metadata is excluded. Sources/Keywords (including nil vs
+// empty) and every classification array retain order: no sorting or dedup of
+// semantic contributions. Empty omitempty classification arrays serialize alike.
+// The strict reader above forces updates for unknown persisted JSON fields.
+func sameContent(a, b domain.Job) bool {
+	a.CatalogChange, b.CatalogChange = "", ""
+	a.CatalogRevision, b.CatalogRevision = 0, 0
+	a.CatalogExpiresAt, b.CatalogExpiresAt = time.Time{}, time.Time{}
+	canonical := func(c *domain.Classification) *domain.Classification {
+		if c == nil {
+			return nil
+		}
+		copy := *c
+		if len(copy.RelatedFamilies) == 0 {
+			copy.RelatedFamilies = nil
+		}
+		if len(copy.Technologies) == 0 {
+			copy.Technologies = nil
+		}
+		if len(copy.Reasons) == 0 {
+			copy.Reasons = nil
+		}
+		return &copy
+	}
+	a.Classification, b.Classification = canonical(a.Classification), canonical(b.Classification)
+	return reflect.DeepEqual(a, b)
+}
+
 func decodeRows(rows *sql.Rows) ([]domain.Job, error) {
 	defer rows.Close()
 	jobs := []domain.Job{}

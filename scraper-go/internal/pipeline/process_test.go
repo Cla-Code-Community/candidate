@@ -978,3 +978,69 @@ func TestClassifyPersistLogSeparatesStageDurations(t *testing.T) {
 		})
 	}
 }
+
+func TestRefreshedProjectionUsesConfirmedFullFallback(t *testing.T) {
+	for _, failure := range []string{"none", "checkpoint", "valkey", "lost_reply"} {
+		t.Run(failure, func(t *testing.T) {
+			output := captureIndexLogs(t)
+			mr := miniredis.RunT(t)
+			rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			t.Cleanup(func() { rdb.Close() })
+			catalog := &observedCatalog{}
+			if failure == "checkpoint" {
+				catalog.markErr = errors.New("checkpoint failed")
+			}
+			if failure == "valkey" {
+				require.NoError(t, rdb.Set(context.Background(), "scraper:jobs:index", "wrong type", 0).Err())
+			}
+			if failure == "lost_reply" {
+				rdb.AddHook(&lostReplyHook{})
+			}
+			j := committedIndexJob()
+			j.CatalogChange = "job_refreshed"
+			j.CatalogRevision = 2
+			cfg := processConfig{Store: jobstore.NewDurable(rdb, catalog), RDB: rdb}
+			stats := ProcessStats{ContentChangeDetectionAvailable: true}
+			err := indexPersistedChunk(context.Background(), cfg, 1, []domain.Job{j}, &stats)
+			record := lastIndexLog(t, output)
+			require.Equal(t, "full", record["projection_mode"])
+			require.Equal(t, float64(1), record["refresh_fallback_full"])
+			require.Equal(t, float64(0), record["refresh_projection"])
+			if failure == "valkey" {
+				require.Error(t, err)
+				require.Zero(t, catalog.marks)
+				require.Equal(t, "not_attempted", record["checkpoint_status"])
+			} else {
+				require.Equal(t, 1, catalog.marks)
+				if failure == "checkpoint" {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+			}
+		})
+	}
+}
+
+func TestPersistDetectedOutcomesAreCountedOnlyAfterSuccess(t *testing.T) {
+	cfg := processConfig{PersistBatchSize: 4, Persist: func(context.Context, []domain.Job) (jobstore.SaveResult, error) {
+		return jobstore.SaveResult{Inserted: 1, Updated: 3, RealUpdated: 1, Refreshed: 1, Reactivated: 1, ContentChangeDetectionAvailable: true, Persisted: []domain.Job{committedIndexJob()}}, nil
+	}}
+	stats := ProcessStats{}
+	_, created, existing, err := persistJobs(context.Background(), cfg, 1, []domain.Job{committedIndexJob()}, &stats)
+	require.NoError(t, err)
+	require.Equal(t, 1, created)
+	require.Equal(t, 3, existing)
+	require.Equal(t, 1, stats.RealUpdated)
+	require.Equal(t, 1, stats.Refreshed)
+	require.Equal(t, 1, stats.Reactivated)
+	require.True(t, stats.ContentChangeDetectionAvailable)
+	cfg.Persist = func(context.Context, []domain.Job) (jobstore.SaveResult, error) {
+		return jobstore.SaveResult{Refreshed: 1, ContentChangeDetectionAvailable: true}, errors.New("commit failed")
+	}
+	stats = ProcessStats{}
+	_, _, _, err = persistJobs(context.Background(), cfg, 1, []domain.Job{committedIndexJob()}, &stats)
+	require.Error(t, err)
+	require.Zero(t, stats.Refreshed)
+	require.False(t, stats.ContentChangeDetectionAvailable)
+}

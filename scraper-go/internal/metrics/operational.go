@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
@@ -216,7 +217,8 @@ var IndexRetries = counter("candidate_scraper_index_retries_total", "reason")
 var CatalogCommittedJobs = counter("candidate_scraper_catalog_committed_jobs_total", "result")
 
 // Unsupported measurements are explicitly unavailable, rather than reported
-// as zero observed jobs. No content comparison or refresh protocol exists yet.
+// as zero observed jobs. Enabled after the durable catalog confirms detection.
+var contentDetectionAvailable atomic.Bool
 var unavailableMeasurements = []string{"real_update", "refreshed"}
 
 func init() {
@@ -224,7 +226,12 @@ func init() {
 		promauto.NewGaugeFunc(prometheus.GaugeOpts{
 			Name: "candidate_scraper_measurement_available", Help: "Whether an outcome or timing is measured by this implementation",
 			ConstLabels: prometheus.Labels{"kind": measurement},
-		}, func() float64 { return 0 })
+		}, func() float64 {
+			if contentDetectionAvailable.Load() {
+				return 1
+			}
+			return 0
+		})
 	}
 }
 
@@ -235,4 +242,14 @@ func ObserveStage(stage string, elapsed time.Duration, err error) {
 func ObserveCommittedJobs(created, existingUpsert int) {
 	CatalogCommittedJobs.WithLabelValues("created").Add(float64(created))
 	CatalogCommittedJobs.WithLabelValues("existing_upsert").Add(float64(existingUpsert))
+}
+
+// ObserveCommittedContent is called only for committed, detected catalog outcomes.
+// The existing_upsert aggregate is emitted only without detection: outcome
+// series are exclusive, so summing result labels never double-counts commits.
+func ObserveCommittedContent(realUpdated, refreshed, reactivated int) {
+	contentDetectionAvailable.Store(true)
+	CatalogCommittedJobs.WithLabelValues("real_updated").Add(float64(realUpdated))
+	CatalogCommittedJobs.WithLabelValues("refreshed").Add(float64(refreshed))
+	CatalogCommittedJobs.WithLabelValues("reactivated").Add(float64(reactivated))
 }

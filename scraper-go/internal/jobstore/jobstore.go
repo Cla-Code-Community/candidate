@@ -39,14 +39,19 @@ func New(rdb *redis.Client) *Store {
 }
 
 // SaveResult is the outcome of one persist batch.
-// Conflict strategy: existing IDs are upserted in a single MULTI/EXEC.
+// Durable persistence distinguishes content/lifecycle changes from freshness;
+// legacy persistence upserts existing IDs in a single MULTI/EXEC.
 // Allowed updates: description, URL, salary, postedAt, modality, location,
 // classification, and merged sources/keywords. The stable ID is preserved.
 type SaveResult struct {
-	Inserted  int
-	Updated   int
-	Invalid   int
-	Persisted []domain.Job
+	Inserted                        int
+	Updated                         int // Legacy total: real updates + refreshes + reactivations.
+	RealUpdated                     int
+	Refreshed                       int
+	Reactivated                     int
+	ContentChangeDetectionAvailable bool
+	Invalid                         int
+	Persisted                       []domain.Job
 }
 
 // SaveBatch returns only committed durable rows; the legacy adapter remains for migration/tests.

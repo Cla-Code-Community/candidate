@@ -34,17 +34,21 @@ type processConfig struct {
 }
 
 type ProcessStats struct {
-	Received   int
-	Valid      int
-	Invalid    int
-	Duplicates int
-	Classified int
-	Approved   int
-	Rejected   int
-	Inserted   int
-	Updated    int
-	Indexed    int // Successful input jobs, including idempotent skips; retained for compatibility.
-	Failed     int
+	Received                        int
+	Valid                           int
+	Invalid                         int
+	Duplicates                      int
+	Classified                      int
+	Approved                        int
+	Rejected                        int
+	Inserted                        int
+	Updated                         int
+	RealUpdated                     int
+	Refreshed                       int
+	Reactivated                     int
+	ContentChangeDetectionAvailable bool
+	Indexed                         int // Successful input jobs, including idempotent skips; retained for compatibility.
+	Failed                          int
 }
 
 func (s ProcessStats) Saved() int {
@@ -324,7 +328,8 @@ func processIncomingJobs(
 				"rejected", stats.Rejected,
 				"inserted", stats.Inserted,
 				"existing_upsert", stats.Updated,
-				"content_change_detection_available", false,
+				"created", stats.Inserted, "real_updated", stats.RealUpdated, "refreshed", stats.Refreshed, "reactivated", stats.Reactivated,
+				"content_change_detection_available", stats.ContentChangeDetectionAvailable,
 				"saved", stats.Saved(),
 				"index_completed_inputs", stats.Indexed,
 				"failed", stats.Failed,
@@ -458,6 +463,8 @@ func processStageBatch(
 	classificationDuration := time.Since(classificationStarted)
 	var persistenceDuration time.Duration
 	persisted := approved
+	before := *stats
+	batchDetection := false
 	batchInserted := 0
 	batchUpdated := 0
 	var persistErr error
@@ -469,6 +476,7 @@ func processStageBatch(
 		stats.Inserted += batchInserted
 		stats.Updated += batchUpdated
 		persisted = written
+		batchDetection = len(written) > 0 && stats.ContentChangeDetectionAvailable
 	} else {
 		for i := range persisted {
 			if persisted[i].ID == "" {
@@ -490,7 +498,9 @@ func processStageBatch(
 		"rejected", rejected,
 		"inserted", batchInserted,
 		"existing_upsert", batchUpdated,
-		"content_change_detection_available", false,
+		"created", batchInserted, "real_updated", stats.RealUpdated-before.RealUpdated,
+		"refreshed", stats.Refreshed-before.Refreshed, "reactivated", stats.Reactivated-before.Reactivated,
+		"content_change_detection_available", batchDetection,
 		"validation_duration", validationDuration,
 		"classification_duration", classificationDuration,
 		"persistence_duration", persistenceDuration,
@@ -537,7 +547,18 @@ func persistJobs(
 			return written, inserted, updated, err
 		}
 		if cfg.Persist == nil && cfg.Store.Durable() {
-			metrics.ObserveCommittedJobs(result.Inserted, result.Updated)
+			legacyExisting := result.Updated
+			if result.ContentChangeDetectionAvailable {
+				legacyExisting = 0
+			}
+			metrics.ObserveCommittedJobs(result.Inserted, legacyExisting)
+		}
+		if result.ContentChangeDetectionAvailable {
+			stats.ContentChangeDetectionAvailable = true
+			stats.RealUpdated += result.RealUpdated
+			stats.Refreshed += result.Refreshed
+			stats.Reactivated += result.Reactivated
+			metrics.ObserveCommittedContent(result.RealUpdated, result.Refreshed, result.Reactivated)
 		}
 		inserted += result.Inserted
 		updated += result.Updated
@@ -580,9 +601,17 @@ func indexPersistedChunk(
 		attrs := []any{"run_id", cfg.RunID, "stage", "index", "batch", batchNo, "index_path", indexPath,
 			"received", len(jobs), "duration", elapsed.Round(time.Millisecond), "status", metrics.BatchStatus(err),
 			"checkpoint_status", checkpointStatus, "mark_indexed_duration", markDuration,
-			"content_change_detection_available", false, "refresh_projection_available", false}
+			"content_change_detection_available", stats.ContentChangeDetectionAvailable, "refresh_projection_available", false}
 		if indexPath == "durable" {
-			attrs = append(attrs, "result_confirmed", observed.Confirmed, "full_applied", observed.FullApplied,
+			refreshFallback := 0
+			for _, job := range jobs {
+				if job.CatalogChange == "job_refreshed" {
+					refreshFallback++
+				}
+			}
+			attrs = append(attrs, "projection_mode", "full", "refresh_projection", 0,
+				"refresh_fallback_full", refreshFallback, "refresh_fallback_reason", "light_refresh_not_implemented",
+				"result_confirmed", observed.Confirmed, "full_applied", observed.FullApplied,
 				"removed", observed.Removed, "skipped", observed.Skipped, "attempts", attempts, "retries", max(0, attempts-1),
 				"prior_attempt_unconfirmed", priorUnconfirmed, "failure_stage", observed.FailureStage,
 				"index_keys_duration", indexKeysDuration,

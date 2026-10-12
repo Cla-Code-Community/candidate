@@ -54,6 +54,16 @@ func TestDurablePipelineOnlyIndexesAfterConfirmedCommit(t *testing.T) {
 	require.Len(t, jobs, 2)
 	require.Equal(t, 2, stats.Indexed)
 	require.Equal(t, 2, stats.Saved())
+	// Identical recollection uses detected refresh and full projection fallback.
+	refreshed, refreshStats, e := processIncomingJobs(ctx, feedJobs(inScopeJob(1), inScopeJob(2)), cfg)
+	require.NoError(t, e)
+	require.Equal(t, 2, refreshStats.Refreshed)
+	require.Zero(t, refreshStats.RealUpdated)
+	require.True(t, refreshStats.ContentChangeDetectionAvailable)
+	for i := range jobs {
+		require.Greater(t, refreshed[i].CatalogRevision, jobs[i].CatalogRevision)
+	}
+	jobs = refreshed
 	for _, j := range jobs {
 		var revision, indexed int64
 		require.NoError(t, db.QueryRow("SELECT revision,indexed_revision FROM job_catalog WHERE id=$1", j.ID).Scan(&revision, &indexed))

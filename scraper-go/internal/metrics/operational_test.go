@@ -130,7 +130,7 @@ func TestMetricLabelCardinalityPolicy(t *testing.T) {
 	RecordProvider("url/user-secret", "keyword", 2, 0, time.Now(), errors.New("job-id secret error"))
 	allowedNames := map[string]bool{"adapter": true, "provider": true, "source": true, "status": true, "result": true, "mode": true, "family": true, "reason_code": true, "error_type": true, "reason": true, "kind": true, "queue": true, "operation": true, "stage": true}
 	allowedValues := map[string]bool{}
-	for _, s := range strings.Fields("linkedin adzuna themuse gupy inhire jooble greenhouse lever unknown manual cron success failed canceled skipped timeout approved rejected other invalid collected valid duplicate persisted indexed keyword batch catalog backend frontend fullstack mobile data devops platform qa security product product_design software leadership no_family_recognized negative_title insufficient_title_evidence missing_required_field classification_error network rate_limit authentication parsing validation persistence indexing inserted updated no_family_recognized collection classification tasksTotal tasksCompleted tasksCanceled providersTotal providersCompleted adaptersTotal adaptersProcessed keywordsTotal keywordsProcessed batchesCompleted missing stale membership primary related any documents counts job_created job_updated job_removed job_reclassified index_rebuilt taxonomy_changed invalidate conflict permanent consistent divergent rebuild reconcile backfill reclassify expire rollback active_lookup index_keys build_metadata serialization redis_script_round_trip mark_indexed full_applied removed created existing_upsert results incoming real_update refreshed live draft") {
+	for _, s := range strings.Fields("linkedin adzuna themuse gupy inhire jooble greenhouse lever unknown manual cron success failed canceled skipped timeout approved rejected other invalid collected valid duplicate persisted indexed keyword batch catalog backend frontend fullstack mobile data devops platform qa security product product_design software leadership no_family_recognized negative_title insufficient_title_evidence missing_required_field classification_error network rate_limit authentication parsing validation persistence indexing inserted updated no_family_recognized collection classification tasksTotal tasksCompleted tasksCanceled providersTotal providersCompleted adaptersTotal adaptersProcessed keywordsTotal keywordsProcessed batchesCompleted missing stale membership primary related any documents counts job_created job_updated job_removed job_reclassified index_rebuilt taxonomy_changed invalidate conflict permanent consistent divergent rebuild reconcile backfill reclassify expire rollback active_lookup index_keys build_metadata serialization redis_script_round_trip mark_indexed full_applied removed created real_updated reactivated existing_upsert results incoming real_update refreshed live draft") {
 		allowedValues[s] = true
 	}
 	all, err := prometheus.DefaultGatherer.Gather()
@@ -211,5 +211,24 @@ func TestUnsupportedMeasurementsAreUnavailable(t *testing.T) {
 	for _, kind := range unavailableMeasurements {
 		require.Contains(t, observed, kind)
 		require.Zero(t, observed[kind])
+	}
+}
+
+func TestCommittedContentEnablesAvailabilityAndCounters(t *testing.T) {
+	previous := contentDetectionAvailable.Load()
+	t.Cleanup(func() { contentDetectionAvailable.Store(previous) })
+	contentDetectionAvailable.Store(false)
+	before := testutil.ToFloat64(CatalogCommittedJobs.WithLabelValues("refreshed"))
+	ObserveCommittedContent(1, 2, 3)
+	require.Equal(t, before+2, testutil.ToFloat64(CatalogCommittedJobs.WithLabelValues("refreshed")))
+	require.True(t, contentDetectionAvailable.Load())
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		if family.GetName() == "candidate_scraper_measurement_available" {
+			for _, measurement := range family.Metric {
+				require.Equal(t, float64(1), measurement.GetGauge().GetValue())
+			}
+		}
 	}
 }
