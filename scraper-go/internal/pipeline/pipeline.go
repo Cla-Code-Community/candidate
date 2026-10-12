@@ -112,6 +112,8 @@ func runWithConcurrency(
 	}
 	defer closeIncomingFn()
 
+	var incomingSendWait time.Duration
+	defer func() { metrics.ChannelSendWait.WithLabelValues("incoming").Observe(incomingSendWait.Seconds()) }()
 	for r := range results {
 		if r.err != nil {
 			continue
@@ -120,10 +122,12 @@ func runWithConcurrency(
 			if context.Cause(ctx) != nil {
 				break
 			}
+			sendStarted := time.Now()
 			select {
 			case <-ctx.Done():
 			case incoming <- job:
 			}
+			incomingSendWait += time.Since(sendStarted)
 		}
 	}
 	closeIncomingFn()
@@ -165,6 +169,8 @@ func produceTasks(
 	runStats *providerRunStats,
 ) {
 	defer close(queue)
+	var taskSendWait time.Duration
+	defer func() { metrics.ChannelSendWait.WithLabelValues("collection").Observe(taskSendWait.Seconds()) }()
 
 	providerIndexes := make(map[ports.ProviderID]int)
 	cursors := make([]providerTaskCursor, 0, len(adapterList))
@@ -197,13 +203,16 @@ func produceTasks(
 				return
 			}
 			metrics.Waiting(string(task.provider), 1)
+			sendStarted := time.Now()
 			select {
 			case queue <- task:
 				runStats.recordProduced(task)
 			case <-ctx.Done():
 				metrics.Waiting(string(task.provider), -1)
+				taskSendWait += time.Since(sendStarted)
 				return
 			}
+			taskSendWait += time.Since(sendStarted)
 		}
 		if !produced {
 			return
@@ -361,10 +370,12 @@ func runScheduledTask(
 		metrics.JobsFoundTotal.WithLabelValues(source).Add(float64(len(jobs)))
 	}
 
+	sendStarted := time.Now()
 	select {
 	case results <- result{jobs: jobs, err: err}:
 	case <-ctx.Done():
 	}
+	metrics.ChannelSendWait.WithLabelValues("results").Observe(time.Since(sendStarted).Seconds())
 }
 
 func logProviderRunStats(runStats *providerRunStats) {

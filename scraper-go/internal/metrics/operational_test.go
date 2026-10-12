@@ -12,6 +12,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExecutionOutcomesAndState(t *testing.T) {
@@ -52,7 +53,7 @@ func TestConcurrencyQueuesAndLock(t *testing.T) {
 	Configure(12, 8, nil, 0, func(ports.ProviderID) int { return 2 })
 	Active("linkedin", 1)
 	Waiting("linkedin", 1)
-	BindQueue("collection", func() Queue { return Queue{2, 4} })
+	BindQueue("collection", func() Queue { return Queue{Depth: 2, Capacity: 4} })
 	s := Current()
 	if s.Concurrency.Configured != 12 || s.Concurrency.Effective != 8 || s.Concurrency.Active != 1 || s.Concurrency.Waiting != 1 || s.Queues["collection"].Depth != 2 {
 		t.Fatalf("wrong concurrency %+v", s)
@@ -127,9 +128,9 @@ func TestClassificationRejectionsAndBoundedTitles(t *testing.T) {
 func TestMetricLabelCardinalityPolicy(t *testing.T) {
 	// Exercise arbitrary IDs/text first, then inspect actual registered series.
 	RecordProvider("url/user-secret", "keyword", 2, 0, time.Now(), errors.New("job-id secret error"))
-	allowedNames := map[string]bool{"adapter": true, "provider": true, "source": true, "status": true, "result": true, "mode": true, "family": true, "reason_code": true, "error_type": true, "reason": true, "kind": true, "queue": true, "operation": true}
+	allowedNames := map[string]bool{"adapter": true, "provider": true, "source": true, "status": true, "result": true, "mode": true, "family": true, "reason_code": true, "error_type": true, "reason": true, "kind": true, "queue": true, "operation": true, "stage": true}
 	allowedValues := map[string]bool{}
-	for _, s := range strings.Fields("linkedin adzuna themuse gupy inhire jooble greenhouse lever unknown manual cron success failed canceled skipped timeout approved rejected other invalid collected valid duplicate persisted indexed keyword batch catalog backend frontend fullstack mobile data devops platform qa security product product_design software leadership no_family_recognized negative_title insufficient_title_evidence missing_required_field classification_error network rate_limit authentication parsing validation persistence indexing inserted updated no_family_recognized collection classification tasksTotal tasksCompleted tasksCanceled providersTotal providersCompleted adaptersTotal adaptersProcessed keywordsTotal keywordsProcessed batchesCompleted missing stale membership primary related any documents counts job_created job_updated job_removed job_reclassified index_rebuilt taxonomy_changed invalidate conflict permanent consistent divergent rebuild reconcile backfill reclassify expire rollback") {
+	for _, s := range strings.Fields("linkedin adzuna themuse gupy inhire jooble greenhouse lever unknown manual cron success failed canceled skipped timeout approved rejected other invalid collected valid duplicate persisted indexed keyword batch catalog backend frontend fullstack mobile data devops platform qa security product product_design software leadership no_family_recognized negative_title insufficient_title_evidence missing_required_field classification_error network rate_limit authentication parsing validation persistence indexing inserted updated no_family_recognized collection classification tasksTotal tasksCompleted tasksCanceled providersTotal providersCompleted adaptersTotal adaptersProcessed keywordsTotal keywordsProcessed batchesCompleted missing stale membership primary related any documents counts job_created job_updated job_removed job_reclassified index_rebuilt taxonomy_changed invalidate conflict permanent consistent divergent rebuild reconcile backfill reclassify expire rollback active_lookup index_keys build_metadata serialization redis_script_round_trip mark_indexed full_applied removed created existing_upsert results incoming real_update refreshed live draft") {
 		allowedValues[s] = true
 	}
 	all, err := prometheus.DefaultGatherer.Gather()
@@ -191,5 +192,24 @@ func TestRuntimeMetricsAreReused(t *testing.T) {
 		if !names[name] {
 			t.Fatalf("missing reused runtime metric %s", name)
 		}
+	}
+}
+
+func TestUnsupportedMeasurementsAreUnavailable(t *testing.T) {
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+	observed := map[string]float64{}
+	for _, f := range families {
+		if f.GetName() != "candidate_scraper_measurement_available" {
+			continue
+		}
+		for _, m := range f.Metric {
+			observed[m.Label[0].GetValue()] = m.GetGauge().GetValue()
+		}
+	}
+	require.Len(t, observed, len(unavailableMeasurements))
+	for _, kind := range unavailableMeasurements {
+		require.Contains(t, observed, kind)
+		require.Zero(t, observed[kind])
 	}
 }

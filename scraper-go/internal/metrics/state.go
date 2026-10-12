@@ -41,6 +41,7 @@ type Lock struct {
 type Queue struct {
 	Depth    int `json:"depth"`
 	Capacity int `json:"capacity"`
+	InFlight int `json:"inFlight"`
 }
 type RejectedTitle struct {
 	Title      string `json:"title"`
@@ -142,11 +143,17 @@ func init() {
 		promauto.NewGaugeFunc(prometheus.GaugeOpts{Name: item.name, Help: item.name}, item.get)
 	}
 	for _, q := range queueNames {
-		for _, kind := range []string{"depth", "capacity"} {
+		for _, kind := range []string{"depth", "capacity", "in_flight"} {
+			if q != "indexing" && kind != "depth" && kind != "capacity" {
+				continue
+			}
 			promauto.NewGaugeFunc(prometheus.GaugeOpts{Name: "candidate_scraper_queue_" + kind, Help: "Actual bounded queue " + kind, ConstLabels: prometheus.Labels{"queue": q}}, func() float64 {
 				v := Current().Queues[q]
 				if kind == "capacity" {
 					return float64(v.Capacity)
+				}
+				if kind == "in_flight" {
+					return float64(v.InFlight)
 				}
 				return float64(v.Depth)
 			})

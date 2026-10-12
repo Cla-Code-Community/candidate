@@ -204,3 +204,35 @@ func PersistenceErrorReason(err error) string {
 	}
 	return ErrorType(err)
 }
+
+// These observations measure elapsed client time, not server-only Lua time.
+// Stages are fixed at call sites; never pass provider/user text as a stage.
+var StageDuration = histogram("candidate_scraper_stage_duration_seconds", []float64{.001, .005, .01, .05, .1, .25, .5, 1, 2, 5, 10, 15, 20, 30, 60, 120, 600}, "stage", "status")
+var ChannelSendWait = histogram("candidate_scraper_channel_send_wait_seconds", durationBuckets, "queue")
+var IndexPayloadBytes = histogram("candidate_scraper_index_payload_bytes", []float64{1024, 16384, 65536, 262144, 1048576, 4194304, 16777216})
+var IndexKeysPerJob = histogram("candidate_scraper_index_keys_per_job", []float64{0, 4, 8, 16, 32, 64, 128, 256, 512})
+var IndexApplicationJobs = counter("candidate_scraper_index_application_jobs_total", "result", "mode")
+var IndexRetries = counter("candidate_scraper_index_retries_total", "reason")
+var CatalogCommittedJobs = counter("candidate_scraper_catalog_committed_jobs_total", "result")
+
+// Unsupported measurements are explicitly unavailable, rather than reported
+// as zero observed jobs. No content comparison or refresh protocol exists yet.
+var unavailableMeasurements = []string{"real_update", "refreshed"}
+
+func init() {
+	for _, measurement := range unavailableMeasurements {
+		promauto.NewGaugeFunc(prometheus.GaugeOpts{
+			Name: "candidate_scraper_measurement_available", Help: "Whether an outcome or timing is measured by this implementation",
+			ConstLabels: prometheus.Labels{"kind": measurement},
+		}, func() float64 { return 0 })
+	}
+}
+
+func ObserveStage(stage string, elapsed time.Duration, err error) {
+	StageDuration.WithLabelValues(stage, BatchStatus(err)).Observe(elapsed.Seconds())
+}
+
+func ObserveCommittedJobs(created, existingUpsert int) {
+	CatalogCommittedJobs.WithLabelValues("created").Add(float64(created))
+	CatalogCommittedJobs.WithLabelValues("existing_upsert").Add(float64(existingUpsert))
+}

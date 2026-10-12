@@ -230,3 +230,88 @@ func TestIndexTelemetryIncludesActiveNamespaceLookupFailure(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, before+1, testutil.ToFloat64(metrics.IndexBatches.WithLabelValues("failed")))
 }
+
+type payloadHook struct {
+	redis.Hook
+	payload string
+}
+
+func (h *payloadHook) DialHook(next redis.DialHook) redis.DialHook { return next }
+func (h *payloadHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+func (h *payloadHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		if cmd.Name() == "eval" || cmd.Name() == "evalsha" {
+			h.payload = cmd.Args()[7].(string)
+		}
+		return next(ctx, cmd)
+	}
+}
+
+func TestDetailedMixedResultsAndPayload(t *testing.T) {
+	m, client := setup(t)
+	ctx := context.Background()
+	seed := []domain.Job{committed("equal", "backend", nil, 2), committed("stale", "backend", nil, 3), committed("expired", "backend", nil, 4)}
+	_, err := m.Apply(ctx, seed, noKeys)
+	require.NoError(t, err)
+	jobs := []domain.Job{committed("new", "backend", nil, 5), seed[0], committed("stale", "frontend", nil, 1), seed[2]}
+	jobs[3].CatalogExpiresAt = m.Now()
+	hook := &payloadHook{}
+	client.AddHook(hook)
+	result, err := m.ApplyDetailed(ctx, jobs, func(domain.Job) []string {
+		return []string{"scraper:jobs:keyword:go", "scraper:jobs:keyword:go"}
+	})
+	require.NoError(t, err)
+	require.True(t, result.Confirmed)
+	require.Equal(t, 4, result.Received)
+	require.Equal(t, 2, result.Changed)
+	require.Equal(t, 1, result.FullApplied)
+	require.Equal(t, 1, result.Removed)
+	require.Equal(t, 2, result.Skipped)
+	require.Equal(t, len(hook.payload), result.PayloadBytes)
+	require.Equal(t, 9, result.KeysTotal)
+	require.Equal(t, 0, result.KeysMin)
+	require.Equal(t, 3, result.KeysMax)
+	require.Positive(t, result.IndexKeys)
+	require.Positive(t, result.BuildMetadata)
+	require.Positive(t, result.Serialization)
+	require.Positive(t, result.RedisRoundTrip)
+	require.GreaterOrEqual(t, result.Total, result.IndexKeys+result.BuildMetadata+result.Serialization+result.RedisRoundTrip)
+	require.True(t, client.SIsMember(ctx, Prefix(Bootstrap)+"family:primary:backend", "stale").Val())
+	require.False(t, client.SIsMember(ctx, Prefix(Bootstrap)+"index", "expired").Val())
+	require.Equal(t, "2", client.Get(ctx, GenerationKey).Val())
+}
+
+func TestDetailedFailuresAndRetry(t *testing.T) {
+	m, client := setup(t)
+	ctx := context.Background()
+	j := committed("a", "backend", nil, 1)
+	result, err := m.ApplyDetailed(ctx, []domain.Job{j}, func(domain.Job) []string { return []string{"invalid:key"} })
+	require.Error(t, err)
+	require.False(t, result.Confirmed)
+	require.Equal(t, "build_metadata", result.FailureStage)
+	require.Zero(t, result.PayloadBytes)
+	require.Zero(t, client.Exists(ctx, GenerationKey).Val())
+	_, err = m.Apply(ctx, []domain.Job{j}, noKeys)
+	require.NoError(t, err)
+	before := client.Get(ctx, GenerationKey).Val()
+	result, err = m.ApplyDetailed(ctx, []domain.Job{j}, noKeys)
+	require.NoError(t, err)
+	require.True(t, result.Confirmed)
+	require.Zero(t, result.FullApplied)
+	require.Equal(t, 1, result.Skipped)
+	require.Equal(t, before, client.Get(ctx, GenerationKey).Val())
+	require.NoError(t, client.Set(ctx, Prefix(Bootstrap)+"family:primary:frontend", "wrongtype", 0).Err())
+	result, err = m.ApplyDetailed(ctx, []domain.Job{committed("b", "frontend", nil, 2)}, noKeys)
+	require.Error(t, err)
+	require.Equal(t, "redis_script_round_trip", result.FailureStage)
+	require.False(t, result.Confirmed)
+	require.Zero(t, result.Changed)
+	require.NoError(t, client.Close())
+	result, err = m.ApplyDetailed(ctx, []domain.Job{j}, noKeys)
+	require.Error(t, err)
+	require.Equal(t, "active_lookup", result.FailureStage)
+	require.Positive(t, result.Total)
+	require.False(t, result.Confirmed)
+}

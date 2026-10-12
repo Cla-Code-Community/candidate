@@ -3,9 +3,13 @@ package pipeline
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobindex"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
@@ -118,6 +122,47 @@ func BenchmarkProcessIncomingBatched(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if _, _, err := processIncomingJobs(context.Background(), feedJobs(jobs...), cfg); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+// Requires an explicitly supplied disposable server: this benchmark writes index
+// data. It never reads the application Redis URL or starts external processes.
+func BenchmarkDurableIndexApply(b *testing.B) {
+	socket := os.Getenv("PAV178_BENCH_REDIS_SOCKET")
+	if socket == "" {
+		b.Skip("PAV178_BENCH_REDIS_SOCKET must identify an isolated disposable server")
+	}
+	rdb := redis.NewClient(&redis.Options{Network: "unix", Addr: socket, MaxRetries: -1})
+	b.Cleanup(func() { rdb.Close() })
+	manager := jobindex.New(rdb)
+	jobs := benchJobs(250)
+	description := strings.Repeat("Golang go APIs microservices postgresql redis kafka backend engineer remote Brasil. ", 52)[:4096]
+	expires := time.Now().Add(time.Hour)
+	for i := range jobs {
+		jobs[i].ID = fmt.Sprintf("bench-%d-%d-%d", os.Getpid(), expires.UnixNano(), i)
+		jobs[i].Description = description
+		jobs[i].CatalogRevision = 1
+		jobs[i].CatalogExpiresAt = expires
+		jobs[i].Classification = &domain.Classification{PrimaryFamily: "backend", InScope: true}
+	}
+	keywords := make([]string, 445)
+	for i := range keywords {
+		keywords[i] = fmt.Sprintf("backend engineer technology%d", i)
+	}
+	keywords[0] = "go"
+	keys := func(j domain.Job) []string { return IndexKeys(j, keywords) }
+	if _, err := manager.Apply(context.Background(), jobs, keys); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		for i := range jobs {
+			jobs[i].CatalogRevision++
+		}
+		if _, err := manager.Apply(context.Background(), jobs, keys); err != nil {
 			b.Fatal(err)
 		}
 	}

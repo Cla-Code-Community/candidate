@@ -1,9 +1,13 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -15,6 +19,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -720,4 +725,179 @@ func TestRunSnapshotProviderTracksRealScheduledTask(t *testing.T) {
 	assert.Equal(t, 1, providers[0].JobsCollected)
 	assert.Equal(t, "success", *providers[0].LastTaskStatus)
 	assert.Zero(t, providers[0].Active)
+}
+
+type observedCatalog struct {
+	jobstore.Catalog
+	saveErr error
+	markErr error
+	marks   int
+}
+
+func (c *observedCatalog) SaveBatch(_ context.Context, jobs []domain.Job) (jobstore.SaveResult, error) {
+	if c.saveErr != nil {
+		return jobstore.SaveResult{}, c.saveErr
+	}
+	return jobstore.SaveResult{Inserted: len(jobs), Persisted: jobs}, nil
+}
+func (c *observedCatalog) MarkIndexed(context.Context, []domain.Job) error {
+	c.marks++
+	return c.markErr
+}
+
+func committedIndexJob() domain.Job {
+	j := inScopeJob(1)
+	j.ID = jobstore.StableID(&j)
+	j.CatalogRevision = 1
+	j.CatalogExpiresAt = time.Now().Add(time.Hour)
+	j.Classification = &domain.Classification{PrimaryFamily: "backend", InScope: true}
+	return j
+}
+
+func captureIndexLogs(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var output bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&output, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	return &output
+}
+
+func lastIndexLog(t *testing.T, output *bytes.Buffer) map[string]any {
+	t.Helper()
+	var result map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(output.String()), "\n") {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		if record["msg"] == "scraper stage batch" && record["stage"] == "index" {
+			result = record
+		}
+	}
+	require.NotNil(t, result)
+	return result
+}
+
+func TestDurableLogSeparatesApplyAndCheckpoint(t *testing.T) {
+	for _, checkpointErr := range []error{nil, errors.New("checkpoint failure")} {
+		t.Run(metrics.BatchStatus(checkpointErr), func(t *testing.T) {
+			output := captureIndexLogs(t)
+			mr := miniredis.RunT(t)
+			rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			t.Cleanup(func() { rdb.Close() })
+			catalog := &observedCatalog{markErr: checkpointErr}
+			cfg := processConfig{Store: jobstore.NewDurable(rdb, catalog), RDB: rdb, Keywords: []string{"go"}}
+			stats := ProcessStats{}
+			err := indexPersistedChunk(context.Background(), cfg, 1, []domain.Job{committedIndexJob()}, &stats)
+			require.ErrorIs(t, err, checkpointErr)
+			record := lastIndexLog(t, output)
+			require.NotContains(t, record, "commands")
+			require.NotContains(t, record, "indexed")
+			require.Equal(t, "durable", record["index_path"])
+			require.Equal(t, true, record["result_confirmed"])
+			require.Equal(t, float64(1), record["full_applied"])
+			require.Equal(t, metrics.BatchStatus(checkpointErr), record["checkpoint_status"])
+			require.Equal(t, false, record["content_change_detection_available"])
+			require.Equal(t, 1, catalog.marks)
+			if checkpointErr == nil {
+				require.NoError(t, indexPersistedChunk(context.Background(), cfg, 2, []domain.Job{committedIndexJob()}, &stats))
+				record = lastIndexLog(t, output)
+				require.Equal(t, float64(0), record["full_applied"])
+				require.Equal(t, float64(1), record["skipped"])
+				require.Equal(t, 2, stats.Indexed) // Compatibility: successful inputs, not mutations.
+			}
+		})
+	}
+}
+
+func TestIndexInFlightSurvivesEmptyBuffer(t *testing.T) {
+	for _, terminalErr := range []error{nil, errors.New("index failure"), context.Canceled} {
+		t.Run(metrics.BatchStatus(terminalErr), func(t *testing.T) {
+			entered, release, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+			var releaseOnce sync.Once
+			joined := false
+			t.Cleanup(func() {
+				releaseOnce.Do(func() { close(release) })
+				if !joined {
+					select {
+					case <-done:
+					case <-time.After(5 * time.Second):
+						t.Error("index goroutine did not exit")
+					}
+				}
+			})
+			cfg := processConfig{ClassificationBatchSize: 1, PersistBatchSize: 1, IndexBatchSize: 1,
+				Index: func(context.Context, []domain.Job) error { close(entered); <-release; return terminalErr }}
+			go func() {
+				_, _, err := processIncomingJobs(context.Background(), feedJobs(inScopeJob(1)), cfg)
+				done <- err
+			}()
+			select {
+			case <-entered:
+			case <-time.After(5 * time.Second):
+				t.Fatal("index not entered")
+			}
+			q := metrics.Current().Queues["indexing"]
+			require.Equal(t, 0, q.Depth)
+			require.Equal(t, 1, q.InFlight)
+			releaseOnce.Do(func() { close(release) })
+			gotErr := <-done
+			joined = true
+			require.ErrorIs(t, gotErr, terminalErr)
+			q = metrics.Current().Queues["indexing"]
+			require.Zero(t, q.InFlight)
+			metrics.ClearQueues()
+		})
+	}
+}
+
+type lostReplyHook struct {
+	redis.Hook
+	lost bool
+}
+
+func (h *lostReplyHook) DialHook(next redis.DialHook) redis.DialHook { return next }
+func (h *lostReplyHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
+	return next
+}
+func (h *lostReplyHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
+	return func(ctx context.Context, cmd redis.Cmder) error {
+		err := next(ctx, cmd)
+		if err == nil && cmd.Name() == "eval" && !h.lost {
+			h.lost = true
+			return errors.New("network lost reply")
+		}
+		return err
+	}
+}
+
+func TestRetryLogsUnconfirmedAttemptAndIdempotentSkip(t *testing.T) {
+	output := captureIndexLogs(t)
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer rdb.Close()
+	rdb.AddHook(&lostReplyHook{})
+	catalog := &observedCatalog{}
+	cfg := processConfig{Store: jobstore.NewDurable(rdb, catalog), RDB: rdb}
+	before := testutil.ToFloat64(metrics.IndexRetries.WithLabelValues("network"))
+	stats := ProcessStats{}
+	require.NoError(t, indexPersistedChunk(context.Background(), cfg, 1, []domain.Job{committedIndexJob()}, &stats))
+	record := lastIndexLog(t, output)
+	require.Equal(t, float64(2), record["attempts"])
+	require.Equal(t, float64(1), record["retries"])
+	require.Equal(t, true, record["prior_attempt_unconfirmed"])
+	require.Equal(t, float64(0), record["full_applied"])
+	require.Equal(t, float64(1), record["skipped"])
+	require.Equal(t, before+1, testutil.ToFloat64(metrics.IndexRetries.WithLabelValues("network")))
+	require.Equal(t, 1, catalog.marks)
+}
+
+func TestFailedPersistDoesNotReportCommittedJobs(t *testing.T) {
+	before := testutil.ToFloat64(metrics.CatalogCommittedJobs.WithLabelValues("created"))
+	catalog := &observedCatalog{saveErr: errors.New("invalid commit")}
+	cfg := processConfig{Store: jobstore.NewDurable(nil, catalog), PersistBatchSize: 1}
+	stats := ProcessStats{}
+	_, _, _, err := persistJobs(context.Background(), cfg, 1, []domain.Job{committedIndexJob()}, &stats)
+	require.Error(t, err)
+	require.Equal(t, before, testutil.ToFloat64(metrics.CatalogCommittedJobs.WithLabelValues("created")))
+	require.Zero(t, catalog.marks)
 }
