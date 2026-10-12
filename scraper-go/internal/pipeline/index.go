@@ -92,6 +92,7 @@ func indexJobsInValkeyBatched(
 		session = newIndexSession("")
 	}
 
+	prepared := prepareIndexKeywords(keywords)
 	commands := 0
 	var err error
 	for start := 0; start < len(jobs); start += batchSize {
@@ -100,7 +101,7 @@ func indexJobsInValkeyBatched(
 			break
 		}
 		end := min(start+batchSize, len(jobs))
-		chunkCommands, chunkErr := indexJobChunk(ctx, rdb, jobs[start:end], keywords, session)
+		chunkCommands, chunkErr := indexJobChunk(ctx, rdb, jobs[start:end], prepared, session)
 		commands += chunkCommands
 		if chunkErr != nil {
 			err = chunkErr
@@ -126,7 +127,7 @@ func indexJobChunk(
 	ctx context.Context,
 	rdb *redis.Client,
 	jobs []domain.Job,
-	keywords []string,
+	prepared *preparedIndexKeywords,
 	session *indexSession,
 ) (int, error) {
 	if session == nil {
@@ -157,7 +158,7 @@ func indexJobChunk(
 		ids = append(ids, id)
 		additions[globalIndexKey] = append(additions[globalIndexKey], id)
 
-		newKeys := invertedIndexKeys(job, keywords)
+		newKeys := prepared.keys(job)
 		newSet := make(map[string]struct{}, len(newKeys))
 		for _, key := range newKeys {
 			newSet[key] = struct{}{}
@@ -405,29 +406,92 @@ func (s *indexSession) Discard(ctx context.Context, rdb *redis.Client) error {
 	})
 }
 
-func invertedIndexKeys(job domain.Job, keywords []string) []string {
-	keys := make([]string, 0)
-	searchText := keywordSearchText(job)
+// preparedIndexKeywords owns an immutable snapshot of the execution's keywords.
+// No job-specific results or mutable caches are shared between callers.
+type preparedIndexKeywords struct {
+	plans []indexKeywordPlan
+}
+
+type indexKeywordPlan struct {
+	terms    []string
+	aliases  []string
+	subterms []indexSubterm
+}
+
+type indexSubterm struct {
+	term string
+	key  string
+}
+
+func prepareIndexKeywords(keywords []string) *preparedIndexKeywords {
+	prepared := &preparedIndexKeywords{plans: make([]indexKeywordPlan, 0, len(keywords))}
 	for _, kw := range keywords {
-		sanitizedKw := strings.ToLower(strings.TrimSpace(kw))
-		if sanitizedKw == "" {
+		sanitized := strings.ToLower(strings.TrimSpace(kw))
+		if sanitized == "" {
 			continue
 		}
-		if keywordMatches(searchText, sanitizedKw) {
-			for _, alias := range keywordIndexAliases(sanitizedKw) {
-				keys = append(keys, fmt.Sprintf("scraper:jobs:keyword:%s", alias))
+		normalized := normalizeIndexValue(sanitized)
+		rawTerms := strings.Fields(normalized)
+		plan := indexKeywordPlan{terms: make([]string, 0, len(rawTerms))}
+		for i := 0; i < len(rawTerms); i++ {
+			if rawTerms[i] == "node" && i+1 < len(rawTerms) && rawTerms[i+1] == "js" {
+				plan.terms = append(plan.terms, "node js")
+				i++
+			} else {
+				plan.terms = append(plan.terms, rawTerms[i])
 			}
 		}
-		for _, term := range keywordSubTerms(sanitizedKw) {
-			if term == "" {
-				continue
+		aliasValues := []string{strings.Join(strings.Fields(strings.ReplaceAll(sanitized, "/", " ")), " "), normalized}
+		if strings.Contains(normalized, "node js") {
+			aliasValues = append(aliasValues, strings.ReplaceAll(normalized, "node js", "nodejs"), "nodejs", "node")
+		}
+		for _, alias := range uniqueStrings(aliasValues) {
+			plan.aliases = append(plan.aliases, "scraper:jobs:keyword:"+alias)
+		}
+		subterms := rawTerms
+		if len(rawTerms) >= 2 && rawTerms[0] == "node" && rawTerms[1] == "js" {
+			subterms = append(subterms, "nodejs")
+		}
+		for _, term := range uniqueStrings(subterms) {
+			plan.subterms = append(plan.subterms, indexSubterm{term: term, key: "scraper:jobs:keyword:" + term})
+		}
+		prepared.plans = append(prepared.plans, plan)
+	}
+	return prepared
+}
+
+func invertedIndexKeys(job domain.Job, keywords []string) []string {
+	return prepareIndexKeywords(keywords).keys(job)
+}
+
+func (prepared *preparedIndexKeywords) keys(job domain.Job) []string {
+	searchText := keywordSearchText(job)
+	// normalizeIndexValue joins words using literal spaces. Token membership is
+	// exactly the old padded-token search; phrases retain substring semantics.
+	tokens := make(map[string]bool)
+	for _, token := range strings.Fields(searchText) {
+		tokens[token] = true
+	}
+	nodeJS := strings.Contains(searchText, "node js") || tokens["nodejs"]
+	keys := make([]string, 0, 32)
+	for _, plan := range prepared.plans {
+		matches := len(plan.terms) > 0
+		for _, term := range plan.terms {
+			if (term == "node js" && !nodeJS) || (term != "node js" && !tokens[term]) {
+				matches = false
+				break
 			}
-			if containsTokenOrPhrase(searchText, term) {
-				keys = append(keys, fmt.Sprintf("scraper:jobs:keyword:%s", term))
+		}
+		if matches {
+			keys = append(keys, plan.aliases...)
+		}
+		for _, subterm := range plan.subterms {
+			if tokens[subterm.term] {
+				keys = append(keys, subterm.key)
 			}
 		}
 	}
-	keys = append(keys, structuredIndexKeys(job)...)
+	keys = append(keys, structuredIndexKeysFromText(job, searchText)...)
 	keys = append(keys, classificationIndexKeys(job)...)
 	return uniqueIndexMembers(keys)
 }

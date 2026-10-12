@@ -901,3 +901,33 @@ func TestFailedPersistDoesNotReportCommittedJobs(t *testing.T) {
 	require.Equal(t, before, testutil.ToFloat64(metrics.CatalogCommittedJobs.WithLabelValues("created")))
 	require.Zero(t, catalog.marks)
 }
+
+func TestDurablePipelineUsesPreparedKeywordSnapshot(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { rdb.Close() })
+	queries := []string{"initialtoken"}
+	first, second := inScopeJob(101), inScopeJob(102)
+	first.Description += " initialtoken"
+	second.Description += " initialtoken"
+	saves := 0
+	cfg := processConfig{Keywords: queries, RDB: rdb, Store: jobstore.NewDurable(rdb, &observedCatalog{}), ClassificationBatchSize: 1, PersistBatchSize: 1, IndexBatchSize: 1,
+		Persist: func(_ context.Context, jobs []domain.Job) (jobstore.SaveResult, error) {
+			saves++
+			// Simulates a caller changing its source slice after execution preparation.
+			// Synchronous mutation avoids races; the matcher must own its snapshot.
+			queries[0] = "replacementtoken"
+			persisted := append([]domain.Job(nil), jobs...)
+			for i := range persisted {
+				persisted[i].ID = jobstore.StableID(&persisted[i])
+				persisted[i].CatalogRevision = int64(saves)
+				persisted[i].CatalogExpiresAt = time.Now().Add(time.Hour)
+			}
+			return jobstore.SaveResult{Inserted: len(persisted), Persisted: persisted}, nil
+		}}
+	_, stats, err := processIncomingJobs(context.Background(), feedJobs(first, second), cfg)
+	require.NoError(t, err)
+	require.Equal(t, 2, stats.Indexed)
+	require.Equal(t, int64(2), rdb.SCard(context.Background(), "scraper:jobs:keyword:initialtoken").Val())
+	require.Zero(t, rdb.SCard(context.Background(), "scraper:jobs:keyword:replacementtoken").Val())
+}

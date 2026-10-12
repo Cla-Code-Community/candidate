@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -164,6 +165,51 @@ func BenchmarkDurableIndexApply(b *testing.B) {
 		}
 		if _, err := manager.Apply(context.Background(), jobs, keys); err != nil {
 			b.Fatal(err)
+		}
+	}
+}
+
+// Local projection only: no datastore or provider I/O. Every ns/op is a batch
+// of 250 jobs; compilation is included in isolated and excluded in prepared.
+func BenchmarkIndexKeys(b *testing.B) {
+	keywords := realIndexKeywords(b)
+	for _, size := range []int{4096, 16384} {
+		jobs := benchJobs(250)
+		text := strings.Repeat("Golang go APIs microservices postgresql redis kafka backend engineer remote Brasil Node.js React C# .NET. ", size/50+1)[:size]
+		for i := range jobs {
+			jobs[i].Description = text
+			jobs[i].Classification = &domain.Classification{PrimaryFamily: "backend", InScope: true, Technologies: []string{"Go", "Node.js"}, Seniority: "senior"}
+		}
+		prepared := prepareIndexKeywords(keywords)
+		totalKeys := 0
+		// Verify every job against the frozen oracle outside timed regions.
+		for _, job := range jobs {
+			expected := sortedIndexKeys(referenceInvertedIndexKeys(job, keywords))
+			if !reflect.DeepEqual(expected, sortedIndexKeys(IndexKeys(job, keywords))) || !reflect.DeepEqual(expected, sortedIndexKeys(prepared.keys(job))) {
+				b.Fatal("projection differs from committed reference")
+			}
+			totalKeys += len(expected)
+		}
+		for _, mode := range []string{"reference", "isolated", "prepared"} {
+			b.Run(fmt.Sprintf("%dKiB/%s", size/1024, mode), func(b *testing.B) {
+				project := prepared.keys
+				if mode == "reference" {
+					project = func(j domain.Job) []string { return referenceInvertedIndexKeys(j, keywords) }
+				}
+				if mode == "isolated" {
+					project = func(j domain.Job) []string { return IndexKeys(j, keywords) }
+				}
+				b.ReportAllocs()
+				b.ResetTimer()
+				for n := 0; n < b.N; n++ {
+					for _, job := range jobs {
+						project(job)
+					}
+				}
+				b.StopTimer()
+				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(len(jobs)), "ns/job")
+				b.ReportMetric(float64(totalKeys), "keys/batch")
+			})
 		}
 	}
 }

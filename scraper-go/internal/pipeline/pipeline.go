@@ -474,10 +474,14 @@ func indexedClassificationFamily(family string) bool {
 }
 
 func structuredIndexKeys(job domain.Job) []string {
+	return structuredIndexKeysFromText(job, searchableJobText(job))
+}
+
+func structuredIndexKeysFromText(job domain.Job, text string) []string {
 	values := map[string]string{
-		"level":    inferLevel(job),
-		"model":    inferWorkModel(job),
-		"contract": inferContract(job),
+		"level":    inferLevelFromText(text),
+		"model":    inferWorkModelFromText(text),
+		"contract": inferContractFromText(text),
 	}
 
 	for key, value := range inferLocation(job.Location) {
@@ -536,49 +540,6 @@ func searchableJobText(job domain.Job) string {
 	}, " "))
 }
 
-func keywordSubTerms(keyword string) []string {
-	terms := strings.Fields(normalizeIndexValue(keyword))
-	if len(terms) >= 2 && terms[0] == "node" && terms[1] == "js" {
-		terms = append(terms, "nodejs")
-	}
-	return uniqueStrings(terms)
-}
-
-func keywordIndexAliases(keyword string) []string {
-	sanitized := strings.Join(strings.Fields(strings.ReplaceAll(strings.ToLower(keyword), "/", " ")), " ")
-	normalized := normalizeIndexValue(keyword)
-
-	aliases := []string{sanitized, normalized}
-	if strings.Contains(normalized, "node js") {
-		aliases = append(aliases, strings.ReplaceAll(normalized, "node js", "nodejs"), "nodejs", "node")
-	}
-
-	return uniqueStrings(aliases)
-}
-
-func keywordMatches(searchText, keyword string) bool {
-	terms := strings.Fields(normalizeIndexValue(keyword))
-	if len(terms) == 0 {
-		return false
-	}
-
-	for i := 0; i < len(terms); i++ {
-		term := terms[i]
-		if term == "node" && i+1 < len(terms) && terms[i+1] == "js" {
-			if !containsTokenOrPhrase(searchText, "node js") && !containsTokenOrPhrase(searchText, "nodejs") {
-				return false
-			}
-			i++
-			continue
-		}
-		if !containsTokenOrPhrase(searchText, term) {
-			return false
-		}
-	}
-
-	return true
-}
-
 func uniqueStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
@@ -597,8 +558,10 @@ func uniqueStrings(values []string) []string {
 }
 
 func inferLevel(job domain.Job) string {
-	text := searchableJobText(job)
+	return inferLevelFromText(searchableJobText(job))
+}
 
+func inferLevelFromText(text string) string {
 	if containsAny(text, "estagio", "intern", "trainee") {
 		return "estagio"
 	}
@@ -613,8 +576,10 @@ func inferLevel(job domain.Job) string {
 }
 
 func inferWorkModel(job domain.Job) string {
-	text := searchableJobText(job)
+	return inferWorkModelFromText(searchableJobText(job))
+}
 
+func inferWorkModelFromText(text string) string {
 	if containsAny(text, "hibrido", "hybrid") {
 		return "hibrido"
 	}
@@ -644,8 +609,10 @@ func inferWorkModel(job domain.Job) string {
 }
 
 func inferContract(job domain.Job) string {
-	text := searchableJobText(job)
+	return inferContractFromText(searchableJobText(job))
+}
 
+func inferContractFromText(text string) string {
 	if containsAny(text, "cooperado", "cooperativa") {
 		return "cooperado"
 	}
@@ -807,5 +774,18 @@ func containsTokenOrPhrase(text string, needle string) bool {
 		return strings.Contains(text, needle)
 	}
 
-	return strings.Contains(" "+text+" ", " "+needle+" ")
+	// Check the same literal-space boundaries without copying the haystack.
+	for offset := 0; offset <= len(text)-len(needle); {
+		relative := strings.Index(text[offset:], needle)
+		if relative < 0 {
+			return false
+		}
+		start := offset + relative
+		end := start + len(needle)
+		if (start == 0 || text[start-1] == ' ') && (end == len(text) || text[end] == ' ') {
+			return true
+		}
+		offset = start + 1
+	}
+	return false
 }

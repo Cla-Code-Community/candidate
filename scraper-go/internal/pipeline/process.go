@@ -22,6 +22,7 @@ type indexBatchFn func(ctx context.Context, jobs []domain.Job) error
 type processConfig struct {
 	RunID                   string
 	Keywords                []string
+	indexKeywords           *preparedIndexKeywords
 	ClassificationBatchSize int
 	PersistBatchSize        int
 	IndexBatchSize          int
@@ -74,6 +75,10 @@ func processIncomingJobs(
 	}
 	if cfg.Index == nil && cfg.RDB != nil && cfg.IndexSession == nil && !cfg.Store.Durable() {
 		cfg.IndexSession = newIndexSession(cfg.RunID)
+	}
+
+	if cfg.Index == nil && cfg.RDB != nil && cfg.Store.Durable() {
+		cfg.indexKeywords = prepareIndexKeywords(cfg.Keywords)
 	}
 
 	// seen holds only the current classification window. flushed maps identity
@@ -588,6 +593,10 @@ func indexPersistedChunk(
 		err = cfg.Index(ctx, jobs)
 	} else if cfg.Store.Durable() {
 		indexPath = "durable"
+		prepared := cfg.indexKeywords
+		if prepared == nil {
+			prepared = prepareIndexKeywords(cfg.Keywords)
+		}
 		var previousErr error
 		err = jobstore.RetryTransient(ctx, func() error {
 			if previousErr != nil {
@@ -595,7 +604,7 @@ func indexPersistedChunk(
 			}
 			attempts++
 			var e error
-			observed, e = jobindex.New(cfg.RDB).ApplyDetailed(ctx, jobs, func(job domain.Job) []string { return invertedIndexKeys(job, cfg.Keywords) })
+			observed, e = jobindex.New(cfg.RDB).ApplyDetailed(ctx, jobs, prepared.keys)
 			indexKeysDuration += observed.IndexKeys
 			buildDuration += observed.BuildMetadata
 			serializationDuration += observed.Serialization
