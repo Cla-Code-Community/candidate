@@ -16,6 +16,11 @@ import { Toast } from "./components/shared/Toast";
 import { jobStatuses } from "./constants";
 import { useDashboardJobs } from "./hooks/useDashboardJobs";
 import { useUserDashboardData } from "./hooks/useUserDashboardData";
+import {
+  getJobFilterOptions,
+  FALLBACK_JOB_FAMILIES,
+  type JobFamilyOption,
+} from "./infrastructure/dashboardJobsApi";
 import type {
   CareerChecklist,
   Job,
@@ -153,17 +158,32 @@ export default function NewDashboardPage() {
   const { user, refreshUser } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<JobModelFilter>("Todos");
-  const [filterLevel, setFilterLevel] = useState("Todos");
-  const [continentFilter, setContinentFilter] =
-    useState<ContinentFilter>("Todos");
-  const [countryFilter, setCountryFilter] = useState<CountryFilter>("Todos");
-  const [matchSort, setMatchSort] = useState<MatchSort>("default");
+  const [filterLevel, setFilterLevel] = useState(
+    () => searchParams.get("level") || "Todos",
+  );
+  const [continentFilter, setContinentFilter] = useState<ContinentFilter>(
+    () => (searchParams.get("continent") as ContinentFilter) || "Todos",
+  );
+  const [countryFilter, setCountryFilter] = useState<CountryFilter>(
+    () => (searchParams.get("country") as CountryFilter) || "Todos",
+  );
+  const [matchSort, setMatchSort] = useState<MatchSort>(
+    () => (searchParams.get("matchSort") as MatchSort) || "default",
+  );
+  const [familyOptions, setFamilyOptions] = useState<JobFamilyOption[]>(
+    FALLBACK_JOB_FAMILIES,
+  );
+  const [selectedFamilies, setSelectedFamilies] = useState<string[]>(() => {
+    const param = searchParams.get("family");
+    return param ? param.split(",").filter(Boolean) : [];
+  });
+
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [timelineVersion, setTimelineVersion] = useState(0);
-  const [searchParams, setSearchParams] = useSearchParams();
   const [isAddJobOpen, setIsAddJobOpen] = useState(false);
   const [toast, setToast] = useState("");
   const [hasUserChangedJobFilters, setHasUserChangedJobFilters] =
@@ -171,6 +191,66 @@ export default function NewDashboardPage() {
   const checklistSaveTimeout = useRef<number | null>(null);
   const hasUserSelectedModelFilter = useRef(false);
   const showToast = useCallback((message: string) => setToast(message), []);
+
+  useEffect(() => {
+    let active = true;
+    getJobFilterOptions()
+      .then((res) => {
+        if (active && res?.families) {
+          setFamilyOptions(res.families);
+        }
+      })
+      .catch(() => {
+        // Fallback already used
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (selectedFamilies.length > 0) {
+      nextParams.set("family", selectedFamilies.join(","));
+      nextParams.set("familyMode", "primary");
+    } else {
+      nextParams.delete("family");
+      nextParams.delete("familyMode");
+    }
+    if (filterLevel !== "Todos") {
+      nextParams.set("level", filterLevel);
+    } else {
+      nextParams.delete("level");
+    }
+    if (continentFilter !== "Todos") {
+      nextParams.set("continent", continentFilter);
+    } else {
+      nextParams.delete("continent");
+    }
+    if (countryFilter !== "Todos") {
+      nextParams.set("country", countryFilter);
+    } else {
+      nextParams.delete("country");
+    }
+    if (matchSort !== "default") {
+      nextParams.set("matchSort", matchSort);
+    } else {
+      nextParams.delete("matchSort");
+    }
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [
+    selectedFamilies,
+    filterLevel,
+    continentFilter,
+    countryFilter,
+    matchSort,
+    searchParams,
+    setSearchParams,
+  ]);
+
   const {
     userProfile,
     setUserProfile,
@@ -192,7 +272,6 @@ export default function NewDashboardPage() {
     if (!jobId) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- sincroniza o jobId vindo da URL (navegação externa) com o estado local; execução única por navegação, não é loop de renderização.
     setSelectedJobId(jobId);
-    setSelectedJobId(jobId);
     setSearchParams(
       (current) => {
         const next = new URLSearchParams(current);
@@ -209,9 +288,17 @@ export default function NewDashboardPage() {
         ? null
         : {
           keywords: [],
-          filters: modelFilterToApiFilter(preferredModelFilter),
+          filters: {
+            ...modelFilterToApiFilter(preferredModelFilter),
+            ...(selectedFamilies.length > 0
+              ? {
+                family: selectedFamilies.join(","),
+                familyMode: "primary",
+              }
+              : {}),
+          },
         },
-    [isLoadingUserData, preferredModelFilter],
+    [isLoadingUserData, preferredModelFilter, selectedFamilies],
   );
   const {
     trackedJobs,
@@ -330,6 +417,11 @@ export default function NewDashboardPage() {
     setMatchSort(value);
   }, []);
 
+  const handleSelectedFamiliesChange = useCallback((value: string[]) => {
+    setHasUserChangedJobFilters(true);
+    setSelectedFamilies(value);
+  }, []);
+
   const handleCareerChecklistChange = useCallback(
     (careerChecklist: CareerChecklist[]) => {
       const nextPreferences = {
@@ -368,7 +460,6 @@ export default function NewDashboardPage() {
   const handleNotesChange = (jobId: string, notes: string) => {
     changeJobNotesLocally(jobId, notes);
   };
-
 
   const handleAddJob = async (newJob: NewJob) => {
     try {
@@ -415,6 +506,12 @@ export default function NewDashboardPage() {
         ? { country: countryFilter, location: countryFilter }
         : {}),
       ...(matchSort !== "default" ? { matchSort } : {}),
+      ...(selectedFamilies.length > 0
+        ? {
+          family: selectedFamilies.join(","),
+          familyMode: "primary",
+        }
+        : {}),
     };
 
     return {
@@ -437,6 +534,7 @@ export default function NewDashboardPage() {
     filterLevel,
     filterType,
     matchSort,
+    selectedFamilies,
     refreshRecommendations,
     searchQuery,
   ]);
@@ -472,6 +570,7 @@ export default function NewDashboardPage() {
     continentFilter,
     countryFilter,
     matchSort,
+    selectedFamilies,
     section,
   ]);
 
@@ -512,6 +611,9 @@ export default function NewDashboardPage() {
             setCountryFilter={handleCountryFilterChange}
             matchSort={matchSort}
             setMatchSort={handleMatchSortChange}
+            selectedFamilies={selectedFamilies}
+            setSelectedFamilies={handleSelectedFamiliesChange}
+            familyOptions={familyOptions}
             searchPreferences={searchPreferences}
             showPreferenceNotice={showPreferenceNotice}
             isSearching={isRefreshingJobs}

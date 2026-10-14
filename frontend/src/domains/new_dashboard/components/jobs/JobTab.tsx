@@ -31,6 +31,9 @@ interface JobTabProps {
   setCountryFilter: (value: CountryFilter) => void;
   matchSort: MatchSort;
   setMatchSort: (value: MatchSort) => void;
+  selectedFamilies: string[];
+  setSelectedFamilies: (value: string[]) => void;
+  familyOptions: Array<{ id: string; label: string }>;
   searchPreferences?: SearchPreferences;
   showPreferenceNotice?: boolean;
   isSearching?: boolean;
@@ -61,6 +64,9 @@ export function JobTab({
   setCountryFilter,
   matchSort,
   setMatchSort,
+  selectedFamilies,
+  setSelectedFamilies,
+  familyOptions,
   searchPreferences,
   showPreferenceNotice = false,
   isSearching = false,
@@ -114,6 +120,9 @@ export function JobTab({
         setCountryFilter={setCountryFilter}
         matchSort={matchSort}
         setMatchSort={setMatchSort}
+        selectedFamilies={selectedFamilies}
+        setSelectedFamilies={setSelectedFamilies}
+        familyOptions={familyOptions}
       />
 
       {showPreferenceNotice &&

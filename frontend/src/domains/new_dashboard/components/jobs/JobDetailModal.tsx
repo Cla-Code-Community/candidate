@@ -1,7 +1,10 @@
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { jobStatusClasses, jobStatuses } from "../../constants";
-import { getDashboardSavedJobEvents } from "../../infrastructure/dashboardJobsApi";
+import {
+  getDashboardSavedJobEvents,
+  getFamilyLabel,
+} from "../../infrastructure/dashboardJobsApi";
 import type { Job, JobStatus, JobTimelineEvent } from "../../types";
 import { Modal } from "../shared/Modal";
 import { ApplicationNotesSection } from "./ApplicationNotesSection";
@@ -47,6 +50,7 @@ const redundantPayloadKeys = new Set([
   "modality",
   "source",
   "description",
+  "classification",
 ]);
 
 function payloadValueToText(value: unknown): string {
@@ -147,6 +151,14 @@ export function JobDetailModal({
     };
   }, [isTracked, job.id, timelineVersion]);
 
+  const classification = (job.rawPayload?.classification ?? {}) as {
+    primaryFamily?: string;
+    relatedFamilies?: string[];
+    seniority?: string;
+    technologies?: string[];
+    reasons?: string[];
+  };
+
   const payloadEntries = Object.entries(job.rawPayload ?? {}).filter(
     ([key, value]) =>
       !redundantPayloadKeys.has(key) && payloadValueToText(value) !== "Não informado",
@@ -192,7 +204,7 @@ export function JobDetailModal({
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <InfoTile label="Local" value={job.location} />
           <InfoTile label="Modalidade" value={job.type} />
-          <InfoTile label="Nível" value={job.level} />
+          <InfoTile label="Nível" value={classification.seniority ? classification.seniority.charAt(0).toUpperCase() + classification.seniority.slice(1) : job.level} />
           <InfoTile label="Fonte" value={job.source} />
           <InfoTile label="Salário" value={job.salary} />
           <InfoTile
@@ -200,12 +212,42 @@ export function JobDetailModal({
             value={`${job.matchScore}%`}
             valueClassName="text-emerald-600 dark:text-emerald-400"
           />
+          {classification.primaryFamily ? (
+            <InfoTile
+              label="Área principal"
+              value={getFamilyLabel(classification.primaryFamily)}
+              valueClassName="text-primary"
+            />
+          ) : null}
         </div>
 
+        {classification.relatedFamilies && classification.relatedFamilies.length > 0 ? (
+          <div className="space-y-2">
+            <span className="text-xs font-bold uppercase text-muted-foreground">
+              Áreas relacionadas
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {classification.relatedFamilies.map((fam) => (
+                <span
+                  key={fam}
+                  className="rounded border border-border bg-background px-2 py-1 text-xs font-semibold text-muted-foreground"
+                >
+                  {getFamilyLabel(fam)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="space-y-2">
-          <span className="text-xs font-bold uppercase text-muted-foreground">Tecnologias</span>
+          <span className="text-xs font-bold uppercase text-muted-foreground">
+            {classification.technologies && classification.technologies.length > 0 ? "Tecnologias e Competências" : "Tags"}
+          </span>
           <div className="flex flex-wrap gap-2">
-            {job.tags.map((tag) => (
+            {(classification.technologies && classification.technologies.length > 0
+              ? classification.technologies
+              : job.tags
+            ).map((tag) => (
               <span
                 key={tag}
                 className="rounded border border-border bg-background px-2 py-1 text-xs font-semibold"
@@ -215,6 +257,19 @@ export function JobDetailModal({
             ))}
           </div>
         </div>
+
+        {classification.reasons && classification.reasons.length > 0 ? (
+          <div className="space-y-2">
+            <span className="text-xs font-bold uppercase text-muted-foreground">
+              Justificativas de match
+            </span>
+            <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+              {classification.reasons.map((reason, idx) => (
+                <li key={idx}>{reason}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {hasDescription ? (
           <div className="space-y-2">
@@ -263,7 +318,7 @@ export function JobDetailModal({
           </div>
         ) : null}
 
-        <label className="space-y-2 block">
+        <label className="block space-y-2">
           <span className="text-xs font-bold uppercase text-muted-foreground">Status</span>
           <select
             value={job.status}
@@ -279,7 +334,7 @@ export function JobDetailModal({
         </label>
 
         {isTracked ? <ApplicationNotesSection savedJobId={job.id} /> : <div className="space-y-2">
-          <label className="space-y-2 block">
+          <label className="block space-y-2">
             <span className="text-xs font-bold uppercase text-muted-foreground">Notas</span>
             <textarea
               aria-label="Notas"
