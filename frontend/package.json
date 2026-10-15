@@ -18,7 +18,7 @@
     "@unpic/react": "^1.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "framer-motion": "^12.40.0",
+    "framer-motion": "^14.0.0",
     "lottie-react": "^3.1.2",
     "lucide-react": "^1.52.0",
     "motion": "^12.40.0",
