@@ -92,10 +92,67 @@ export type SearchJobFilters = {
   model?: string;
   contract?: string;
   family?: string;
+  familyMode?: string;
   technology?: string;
   company?: string;
   matchSort?: Exclude<MatchSort, "default">;
 };
+
+export type JobFamilyOption = {
+  id: string;
+  label: string;
+};
+
+export type JobFilterOptionsResponse = {
+  taxonomyVersion: string;
+  families: JobFamilyOption[];
+  familyModes: Array<{ id: string; label: string; default: boolean }>;
+};
+
+export const FALLBACK_JOB_FAMILIES: JobFamilyOption[] = [
+  { id: "backend", label: "Backend" },
+  { id: "frontend", label: "Frontend" },
+  { id: "fullstack", label: "Full Stack" },
+  { id: "mobile", label: "Mobile" },
+  { id: "data", label: "Dados e IA" },
+  { id: "devops", label: "DevOps" },
+  { id: "platform", label: "Plataforma e Cloud" },
+  { id: "qa", label: "QA e Testes" },
+  { id: "security", label: "Segurança" },
+  { id: "product", label: "Produto" },
+  { id: "product_design", label: "Design de Produto" },
+  { id: "software", label: "Engenharia de Software" },
+  { id: "leadership", label: "Liderança Técnica" },
+];
+
+export const FAMILY_LABELS: Record<string, string> = {
+  backend: "Backend",
+  frontend: "Frontend",
+  fullstack: "Full Stack",
+  mobile: "Mobile",
+  data: "Dados e IA",
+  devops: "DevOps",
+  platform: "Plataforma e Cloud",
+  qa: "QA e Testes",
+  security: "Segurança",
+  product: "Produto",
+  product_design: "Design de Produto",
+  software: "Engenharia de Software",
+  leadership: "Liderança Técnica",
+};
+
+export function getFamilyLabel(id: string): string {
+  return FAMILY_LABELS[id] || id;
+}
+
+export async function getJobFilterOptions(): Promise<JobFilterOptionsResponse> {
+  const { data } = await api.get("/jobs/filters/options");
+  return z.object({
+    taxonomyVersion: z.string(),
+    families: z.array(z.object({ id: z.string(), label: z.string() })),
+    familyModes: z.array(z.object({ id: z.string(), label: z.string(), default: z.boolean() })),
+  }).parse(data);
+}
 
 export type SearchJobsResult = {
   jobs: Job[];
@@ -343,6 +400,7 @@ const FILTER_PARAM_KEYS = [
   "model",
   "contract",
   "family",
+  "familyMode",
   "technology",
   "company",
   "matchSort",

@@ -209,6 +209,7 @@ describe("new_dashboard job components", () => {
     const setContinentFilter = vi.fn();
     const setCountryFilter = vi.fn();
     const setMatchSort = vi.fn();
+    const setSelectedFamilies = vi.fn();
 
     render(
       <JobFilter
@@ -224,6 +225,9 @@ describe("new_dashboard job components", () => {
         setCountryFilter={setCountryFilter}
         matchSort="default"
         setMatchSort={setMatchSort}
+        selectedFamilies={[]}
+        setSelectedFamilies={setSelectedFamilies}
+        familyOptions={[{ id: "dev", label: "Desenvolvimento" }]}
       />,
     );
 
@@ -237,7 +241,7 @@ describe("new_dashboard job components", () => {
       "grid-cols-1",
       "sm:grid-cols-2",
       "xl:grid-cols-3",
-      "2xl:grid-cols-[minmax(280px,1fr)_repeat(5,minmax(0,180px))]",
+      "2xl:grid-cols-[minmax(280px,1fr)_220px_repeat(5,minmax(0,180px))]",
     );
     screen.getAllByRole("combobox").forEach((select) => {
       expect(select).toHaveClass("w-full", "min-w-0");
@@ -246,11 +250,16 @@ describe("new_dashboard job components", () => {
     fireEvent.change(searchInput, {
       target: { value: "react" },
     });
+    fireEvent.click(
+      screen.getByRole("button", { name: /filtrar por área profissional/i }),
+    );
+    fireEvent.click(screen.getByText("Desenvolvimento"));
+
     fireEvent.change(screen.getAllByRole("combobox")[0], {
-      target: { value: "Remoto" },
+      target: { value: "Sênior" },
     });
     fireEvent.change(screen.getAllByRole("combobox")[1], {
-      target: { value: "Sênior" },
+      target: { value: "Remoto" },
     });
     fireEvent.change(screen.getAllByRole("combobox")[2], {
       target: { value: "Europa" },
@@ -263,8 +272,9 @@ describe("new_dashboard job components", () => {
     });
 
     expect(setSearchQuery).toHaveBeenCalledWith("react");
-    expect(setFilterType).toHaveBeenCalledWith("Remoto");
+    expect(setSelectedFamilies).toHaveBeenCalledWith(["dev"]);
     expect(setFilterLevel).toHaveBeenCalledWith("Sênior");
+    expect(setFilterType).toHaveBeenCalledWith("Remoto");
     expect(setContinentFilter).toHaveBeenCalledWith("Europa");
     expect(setCountryFilter).toHaveBeenCalledWith("Portugal");
     expect(setMatchSort).toHaveBeenCalledWith("desc");
@@ -681,7 +691,7 @@ describe("new_dashboard job components", () => {
     expect(screen.getByText("Remote React")).toBeInTheDocument();
     expect(screen.getByText("Onsite Java")).toBeInTheDocument();
 
-    fireEvent.change(screen.getAllByRole("combobox")[0], {
+    fireEvent.change(screen.getAllByRole("combobox")[1], {
       target: { value: "Remoto" },
     });
     expect(screen.getByText("Remote React")).toBeInTheDocument();
