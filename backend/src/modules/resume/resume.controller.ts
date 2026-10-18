@@ -3,6 +3,7 @@ import { getIronSession } from "iron-session";
 import { AppError } from "../../lib/errors";
 import { sessionOptions } from "../../lib/session";
 import { Session } from "../types/auth.types";
+import { resumeClient } from "./resume.client";
 import { ResumeService } from "./resume.service";
 import type { JobTarget } from "./resume.types";
 
@@ -24,6 +25,10 @@ export class ResumeController {
   private parseParams(req: Request) {
     const {
       format,
+      name,
+      email,
+      phone,
+      portfolio,
       jobTitle,
       jobDescription,
       jobUrl,
@@ -32,8 +37,13 @@ export class ResumeController {
       linkedinUrl,
       about,
       experiences,
+      education,
     } = req.body as {
       format: "docx" | "pdf" | "md";
+      name?: string;
+      email?: string;
+      phone?: string;
+      portfolio?: string;
       jobTitle?: string;
       jobDescription?: string;
       jobUrl?: string;
@@ -45,8 +55,20 @@ export class ResumeController {
         company: string;
         role: string;
         period?: string;
+        startDate?: string;
+        endDate?: string;
+        current?: boolean;
         description?: string;
         stack?: string[];
+      }>;
+      education?: Array<{
+        institution: string;
+        degree?: string;
+        field?: string;
+        period?: string;
+        startDate?: string;
+        endDate?: string;
+        current?: boolean;
       }>;
     };
 
@@ -62,10 +84,17 @@ export class ResumeController {
 
     return {
       format,
+      personal: {
+        name: name ?? null,
+        email: email ?? null,
+        phone: phone ?? null,
+        portfolio: portfolio ?? null,
+      },
       job,
       sources,
       about: about ?? null,
       experiences: experiences ?? null,
+      education: education ?? null,
     };
   }
 
@@ -99,5 +128,35 @@ export class ResumeController {
     }
 
     return res.status(200).send(resume.content);
+  }
+
+  // POST /resume/render — renderiza o conteúdo já produzido no preview (sem IA).
+  async render(req: Request, res: Response) {
+    await this.requireUserId(req, res);
+    const { resume, format, filename, atsScore } = req.body as {
+      resume: unknown;
+      format?: "docx" | "pdf" | "md";
+      filename?: string;
+      atsScore?: number | null;
+    };
+
+    const rendered = await resumeClient.render({
+      resume,
+      format: format ?? "pdf",
+      filename,
+      atsScore: atsScore ?? null,
+    });
+
+    res.setHeader("Content-Type", rendered.contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${rendered.filename}"`,
+    );
+    if (rendered.atsReport) {
+      res.setHeader("X-Ats-Score", String(rendered.atsReport.score));
+      res.setHeader("Access-Control-Expose-Headers", "X-Ats-Score, Content-Disposition");
+    }
+
+    return res.status(200).send(rendered.content);
   }
 }

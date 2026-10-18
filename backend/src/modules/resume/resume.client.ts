@@ -1,17 +1,15 @@
 import { config } from "../../config";
 import { AppError } from "../../lib/errors";
 import type {
-  AtsReport,
-  GeneratedResume,
-  JobTarget,
-  NormalizedProfile,
-  ResumeAnalysis,
-  ResumeFormat,
-  ResumeSources,
+    AtsReport,
+    GeneratedResume,
+    JobTarget,
+    NormalizedProfile,
+    ResumeAnalysis,
+    ResumeFormat,
+    ResumeSources,
 } from "./resume.types";
-
-// GitHub enrichment happens inside ats-forge, so allow a longer budget.
-const TIMEOUT_MS = 30000;
+const TIMEOUT_MS = config.atsForgeTimeoutMs || 120000;
 
 export interface GenerateResumeRequest {
   profile: NormalizedProfile;
@@ -41,20 +39,23 @@ function filenameFromDisposition(
   return match?.[1] ?? fallback;
 }
 
-/**
- * Thin HTTP client for the ats-forge resume microservice. Mirrors the
- * `scraperClient` pattern: a single `request` helper with a timeout that maps
- * transport/HTTP failures onto `AppError`.
- */
+
 function buildHeaders(): Record<string, string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.atsForgeApiKey) headers["x-api-key"] = config.atsForgeApiKey;
   return headers;
 }
 
+export interface RenderResumeRequest {
+  resume: unknown;
+  format: ResumeFormat;
+  filename?: string;
+  atsScore?: number | null;
+}
+
 async function postToAtsForge(
   path: string,
-  payload: GenerateResumeRequest,
+  payload: GenerateResumeRequest | RenderResumeRequest,
 ): Promise<Response> {
   let response: Response;
   const startedAt = Date.now();
@@ -112,5 +113,24 @@ export const resumeClient = {
   async analyze(payload: GenerateResumeRequest): Promise<ResumeAnalysis> {
     const response = await postToAtsForge("/resumes/analyze", payload);
     return (await response.json()) as ResumeAnalysis;
+  },
+
+  async render(payload: RenderResumeRequest): Promise<GeneratedResume> {
+    const response = await postToAtsForge("/resumes/render", payload);
+    const arrayBuffer = await response.arrayBuffer();
+    const rawScore = response.headers.get("x-ats-score");
+    const score = rawScore !== null ? Number(rawScore) : NaN;
+    return {
+      content: Buffer.from(arrayBuffer),
+      contentType:
+        response.headers.get("content-type") ?? "application/octet-stream",
+      filename: filenameFromDisposition(
+        response.headers.get("content-disposition"),
+        `${payload.filename ?? "curriculo"}.${payload.format}`,
+      ),
+      atsReport: Number.isFinite(score)
+        ? ({ score } as unknown as GeneratedResume["atsReport"])
+        : null,
+    };
   },
 };

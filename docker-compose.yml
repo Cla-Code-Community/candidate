@@ -57,6 +57,19 @@ services:
     environment:
       - PORT=8089
       - ATS_FORGE_API_KEY=${ATS_FORGE_API_KEY-}
+      # Camada de IA (opcional). AI_PROVIDER vazio/none = gerador determinístico.
+      # Basta preencher as chaves no ./.env — nenhum segredo fica versionado.
+      - AI_PROVIDER=${AI_PROVIDER-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY-}
+      - OPENAI_MODEL=${OPENAI_MODEL-}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY-}
+      - GEMINI_MODEL=${GEMINI_MODEL-}
+      - AI_FALLBACK_PROVIDER=${AI_FALLBACK_PROVIDER-}
+      - AI_TIMEOUT_MS=${AI_TIMEOUT_MS-}
+      - AI_MAX_RETRIES=${AI_MAX_RETRIES-}
+      - AI_MAX_INPUT_CHARS=${AI_MAX_INPUT_CHARS-}
+      - AI_TEMPERATURE=${AI_TEMPERATURE-}
     # Publicado porque o frontend (navegador) chama o ats-forge diretamente.
     ports:
       - "8089:8089"

@@ -137,6 +137,86 @@ describe("ResumeService.generateForUser", () => {
     expect(arg.profile.experience[0].highlights).toEqual([]);
   });
 
+  it("inclui formação acadêmica compondo o período a partir das datas", async () => {
+    await service.generateForUser("u1", {
+      format: "pdf",
+      education: [
+        {
+          institution: "USP",
+          degree: "Bacharelado",
+          field: "Ciência da Computação",
+          startDate: "2016-02-01",
+          endDate: "2020-12-01",
+        },
+      ],
+    });
+
+    const arg = mockGenerate.mock.calls[0][0];
+    expect(arg.profile.education).toHaveLength(1);
+    expect(arg.profile.education[0]).toMatchObject({
+      institution: "USP",
+      degree: "Bacharelado",
+      field: "Ciência da Computação",
+      period: "02/2016 – 12/2020",
+      source: "manual",
+    });
+  });
+
+  it("usa 'Atual' quando a formação está em andamento (current)", async () => {
+    await service.generateForUser("u1", {
+      format: "pdf",
+      education: [{ institution: "PUC Minas", degree: "Pós-graduação", startDate: "2024-03-01", current: true }],
+    });
+    const arg = mockGenerate.mock.calls[0][0];
+    expect(arg.profile.education[0].period).toBe("03/2024 – Atual");
+  });
+
+  it("dados pessoais informados têm precedência sobre o perfil", async () => {
+    await service.generateForUser("u1", {
+      format: "pdf",
+      personal: {
+        name: "Bene Tesla",
+        email: "bene@geodigitus.com.br",
+        phone: "+55 31 90000-0000",
+        portfolio: "https://bene.dev",
+      },
+    });
+    const arg = mockGenerate.mock.calls[0][0];
+    expect(arg.profile.name).toBe("Bene Tesla");
+    expect(arg.profile.contact.email).toBe("bene@geodigitus.com.br");
+    expect(arg.profile.contact.phone).toBe("+55 31 90000-0000");
+    expect(arg.profile.contact.website).toBe("https://bene.dev");
+  });
+
+  it("descarta nome/e-mail placeholder do perfil quando não há override", async () => {
+    mockFindById.mockResolvedValueOnce({
+      ...user,
+      displayName: "Local Developer",
+      firstName: "Local",
+      lastName: "Developer",
+      email: "dev@localhost.test",
+      phone: "",
+    });
+    await service.generateForUser("u1", { format: "pdf" });
+    const arg = mockGenerate.mock.calls[0][0];
+    expect(arg.profile.contact.email).toBeUndefined();
+  });
+
+  it("remove marcadores '--' ao quebrar a descrição em bullets", async () => {
+    await service.generateForUser("u1", {
+      format: "pdf",
+      experiences: [
+        { company: "Acme", role: "Dev", description: "-- Fez APIs\n— Otimizou queries\n* Testes" },
+      ],
+    });
+    const arg = mockGenerate.mock.calls[0][0];
+    expect(arg.profile.experience[0].highlights).toEqual([
+      "Fez APIs",
+      "Otimizou queries",
+      "Testes",
+    ]);
+  });
+
   it("passa job/sources como null quando ausentes", async () => {
     await service.generateForUser("u1", { format: "docx" });
     const arg = mockGenerate.mock.calls[0][0];

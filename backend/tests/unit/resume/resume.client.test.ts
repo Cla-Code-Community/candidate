@@ -5,6 +5,7 @@ import type { NormalizedProfile } from "../../../src/modules/resume/resume.types
 const mockConfig = vi.hoisted(() => ({
   atsForgeUrl: "http://ats-forge:8089",
   atsForgeApiKey: "",
+  atsForgeTimeoutMs: 120000,
 }));
 
 vi.mock("../../../src/config", () => ({ config: mockConfig }));

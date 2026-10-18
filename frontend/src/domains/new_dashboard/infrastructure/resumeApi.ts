@@ -6,11 +6,27 @@ export interface ExperienceInput {
   company: string;
   role: string;
   period?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
   description?: string;
+}
+
+export interface EducationInput {
+  institution: string;
+  degree?: string;
+  field?: string;
+  startDate?: string;
+  endDate?: string;
+  current?: boolean;
 }
 
 export interface GenerateResumeParams {
   format: ResumeFormat;
+  name?: string;
+  email?: string;
+  phone?: string;
+  portfolio?: string;
   jobTitle?: string;
   jobDescription?: string;
   jobUrl?: string;
@@ -19,6 +35,7 @@ export interface GenerateResumeParams {
   linkedinUrl?: string;
   about?: string;
   experiences?: ExperienceInput[];
+  education?: EducationInput[];
 }
 
 export interface GenerateResumeResult {
@@ -182,4 +199,32 @@ export async function analyzeResume(
     format: params.format ?? "pdf",
   });
   return data;
+}
+
+/**
+ * Downloads a file rendered from an ALREADY-ANALYZED resume (the preview content).
+ * No AI / no enrichment runs again — it just formats what the preview produced,
+ * so the download is fast and matches exactly what the candidate saw.
+ */
+export async function renderResume(params: {
+  resume: ResumePreview;
+  format: ResumeFormat;
+  filename?: string;
+  atsScore?: number | null;
+}): Promise<GenerateResumeResult> {
+  const response = await api.post("/resume/render", params, {
+    responseType: "blob",
+  });
+
+  const filename = parseFilename(
+    response.headers["content-disposition"],
+    params.format,
+  );
+  triggerDownload(response.data as Blob, filename);
+
+  const rawScore = response.headers["x-ats-score"];
+  const headerScore = rawScore !== undefined ? Number(rawScore) : NaN;
+  const atsScore = Number.isFinite(headerScore) ? headerScore : params.atsScore ?? null;
+
+  return { atsScore: atsScore !== null && Number.isFinite(atsScore) ? atsScore : null, filename };
 }

@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   CircleAlert,
   Copy,
+  Sparkles,
   User,
 } from "lucide-react";
 import { FaGithub as Github, FaLinkedin as Linkedin } from "react-icons/fa";
@@ -13,6 +14,7 @@ const SOURCE_LABELS: Record<string, { label: string; icon: typeof User }> = {
   candidate: { label: "Perfil", icon: User },
   github: { label: "GitHub", icon: Github },
   linkedin: { label: "LinkedIn", icon: Linkedin },
+  ai: { label: "Aprimorado por IA", icon: Sparkles },
 };
 
 const BREAKDOWN_LABELS: Array<[keyof AtsReport["breakdown"], string]> = [
@@ -57,6 +59,31 @@ function barColor(value: number): string {
   if (value >= 75) return "bg-emerald-500";
   if (value >= 50) return "bg-amber-500";
   return "bg-red-500";
+}
+
+const STATE_CLASSES = {
+  emerald: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  amber: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  red: "bg-red-500/15 text-red-700 dark:text-red-300",
+  muted: "bg-muted text-muted-foreground",
+} as const;
+
+type RequirementLike = {
+  priority: string;
+  reviewRequired?: boolean;
+  matchStrength: number;
+  evidence: unknown[];
+};
+
+function requirementState(
+  r: RequirementLike,
+): { label: string; tone: keyof typeof STATE_CLASSES } {
+  if (r.priority === "informational") return { label: "Informativo", tone: "muted" };
+  if (r.reviewRequired) return { label: "Em revisão", tone: "amber" };
+  if (r.matchStrength >= 75) return { label: "Atendido", tone: "emerald" };
+  if (r.matchStrength >= 40) return { label: "Parcial", tone: "amber" };
+  if (r.evidence.length > 0) return { label: "Evidência a validar", tone: "amber" };
+  return { label: "Não comprovado", tone: "red" };
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -132,7 +159,9 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
   const linksLine = [resume.links.linkedin, resume.links.github].filter(Boolean).join("  |  ");
   const [editedMarkdown, setEditedMarkdown] = useState(() => buildResumeMarkdown(analysis));
   const [copyMessage, setCopyMessage] = useState("");
+  const [showAllRequirements, setShowAllRequirements] = useState(false);
   const requirements = atsReport.requirements ?? [];
+  const visibleRequirements = showAllRequirements ? requirements : requirements.slice(0, 20);
 
   const [prevAnalysis, setPrevAnalysis] = useState(analysis);
 
@@ -140,6 +169,7 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
     setPrevAnalysis(analysis);
     setEditedMarkdown(buildResumeMarkdown(analysis));
     setCopyMessage("");
+    setShowAllRequirements(false);
   }
 
   const copyMarkdown = async () => {
@@ -268,7 +298,10 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
 
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-baseline justify-between">
-            <span className="text-sm font-semibold">ATS Score</span>
+            <span className="text-sm font-semibold">
+              ATS Score{" "}
+              <span className="font-normal text-muted-foreground">· estrutura &amp; texto</span>
+            </span>
             <span className={`text-2xl font-bold ${scoreColor(atsReport.score)}`}>
               {atsReport.score}
               <span className="text-sm text-muted-foreground">/100</span>
@@ -301,7 +334,10 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
         {atsReport.jobFitScore !== undefined && atsReport.jobFitScore !== null && (
           <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
             <div className="flex items-baseline justify-between">
-              <span className="text-sm font-semibold">Aderência textual à vaga</span>
+              <span className="text-sm font-semibold">
+                Aderência à vaga{" "}
+                <span className="font-normal text-muted-foreground">· requisitos × evidências</span>
+              </span>
               <span className={`text-xl font-bold ${scoreColor(atsReport.jobFitScore)}`}>
                 {atsReport.jobFitScore}/100
               </span>
@@ -314,51 +350,70 @@ export function ResumePreview({ analysis }: { analysis: ResumeAnalysis }) {
 
         {requirements.length > 0 && (
           <section className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <h3 className="text-sm font-semibold">Requisitos identificados</h3>
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-sm font-semibold">Requisitos identificados</h3>
+              <span className="text-xs text-muted-foreground">{requirements.length} no total</span>
+            </div>
             <div className="mt-3 space-y-3">
-              {requirements.slice(0, 20).map((requirement, index) => (
-                <article key={`${requirement.category}-${index}`} className="border-t border-border pt-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-semibold">
-                      {REQUIREMENT_LABELS[requirement.category] ?? requirement.category}
-                      {requirement.priority === "preferred" ? " · Desejável" : ""}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {requirement.reviewRequired
-                        ? "Classificação para revisão"
-                        : requirement.priority === "informational"
-                          ? "Informativo"
-                          : `${requirement.matchStrength}% de correspondência`}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm">{requirement.text}</p>
-                  {requirement.technologies.length > 0 && (
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Competências: {requirement.technologies.join(", ")}
-                    </p>
-                  )}
-                  {requirement.evidence.length > 0 ? (
-                    <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                      {requirement.evidence.slice(0, 3).map((item, evidenceIndex) => (
-                        <li key={`${item.skillId}-${item.source}-${evidenceIndex}`}>
-                          {item.source} · {EVIDENCE_LABELS[item.evidenceType] ?? item.evidenceType}
-                          {" · "}correspondência textual {Math.round(item.confidence * 100)}%
-                          {" · “"}{item.originalExcerpt}{"”"}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : requirement.priority !== "informational" && (
-                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                      Nenhuma evidência correspondente foi encontrada no perfil informado.
-                    </p>
-                  )}
-                </article>
-              ))}
+              {visibleRequirements.map((requirement, index) => {
+                const state = requirementState(requirement);
+                return (
+                  <article key={`${requirement.category}-${index}`} className="border-t border-border pt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-semibold">
+                        {REQUIREMENT_LABELS[requirement.category] ?? requirement.category}
+                        {requirement.priority === "preferred" ? " · Desejável" : ""}
+                        {requirement.priority === "required" ? " · Obrigatório" : ""}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATE_CLASSES[state.tone]}`}
+                      >
+                        {state.label}
+                        {requirement.priority !== "informational" &&
+                        !requirement.reviewRequired &&
+                        requirement.matchStrength > 0
+                          ? ` · ${requirement.matchStrength}%`
+                          : ""}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-sm">{requirement.text}</p>
+                    {requirement.technologies.length > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Competências: {requirement.technologies.join(", ")}
+                      </p>
+                    )}
+                    {requirement.evidence.length > 0 ? (
+                      <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                        {requirement.evidence.slice(0, 3).map((item, evidenceIndex) => (
+                          <li key={`${item.skillId}-${item.source}-${evidenceIndex}`}>
+                            {item.source} · {EVIDENCE_LABELS[item.evidenceType] ?? item.evidenceType}
+                            {" · "}correspondência textual {Math.round(item.confidence * 100)}%
+                            {" · “"}{item.originalExcerpt}{"”"}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : requirement.priority !== "informational" && (
+                      <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                        Nenhuma evidência correspondente foi encontrada no perfil informado.
+                        {requirement.priority === "required"
+                          ? " Se você possui essa experiência, adicione evidências; caso contrário, não a inclua."
+                          : ""}
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
             </div>
             {requirements.length > 20 && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                Exibindo 20 de {requirements.length} itens.
-              </p>
+              <button
+                type="button"
+                onClick={() => setShowAllRequirements((v) => !v)}
+                className="mt-3 text-xs font-semibold text-primary hover:underline"
+              >
+                {showAllRequirements
+                  ? "Ver menos"
+                  : `Ver todos os ${requirements.length} requisitos`}
+              </button>
             )}
           </section>
         )}

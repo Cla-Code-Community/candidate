@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   Briefcase,
   FileText,
+  GraduationCap,
   Loader2,
   Plus,
   Trash2,
@@ -11,7 +12,8 @@ import { Eye } from "lucide-react";
 import { isApiError } from "@/shared/lib/apiError";
 import {
   analyzeResume,
-  generateResume,
+  renderResume,
+  type EducationInput,
   type ExperienceInput,
   type ResumeAnalysis,
   type ResumeFormat,
@@ -21,15 +23,37 @@ import { ResumePreview } from "./ResumePreview";
 interface ExperienceRow {
   company: string;
   role: string;
-  period: string;
+  startDate: string;
+  endDate: string;
+  current: boolean;
   description: string;
 }
 
 const emptyExperience: ExperienceRow = {
   company: "",
   role: "",
-  period: "",
+  startDate: "",
+  endDate: "",
+  current: false,
   description: "",
+};
+
+interface EducationRow {
+  institution: string;
+  degree: string;
+  field: string;
+  startDate: string;
+  endDate: string;
+  current: boolean;
+}
+
+const emptyEducation: EducationRow = {
+  institution: "",
+  degree: "",
+  field: "",
+  startDate: "",
+  endDate: "",
+  current: false,
 };
 
 type Status =
@@ -69,12 +93,17 @@ function scoreColor(score: number): string {
 
 export function GenerateResumeCard() {
   const [format, setFormat] = useState<ResumeFormat>("pdf");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [portfolio, setPortfolio] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
   const [about, setAbout] = useState("");
   const [experiences, setExperiences] = useState<ExperienceRow[]>([]);
+  const [educations, setEducations] = useState<EducationRow[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [preview, setPreview] = useState<"idle" | "loading" | "error">("idle");
@@ -88,17 +117,35 @@ export function GenerateResumeCard() {
       .map((e) => ({
         company: e.company.trim(),
         role: e.role.trim(),
-        period: e.period.trim() || undefined,
+        startDate: e.startDate || undefined,
+        endDate: e.current ? undefined : e.endDate || undefined,
+        current: e.current || undefined,
         description: e.description.trim() || undefined,
       }));
 
+    const cleanedEducations: EducationInput[] = educations
+      .filter((e) => e.institution.trim())
+      .map((e) => ({
+        institution: e.institution.trim(),
+        degree: e.degree.trim() || undefined,
+        field: e.field.trim() || undefined,
+        startDate: e.startDate || undefined,
+        endDate: e.current ? undefined : e.endDate || undefined,
+        current: e.current || undefined,
+      }));
+
     return {
+      name: name.trim() || undefined,
+      email: email.trim() || undefined,
+      phone: phone.trim() || undefined,
+      portfolio: portfolio.trim() || undefined,
       jobTitle: jobTitle.trim() || undefined,
       jobDescription: jobDescription.trim() || undefined,
       githubUrl: githubUrl.trim() || undefined,
       linkedinUrl: linkedinUrl.trim() || undefined,
       about: about.trim() || undefined,
       experiences: cleanedExperiences.length ? cleanedExperiences : undefined,
+      education: cleanedEducations.length ? cleanedEducations : undefined,
     };
   };
 
@@ -122,16 +169,40 @@ export function GenerateResumeCard() {
   const updateExperience = (
     index: number,
     field: keyof ExperienceRow,
-    value: string,
+    value: string | boolean,
   ) =>
     setExperiences((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
+    );
+
+  const addEducation = () =>
+    setEducations((rows) => [...rows, { ...emptyEducation }]);
+  const removeEducation = (index: number) =>
+    setEducations((rows) => rows.filter((_, i) => i !== index));
+  const updateEducation = (
+    index: number,
+    field: keyof EducationRow,
+    value: string | boolean,
+  ) =>
+    setEducations((rows) =>
       rows.map((row, i) => (i === index ? { ...row, [field]: value } : row)),
     );
 
   const handleGenerate = async () => {
     setStatus({ kind: "loading" });
     try {
-      const result = await generateResume({ format, ...buildParams() });
+      // O download apenas renderiza o conteúdo que a IA já produziu na
+      // pré-visualização. Se ainda não houver preview, roda a análise uma vez.
+      let data = analysis;
+      if (!data) {
+        data = await analyzeResume(buildParams());
+        setAnalysis(data);
+      }
+      const result = await renderResume({
+        resume: data.resume,
+        format,
+        atsScore: data.atsReport?.score ?? null,
+      });
       setStatus({
         kind: "success",
         atsScore: result.atsScore,
@@ -154,11 +225,60 @@ export function GenerateResumeCard() {
           </h2>
           <p className="text-xs text-muted-foreground">
             Gera um currículo otimizado para ATS com seu nome, a vaga e seus
-            perfis públicos de GitHub e LinkedIn. A análise usa regras
-            determinísticas e não utiliza IA generativa.
+            perfis públicos de GitHub e LinkedIn. A pontuação ATS é calculada
+            por regras determinísticas; quando a IA está habilitada, ela aprimora
+            apenas a redação do conteúdo, sempre validada contra suas evidências.
           </p>
         </div>
       </div>
+
+      <div className="mt-6 grid gap-5 md:grid-cols-2">
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-semibold">Nome completo</span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Ex.: Bene Tesla"
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+          />
+        </label>
+
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-semibold">E-mail</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="seu.email@exemplo.com"
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+          />
+        </label>
+
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-semibold">Telefone</span>
+          <input
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            placeholder="+55 11 90000-0000"
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+          />
+        </label>
+
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-semibold">Portfólio (opcional)</span>
+          <input
+            value={portfolio}
+            onChange={(event) => setPortfolio(event.target.value)}
+            placeholder="https://seu-portfolio.com"
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary"
+          />
+        </label>
+      </div>
+
+      <p className="mt-2 text-xs text-muted-foreground">
+        Os dados pessoais acima têm precedência sobre o perfil salvo e aparecem no
+        cabeçalho do currículo. Preencha o nome e o e-mail para evitar placeholders.
+      </p>
 
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <label className="flex flex-col gap-2">
@@ -227,18 +347,22 @@ export function GenerateResumeCard() {
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-sm font-semibold">
             <Briefcase className="h-4 w-4" aria-hidden /> Experiência profissional
+            <span className="font-normal text-muted-foreground">(recomendado)</span>
           </span>
           <button
             type="button"
             onClick={addExperience}
+            aria-label="Adicionar experiência"
             className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-semibold hover:bg-accent"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden /> Adicionar
           </button>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          Adicione suas experiências reais (ex.: as do seu LinkedIn). Elas aparecem
-          como experiência profissional no currículo.
+          Este é o principal campo do currículo: adicione suas experiências reais com
+          empresa, cargo e as datas de início e término de cada trabalho. Marque
+          "Trabalho atual" quando ainda estiver no cargo. Se você ainda não tem
+          experiência profissional, pode deixar em branco.
         </p>
 
         {experiences.length > 0 && (
@@ -261,7 +385,7 @@ export function GenerateResumeCard() {
                     <Trash2 className="h-4 w-4" aria-hidden />
                   </button>
                 </div>
-                <div className="mt-2 grid gap-3 md:grid-cols-3">
+                <div className="mt-2 grid gap-3 md:grid-cols-2">
                   <input
                     value={exp.company}
                     onChange={(e) => updateExperience(index, "company", e.target.value)}
@@ -274,13 +398,38 @@ export function GenerateResumeCard() {
                     placeholder="Cargo"
                     className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary"
                   />
-                  <input
-                    value={exp.period}
-                    onChange={(e) => updateExperience(index, "period", e.target.value)}
-                    placeholder="Período (ex.: 2021 – Atual)"
-                    className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary"
-                  />
                 </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Data de início</span>
+                    <input
+                      type="date"
+                      value={exp.startDate}
+                      onChange={(e) => updateExperience(index, "startDate", e.target.value)}
+                      className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Data de término</span>
+                    <input
+                      type="date"
+                      value={exp.endDate}
+                      disabled={exp.current}
+                      min={exp.startDate || undefined}
+                      onChange={(e) => updateExperience(index, "endDate", e.target.value)}
+                      className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary disabled:opacity-50"
+                    />
+                  </label>
+                </div>
+                <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={exp.current}
+                    onChange={(e) => updateExperience(index, "current", e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border"
+                  />
+                  Trabalho atual (sem data de término)
+                </label>
                 <textarea
                   value={exp.description}
                   onChange={(e) => updateExperience(index, "description", e.target.value)}
@@ -288,6 +437,104 @@ export function GenerateResumeCard() {
                   rows={3}
                   className="mt-3 w-full rounded-md border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary"
                 />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6">
+        <div className="flex items-center justify-between">
+          <span className="flex items-center gap-1.5 text-sm font-semibold">
+            <GraduationCap className="h-4 w-4" aria-hidden /> Formação acadêmica
+            <span className="font-normal text-muted-foreground">(recomendado)</span>
+          </span>
+          <button
+            type="button"
+            onClick={addEducation}
+            aria-label="Adicionar formação"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1 text-xs font-semibold hover:bg-accent"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden /> Adicionar
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Adicione suas formações acadêmicas (graduação, pós, técnico) com
+          instituição, grau, curso e as datas de início e término. Marque "Cursando"
+          quando ainda estiver em andamento. Se não tiver, pode deixar em branco.
+        </p>
+
+        {educations.length > 0 && (
+          <div className="mt-3 flex flex-col gap-4">
+            {educations.map((edu, index) => (
+              <div
+                key={index}
+                className="rounded-lg border border-border bg-background p-4"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Formação {index + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeEducation(index)}
+                    className="text-muted-foreground hover:text-red-600"
+                    aria-label="Remover formação"
+                  >
+                    <Trash2 className="h-4 w-4" aria-hidden />
+                  </button>
+                </div>
+                <div className="mt-2 grid gap-3 md:grid-cols-3">
+                  <input
+                    value={edu.institution}
+                    onChange={(e) => updateEducation(index, "institution", e.target.value)}
+                    placeholder="Instituição"
+                    className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  />
+                  <input
+                    value={edu.degree}
+                    onChange={(e) => updateEducation(index, "degree", e.target.value)}
+                    placeholder="Grau (ex.: Bacharelado)"
+                    className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  />
+                  <input
+                    value={edu.field}
+                    onChange={(e) => updateEducation(index, "field", e.target.value)}
+                    placeholder="Curso / Área (ex.: Ciência da Computação)"
+                    className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                  />
+                </div>
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Data de início</span>
+                    <input
+                      type="date"
+                      value={edu.startDate}
+                      onChange={(e) => updateEducation(index, "startDate", e.target.value)}
+                      className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Data de término</span>
+                    <input
+                      type="date"
+                      value={edu.endDate}
+                      disabled={edu.current}
+                      min={edu.startDate || undefined}
+                      onChange={(e) => updateEducation(index, "endDate", e.target.value)}
+                      className="h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:border-primary disabled:opacity-50"
+                    />
+                  </label>
+                </div>
+                <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={edu.current}
+                    onChange={(e) => updateEducation(index, "current", e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-border"
+                  />
+                  Cursando (sem data de término)
+                </label>
               </div>
             ))}
           </div>
