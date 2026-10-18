@@ -1,5 +1,6 @@
 import { jobStatuses } from "../../constants";
 import type { Job, JobStatus } from "../../types";
+import { getFamilyLabel } from "../../infrastructure/dashboardJobsApi";
 
 interface JobRowProps {
   job: Job;
@@ -30,8 +31,15 @@ function matchedTechnologies(job: Job) {
     : [];
 }
 
+function primaryFamily(job: Job) {
+  const classification = job.rawPayload?.classification as { primaryFamily?: string } | undefined;
+  if (!classification?.primaryFamily) return null;
+  return getFamilyLabel(classification.primaryFamily);
+}
+
 export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
   const matched = matchedTechnologies(job);
+  const fam = primaryFamily(job);
 
   return (
     <tr className="border-b border-border last:border-0 hover:bg-muted/45">
@@ -46,6 +54,7 @@ export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
           </span>
           <span className="mt-1 block text-xs font-medium text-muted-foreground">
             {job.company}
+            {fam ? <span className="bg-primary px-1 py-0.5 rounded-lg ml-2 font-semibold text-secondary-foreground">• {fam}</span> : null}
           </span>
         </button>
       </td>
