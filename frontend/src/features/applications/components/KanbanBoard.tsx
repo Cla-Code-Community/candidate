@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Job, JobStatus } from "../../types";
+import type { Job, JobStatus } from "@/features/jobs/domain/job";
 import { KanbanColumn } from "./KanbanColumn";
 
 interface KanbanBoardProps {

@@ -7,7 +7,7 @@ import {
 } from "@/features/jobs/infrastructure/dashboardJobsApi";
 import type { Job, JobStatus, JobTimelineEvent } from "../../types";
 import { Modal } from "@/shared/ui/Modal";
-import { ApplicationNotesSection } from "./ApplicationNotesSection";
+import { ApplicationNotesSection } from "@/features/applications/components/ApplicationNotesSection";
 import { FormattedJobDescription } from "@/features/jobs/components/FormattedJobDescription";
 
 interface JobDetailModalProps {

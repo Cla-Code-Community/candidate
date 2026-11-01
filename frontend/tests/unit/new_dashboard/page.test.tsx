@@ -60,7 +60,7 @@ vi.mock("@/features/home/components/HomeTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/AddJobModal", () => ({
+vi.mock("@/features/applications/components/AddJobModal", () => ({
   AddJobModal: (props: any) => (
     <div data-testid="add-job-modal">
       <button onClick={() => props.onAddJob({ title: "new" })}>add-submit</button>

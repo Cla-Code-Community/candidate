@@ -1,4 +1,4 @@
-import type { Job, JobStatus } from "../../types";
+import type { Job, JobStatus } from "@/features/jobs/domain/job";
 
 interface KanbanColumnProps {
   status: JobStatus;
