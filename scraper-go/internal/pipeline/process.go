@@ -20,6 +20,8 @@ type persistBatchFn func(ctx context.Context, jobs []domain.Job) (jobstore.SaveR
 type indexBatchFn func(ctx context.Context, jobs []domain.Job) error
 
 type processConfig struct {
+	CollectionTimeout       time.Duration
+	DrainTimeout            time.Duration
 	RunID                   string
 	Keywords                []string
 	indexKeywords           *preparedIndexKeywords

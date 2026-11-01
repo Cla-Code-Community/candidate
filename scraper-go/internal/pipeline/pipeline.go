@@ -51,6 +51,21 @@ func runWithConcurrency(
 	processCfg processConfig,
 ) ([]domain.Job, ProcessStats, error) {
 	pipelineStart := time.Now()
+	// Collection expiry must not cancel already returned jobs. Both contexts
+	// still inherit shutdown and lock loss; draining has a hard upper bound.
+	processingCtx := ctx
+	collectionCtx := ctx
+	if processCfg.CollectionTimeout > 0 {
+		drain := processCfg.DrainTimeout
+		if drain <= 0 {
+			drain = 30 * time.Second
+		}
+		var cancelProcessing, cancelCollection context.CancelFunc
+		processingCtx, cancelProcessing = context.WithTimeout(ctx, processCfg.CollectionTimeout+drain)
+		defer cancelProcessing()
+		collectionCtx, cancelCollection = context.WithTimeout(processingCtx, processCfg.CollectionTimeout)
+		defer cancelCollection()
+	}
 
 	maxConcurrency := req.MaxConcurrency
 	if maxConcurrency <= 0 {
@@ -83,12 +98,12 @@ func runWithConcurrency(
 	tasksWg.Add(1 + maxConcurrency)
 	go func() {
 		defer tasksWg.Done()
-		produceTasks(ctx, tasks, adapterList, req.Keywords, runStats)
+		produceTasks(collectionCtx, tasks, adapterList, req.Keywords, runStats)
 	}()
 	for range maxConcurrency {
 		go func() {
 			defer tasksWg.Done()
-			runWorker(ctx, tasks, results, budget, runStats, req, processCfg.RunID)
+			runWorker(collectionCtx, processingCtx, tasks, results, budget, runStats, req, processCfg.RunID)
 		}()
 	}
 
@@ -107,7 +122,7 @@ func runWithConcurrency(
 	processWg.Add(1)
 	go func() {
 		defer processWg.Done()
-		processed, processStats, processErr = processIncomingJobs(ctx, incoming, processCfg)
+		processed, processStats, processErr = processIncomingJobs(processingCtx, incoming, processCfg)
 	}()
 
 	var closeIncoming sync.Once
@@ -119,16 +134,13 @@ func runWithConcurrency(
 	var incomingSendWait time.Duration
 	defer func() { metrics.ChannelSendWait.WithLabelValues("incoming").Observe(incomingSendWait.Seconds()) }()
 	for r := range results {
-		if r.err != nil {
-			continue
-		}
 		for _, job := range r.jobs {
-			if context.Cause(ctx) != nil {
+			if context.Cause(processingCtx) != nil {
 				break
 			}
 			sendStarted := time.Now()
 			select {
-			case <-ctx.Done():
+			case <-processingCtx.Done():
 			case incoming <- job:
 			}
 			incomingSendWait += time.Since(sendStarted)
@@ -142,6 +154,9 @@ func runWithConcurrency(
 		return processed, processStats, processErr
 	}
 	if cause := context.Cause(ctx); cause != nil {
+		return processed, processStats, cause
+	}
+	if cause := context.Cause(collectionCtx); cause != nil {
 		return processed, processStats, cause
 	}
 
@@ -311,6 +326,7 @@ func validateSources(adapterList []ports.JobSource) error {
 
 func runWorker(
 	ctx context.Context,
+	processingCtx context.Context,
 	tasks <-chan adapterTask,
 	results chan<- result,
 	budget *concurrencyBudget,
@@ -333,13 +349,14 @@ func runWorker(
 			if context.Cause(ctx) != nil {
 				return
 			}
-			runScheduledTask(ctx, task, results, budget, runStats, req, runID)
+			runScheduledTask(ctx, processingCtx, task, results, budget, runStats, req, runID)
 		}
 	}
 }
 
 func runScheduledTask(
 	ctx context.Context,
+	processingCtx context.Context,
 	task adapterTask,
 	results chan<- result,
 	budget *concurrencyBudget,
@@ -377,7 +394,7 @@ func runScheduledTask(
 	sendStarted := time.Now()
 	select {
 	case results <- result{jobs: jobs, err: err}:
-	case <-ctx.Done():
+	case <-processingCtx.Done():
 	}
 	metrics.ChannelSendWait.WithLabelValues("results").Observe(time.Since(sendStarted).Seconds())
 }

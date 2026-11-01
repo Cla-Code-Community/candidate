@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	cfgpkg "github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
@@ -16,6 +17,7 @@ import (
 )
 
 type SearchConfig struct {
+	CollectionTimeout            time.Duration            `json:"-"`
 	Store                        *jobstore.Store          `json:"-"`
 	Keywords                     []string                 `json:"keywords"`
 	SearchLocation               string                   `json:"searchLocation"`
@@ -72,6 +74,7 @@ func ScrapeAllSources(
 	)
 
 	processCfg := processConfig{
+		CollectionTimeout:       config.CollectionTimeout,
 		RunID:                   config.RunID,
 		Keywords:                config.Keywords,
 		ClassificationBatchSize: config.ClassificationBatchSize,

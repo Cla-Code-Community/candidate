@@ -270,12 +270,12 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 		"adapters", len(s.adapterList),
 	)
 
-	jobs, stats, err := pipeline.ScrapeAllSources(scrapeCtx, config, s.adapterList, s.rdb)
+	jobs, stats, err := pipeline.ScrapeAllSources(lease.Context(), config, s.adapterList, s.rdb)
 	if err != nil {
 		slog.Error("cronjob: scrape falhou", "error", err)
 		return fmt.Errorf("cronjob: scrape: %w", err)
 	}
-	if err := executionError(scrapeCtx); err != nil {
+	if err := executionError(lease.Context()); err != nil {
 		return err
 	}
 
@@ -307,6 +307,7 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 
 func (s *Scheduler) searchConfig(kws []string, runID string) pipeline.SearchConfig {
 	return pipeline.SearchConfig{
+		CollectionTimeout:            s.cfg.ScrapeTimeout,
 		Store:                        s.jobStore,
 		Keywords:                     kws,
 		SearchLocation:               s.cfg.SearchLocation,

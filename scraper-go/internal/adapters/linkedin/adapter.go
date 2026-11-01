@@ -287,7 +287,7 @@ func (a *LinkedInAdapter) SearchBatch(ctx context.Context, keywords []string, re
 	var firstErr error
 	for _, keyword := range slot {
 		if cause := context.Cause(ctx); cause != nil {
-			return nil, cause
+			return dedupeLinkedIn(allJobs), cause
 		}
 		keyword = strings.TrimSpace(keyword)
 		if keyword == "" {
@@ -295,16 +295,16 @@ func (a *LinkedInAdapter) SearchBatch(ctx context.Context, keywords []string, re
 		}
 
 		jobs, err := a.searchKeyword(ctx, keyword, req)
+		allJobs = append(allJobs, jobs...)
 		if err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
 			continue
 		}
-		allJobs = append(allJobs, jobs...)
 	}
 	if len(allJobs) > 0 {
-		return dedupeLinkedIn(allJobs), nil
+		return dedupeLinkedIn(allJobs), firstErr
 	}
 
 	return nil, firstErr
@@ -359,7 +359,7 @@ func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req
 			if strings.Contains(err.Error(), "429") {
 				backoff := 15 * time.Second
 				if err := adapterutil.Wait(ctx, backoff); err != nil {
-					return nil, err
+					return dedupeLinkedIn(allJobs), err
 				}
 				jobs, err = a.fetchJobsChunk(ctx, keyword, req, start)
 				if err != nil {
@@ -390,7 +390,7 @@ func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req
 
 		if pageIndex < maxPages-1 {
 			if err := adapterutil.Wait(ctx, waitBetween); err != nil {
-				return nil, err
+				return dedupeLinkedIn(allJobs), err
 			}
 		}
 	}
