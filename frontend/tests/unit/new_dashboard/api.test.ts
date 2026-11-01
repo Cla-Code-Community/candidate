@@ -33,7 +33,7 @@ import {
   toUserProfile,
   updateUserPreferences,
   updateUserProfile,
-} from "@/domains/new_dashboard/infrastructure/userDashboardApi";
+} from "@/features/profile/infrastructure/userDashboardApi";
 
 describe("new_dashboard api adapters", () => {
   beforeEach(() => {

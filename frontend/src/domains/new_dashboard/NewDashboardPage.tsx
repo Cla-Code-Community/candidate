@@ -15,7 +15,7 @@ import { ProfileTab } from "./components/profile/ProfileTab";
 import { Toast } from "@/shared/ui/Toast";
 import { jobStatuses } from "./constants";
 import { useDashboardJobs } from "./hooks/useDashboardJobs";
-import { useUserDashboardData } from "./hooks/useUserDashboardData";
+import { useUserDashboardData } from "@/features/profile/application/useUserDashboardData";
 import {
   getJobFilterOptions,
   FALLBACK_JOB_FAMILIES,

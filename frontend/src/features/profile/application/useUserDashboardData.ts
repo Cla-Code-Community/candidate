@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { isApiError } from "@/shared/lib/apiError";
 import type { User } from "@/features/auth/domain/auth.types";
-import { initialPreferences, initialUser } from "../constants";
-import type { SearchPreferences, UserProfile } from "../types";
+import { initialPreferences, initialUser } from "../defaults";
+import type { SearchPreferences, UserProfile } from "../domain/user";
 import {
   createUserPreferences,
   getUserPreferences,

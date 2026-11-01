@@ -161,7 +161,7 @@ const mockSaveSearchPreferences = vi.fn().mockResolvedValue(undefined);
 
 let mockUserData: any = {};
 
-vi.mock("@/domains/new_dashboard/hooks/useUserDashboardData", () => ({
+vi.mock("@/features/profile/application/useUserDashboardData", () => ({
   useUserDashboardData: () => mockUserData,
 }));
 

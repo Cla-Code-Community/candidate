@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { api } from "@/shared/lib/apiClient";
-import type { JobType, SearchPreferences, UserProfile } from "../types";
-import { initialPreferences, initialUser } from "../constants";
+import type { JobType } from "@/features/jobs/domain/job";
+import type { SearchPreferences, UserProfile } from "../domain/user";
+import { initialPreferences, initialUser } from "../defaults";
 
 const ApiUserProfileSchema = z.object({
   id: z.string().optional(),

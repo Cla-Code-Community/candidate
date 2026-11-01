@@ -10,7 +10,7 @@ const userApiMock = vi.hoisted(() => ({
   createUserPreferences: vi.fn(),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/userDashboardApi", () => ({
+vi.mock("@/features/profile/infrastructure/userDashboardApi", () => ({
   getUserProfile: userApiMock.getUserProfile,
   getUserPreferences: userApiMock.getUserPreferences,
   updateUserProfile: userApiMock.updateUserProfile,
@@ -19,7 +19,7 @@ vi.mock("@/domains/new_dashboard/infrastructure/userDashboardApi", () => ({
 }));
 
 import { initialPreferences, initialUser } from "@/domains/new_dashboard/constants";
-import { useUserDashboardData } from "@/domains/new_dashboard/hooks/useUserDashboardData";
+import { useUserDashboardData } from "@/features/profile/application/useUserDashboardData";
 import type { User } from "@/features/auth/domain/auth.types";
 
 const user: User = {
