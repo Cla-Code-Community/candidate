@@ -1,7 +1,7 @@
 import { useAuth } from "@/features/auth/application/AuthContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { DashboardTab } from "./components/dashboard/DashboardTab";
+import { DashboardTab } from "@/features/dashboard/components/DashboardTab";
 import { HelpTab } from "@/features/help/components/HelpTab";
 import { HomeTab } from "@/features/home/components/HomeTab";
 import { AddJobModal } from "@/features/applications/components/AddJobModal";

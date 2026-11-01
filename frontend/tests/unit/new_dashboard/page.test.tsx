@@ -33,7 +33,7 @@ vi.mock("@/features/auth/application/AuthContext", () => ({
 }));
 
 // ---------- Child components (paths com alias!) ----------
-vi.mock("@/domains/new_dashboard/components/dashboard/DashboardTab", () => ({
+vi.mock("@/features/dashboard/components/DashboardTab", () => ({
   DashboardTab: (props: any) => (
     <div data-testid="dashboard-tab">
       <button onClick={() => props.onOpenJob({ id: "job-1" })}>dash-open</button>

@@ -1,5 +1,6 @@
 import { BriefcaseBusiness, Plus } from "lucide-react";
-import type { Job, JobStatus, TechnologyExperience } from "../../types";
+import type { Job, JobStatus } from "@/features/jobs/domain/job";
+import type { TechnologyExperience } from "@/features/profile/domain/user";
 import { KanbanBoard } from "@/features/applications/components/KanbanBoard";
 
 interface DashboardTabProps {
