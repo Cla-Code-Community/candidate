@@ -1,3 +1,3 @@
-export * from "./job";
+export * from "@/features/jobs/domain/job";
 export * from "./mentor";
 export * from "./user";

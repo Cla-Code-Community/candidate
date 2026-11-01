@@ -1,4 +1,4 @@
-import { useAuth } from "@/domains/auth/application/AuthContext";
+import { useAuth } from "@/features/auth/application/AuthContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardTab } from "./components/dashboard/DashboardTab";
@@ -12,7 +12,7 @@ import { MobileTabBar } from "./components/layout/MobileTabBar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { MentoringTab } from "./components/mentoring/MentoringTab";
 import { ProfileTab } from "./components/profile/ProfileTab";
-import { Toast } from "./components/shared/Toast";
+import { Toast } from "@/shared/ui/Toast";
 import { jobStatuses } from "./constants";
 import { useDashboardJobs } from "./hooks/useDashboardJobs";
 import { useUserDashboardData } from "./hooks/useUserDashboardData";
@@ -35,12 +35,12 @@ import type {
 import {
   type ContinentFilter,
   type CountryFilter,
-} from "./utils/locationFilters";
+} from "@/features/jobs/domain/locationFilters";
 import {
   getModelFilterFromJobTypes,
   modelFilterToApiFilter,
-} from "./utils/jobModelFilters";
-import { parseSearchKeywords } from "./utils/searchKeywords";
+} from "@/features/jobs/domain/jobModelFilters";
+import { parseSearchKeywords } from "@/features/jobs/domain/searchKeywords";
 
 function getSection(pathname: string) {
   if (pathname.startsWith("/dashboard")) return "dashboard";

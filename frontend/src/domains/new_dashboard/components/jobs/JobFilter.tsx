@@ -2,13 +2,13 @@ import { Search, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { jobLevels } from "../../constants";
 import type { JobModelFilter, MatchSort } from "../../types";
-import { jobModelFilterOptions } from "../../utils/jobModelFilters";
+import { jobModelFilterOptions } from "@/features/jobs/domain/jobModelFilters";
 import {
   continentOptions,
   countryOptions,
   type ContinentFilter,
   type CountryFilter,
-} from "../../utils/locationFilters";
+} from "@/features/jobs/domain/locationFilters";
 
 interface JobFilterProps {
   searchQuery: string;

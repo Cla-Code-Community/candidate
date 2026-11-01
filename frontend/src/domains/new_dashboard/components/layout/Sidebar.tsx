@@ -1,7 +1,7 @@
 import { cn } from "@/shared/lib/utils";
 import { LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { useAuth } from "@/domains/auth/application/AuthContext";
+import { useAuth } from "@/features/auth/application/AuthContext";
 import { CandidateLogo } from "../shared/CandidateLogo";
 import { Icons } from "../shared/Icons";
 

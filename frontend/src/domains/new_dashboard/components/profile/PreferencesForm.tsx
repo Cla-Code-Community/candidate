@@ -3,7 +3,7 @@ import {
   getJobTypesFromModelFilter,
   getModelFilterFromJobTypes,
   jobModelFilterOptions,
-} from "../../utils/jobModelFilters";
+} from "@/features/jobs/domain/jobModelFilters";
 
 interface PreferencesFormProps {
   searchPreferences: SearchPreferences;

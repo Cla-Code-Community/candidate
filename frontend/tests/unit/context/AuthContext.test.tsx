@@ -13,7 +13,7 @@ vi.mock("@/shared/lib/apiClient", () => ({
   },
 }));
 
-import { AuthProvider, useAuth } from "@/domains/auth/application/AuthContext";
+import { AuthProvider, useAuth } from "@/features/auth/application/AuthContext";
 
 function TestConsumer() {
   const { user, isLoading, login, logout, refreshUser } = useAuth();

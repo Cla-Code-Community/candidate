@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { jobLevels, jobTypes } from "../../constants";
 import type { NewJob } from "../../types";
-import { Modal } from "../shared/Modal";
+import { Modal } from "@/shared/ui/Modal";
 
 const initialForm: NewJob = {
   jobTitle: "",

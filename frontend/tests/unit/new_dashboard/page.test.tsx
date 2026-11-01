@@ -25,7 +25,7 @@ vi.mock("react-router-dom", async (importOriginal) => {
 });
 
 const mockRefreshUser = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "u1", name: "Tester" },
     refreshUser: mockRefreshUser,
@@ -131,7 +131,7 @@ vi.mock("@/domains/new_dashboard/components/layout/Sidebar", () => ({
   Sidebar: () => <div data-testid="sidebar" />,
 }));
 
-vi.mock("@/domains/new_dashboard/components/shared/Toast", () => ({
+vi.mock("@/shared/ui/Toast", () => ({
   Toast: ({ message }: any) =>
     message ? <div data-testid="toast">{message}</div> : null,
 }));
@@ -140,18 +140,18 @@ vi.mock("@/domains/new_dashboard/constants", () => ({
   jobStatuses: { applied: "Aplicada", interview: "Entrevista" },
 }));
 
-vi.mock("@/domains/new_dashboard/utils/searchKeywords", () => ({
+vi.mock("@/features/jobs/domain/searchKeywords", () => ({
   parseSearchKeywords: (s: string) =>
     s ? s.split(",").map((x) => x.trim()) : [],
 }));
 
-vi.mock("@/domains/new_dashboard/utils/jobModelFilters", () => ({
+vi.mock("@/features/jobs/domain/jobModelFilters", () => ({
   getModelFilterFromJobTypes: (types: string[]) =>
     types.includes("Remoto") ? "Remoto" : "Todos",
   modelFilterToApiFilter: (f: string) => (f === "Todos" ? {} : { model: f }),
 }));
 
-vi.mock("@/domains/new_dashboard/utils/locationFilters", () => ({}));
+vi.mock("@/features/jobs/domain/locationFilters", () => ({}));
 
 // ---------- Hooks ----------
 const mockSetUserProfile = vi.fn();

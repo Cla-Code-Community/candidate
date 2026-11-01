@@ -10,7 +10,7 @@ const authState = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => authState.value,
 }));
 
@@ -31,19 +31,19 @@ vi.mock("@/domains/new_dashboard/NewDashboardPage", () => ({
   default: () => <main>New dashboard route</main>,
 }));
 
-vi.mock("@/domains/marketing/presentation/pages/LandingPage", () => ({
+vi.mock("@/features/marketing/pages/LandingPage", () => ({
   default: () => <main>Landing route</main>,
 }));
 
-vi.mock("@/domains/auth/presentation/pages/LoginPage", () => ({
+vi.mock("@/features/auth/presentation/pages/LoginPage", () => ({
   default: () => <main>Login route</main>,
 }));
 
-vi.mock("@/domains/auth/presentation/pages/RegisterPage", () => ({
+vi.mock("@/features/auth/presentation/pages/RegisterPage", () => ({
   default: () => <main>Register route</main>,
 }));
 
-vi.mock("@/domains/auth/presentation/pages/AuthCallbackPage", () => ({
+vi.mock("@/features/auth/presentation/pages/AuthCallbackPage", () => ({
   default: () => <main>Callback route</main>,
 }));
 

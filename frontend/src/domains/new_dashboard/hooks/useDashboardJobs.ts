@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { User } from "@/domains/auth/domain/auth.types";
+import type { User } from "@/features/auth/domain/auth.types";
 import { isApiError } from "@/shared/lib/apiError";
 import type { Job, JobStatus, NewJob } from "../types";
 import {

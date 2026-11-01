@@ -9,11 +9,11 @@ import type {
 import {
   type ContinentFilter,
   type CountryFilter,
-} from "../../utils/locationFilters";
+} from "@/features/jobs/domain/locationFilters";
 import {
   getModelFilterFromJobTypes,
   jobModelFilterOptions,
-} from "../../utils/jobModelFilters";
+} from "@/features/jobs/domain/jobModelFilters";
 import { JobFilter } from "./JobFilter";
 import { JobTable } from "./JobTable";
 

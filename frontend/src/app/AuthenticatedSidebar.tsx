@@ -1,4 +1,4 @@
-import { useAuth } from "@/domains/auth/application/AuthContext";
+import { useAuth } from "@/features/auth/application/AuthContext";
 import { cn } from "@/shared/lib/utils";
 import {
   BriefcaseBusiness,

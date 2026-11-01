@@ -5,7 +5,7 @@ import {
     JobStatusSchema,
     JobTypeSchema,
     NewJobSchema,
-} from "@/domains/new_dashboard/types/job";
+} from "@/features/jobs/domain/job";
 import { MentorSchema } from "@/domains/new_dashboard/types/mentor";
 import {
     CareerChecklistSchema,

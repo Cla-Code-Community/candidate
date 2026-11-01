@@ -1,11 +1,11 @@
 import NotFound from "@/app/NotFound";
-import { useAuth } from "@/domains/auth/application/AuthContext";
-import AuthCallbackPage from "@/domains/auth/presentation/pages/AuthCallbackPage";
-import LoginPage from "@/domains/auth/presentation/pages/LoginPage";
-import RegisterPage from "@/domains/auth/presentation/pages/RegisterPage";
-import LandingPage from "@/domains/marketing/presentation/pages/LandingPage";
-import PrivacyPolicyPage from "@/domains/marketing/presentation/pages/PrivacyPolicyPage";
-import TermsOfUsePage from "@/domains/marketing/presentation/pages/TermsOfUsePage";
+import { useAuth } from "@/features/auth/application/AuthContext";
+import AuthCallbackPage from "@/features/auth/presentation/pages/AuthCallbackPage";
+import LoginPage from "@/features/auth/presentation/pages/LoginPage";
+import RegisterPage from "@/features/auth/presentation/pages/RegisterPage";
+import LandingPage from "@/features/marketing/pages/LandingPage";
+import PrivacyPolicyPage from "@/features/marketing/pages/PrivacyPolicyPage";
+import TermsOfUsePage from "@/features/marketing/pages/TermsOfUsePage";
 import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
 import NewDashboardLayout from "@/domains/new_dashboard/layout";
 import Loading from "@/shared/ui/Loading";

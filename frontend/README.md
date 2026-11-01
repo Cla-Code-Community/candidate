@@ -53,9 +53,9 @@ Variáveis usadas:
 O frontend segue uma estrutura orientada por domínio:
 
 - `src/app`: composição da aplicação, providers, rotas e layouts autenticados.
-- `src/domains/auth`: login, registro, callback OAuth e estado de sessão.
+- `src/features/auth`: login, registro, callback OAuth e estado de sessão.
 - `src/domains/jobs`: busca, filtros, paginação e interface de vagas.
-- `src/domains/marketing`: landing page pública.
+- `src/features/marketing`: landing page pública.
 - `src/domains/new_dashboard`: nova estrutura de painel do frontend. É aqui que contribuidores devem procurar a experiência nova de dashboard, com abas de home, vagas, mentoring, perfil e ajuda.
 - `src/shared`: componentes de UI, assets, hooks e utilitários reutilizáveis.
 

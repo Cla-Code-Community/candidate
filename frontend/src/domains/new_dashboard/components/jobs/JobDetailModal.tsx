@@ -6,7 +6,7 @@ import {
   getFamilyLabel,
 } from "../../infrastructure/dashboardJobsApi";
 import type { Job, JobStatus, JobTimelineEvent } from "../../types";
-import { Modal } from "../shared/Modal";
+import { Modal } from "@/shared/ui/Modal";
 import { ApplicationNotesSection } from "./ApplicationNotesSection";
 import { FormattedJobDescription } from "./FormattedJobDescription";
 

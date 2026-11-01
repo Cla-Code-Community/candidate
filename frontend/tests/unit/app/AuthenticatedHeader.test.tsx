@@ -13,7 +13,7 @@ vi.mock("react-router-dom", () => ({
   useLocation: () => mockUseLocation(),
 }));
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 

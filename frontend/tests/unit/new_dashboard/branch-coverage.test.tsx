@@ -5,7 +5,7 @@ import { Header } from "@/domains/new_dashboard/components/layout/Header";
 import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
 import { MentoringTab } from "@/domains/new_dashboard/components/mentoring/MentoringTab";
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
-import { Modal } from "@/domains/new_dashboard/components/shared/Modal";
+import { Modal } from "@/shared/ui/Modal";
 import {
   clearDashboardNotifications,
   getDashboardNotificationFeed,
@@ -21,7 +21,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockUseAuth = vi.fn();
 const mockUseTheme = vi.fn();
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 

@@ -1,4 +1,4 @@
-import { useAuth } from "@/domains/auth/application/AuthContext";
+import { useAuth } from "@/features/auth/application/AuthContext";
 import { useTheme } from "@/shared/hooks/useTheme";
 import { ThemeToggle } from "@/shared/ui/theme-toggle";
 import { Bell, Mail } from "lucide-react";

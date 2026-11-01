@@ -20,7 +20,7 @@ vi.mock("@/domains/new_dashboard/infrastructure/userDashboardApi", () => ({
 
 import { initialPreferences, initialUser } from "@/domains/new_dashboard/constants";
 import { useUserDashboardData } from "@/domains/new_dashboard/hooks/useUserDashboardData";
-import type { User } from "@/domains/auth/domain/auth.types";
+import type { User } from "@/features/auth/domain/auth.types";
 
 const user: User = {
   id: "user-1",

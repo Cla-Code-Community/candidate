@@ -1,4 +1,4 @@
-import { useAuth } from "@/domains/auth/application/AuthContext";
+import { useAuth } from "@/features/auth/application/AuthContext";
 import { Bell, ChevronDown, Mail } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";

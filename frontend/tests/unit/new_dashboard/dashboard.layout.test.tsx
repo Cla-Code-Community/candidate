@@ -13,7 +13,7 @@ import type { Job } from "@/domains/new_dashboard/types";
 const mockUseAuth = vi.fn();
 const mockUseTheme = vi.fn();
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 

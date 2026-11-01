@@ -1,4 +1,4 @@
-import { AuthProvider } from "@/domains/auth/application/AuthContext";
+import { AuthProvider } from "@/features/auth/application/AuthContext";
 import type { ReactNode } from "react";
 import { BrowserRouter } from "react-router-dom";
 

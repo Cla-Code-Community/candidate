@@ -14,7 +14,7 @@ vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => ({ resolvedTheme: "light", toggleTheme: vi.fn() }),
 }));
 
-vi.mock("@/domains/marketing/presentation/pages/LandingPage", () => ({
+vi.mock("@/features/marketing/pages/LandingPage", () => ({
   default: () => <main>Funcionalidades</main>,
 }));
 

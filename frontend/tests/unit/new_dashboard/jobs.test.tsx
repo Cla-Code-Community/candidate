@@ -13,7 +13,7 @@ import type { Job, JobModelFilter } from "@/domains/new_dashboard/types";
 import type {
   ContinentFilter,
   CountryFilter,
-} from "@/domains/new_dashboard/utils/locationFilters";
+} from "@/features/jobs/domain/locationFilters";
 
 const dashboardApiMock = vi.hoisted(() => ({
   getDashboardSavedJobEvents: vi.fn(),

@@ -1,7 +1,7 @@
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import type { Mentor } from "../../types";
-import { Modal } from "../shared/Modal";
+import { Modal } from "@/shared/ui/Modal";
 
 interface MentorDetailModalProps {
   mentor: Mentor;
