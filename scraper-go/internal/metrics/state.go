@@ -15,6 +15,7 @@ import (
 )
 
 type Execution struct {
+	Partial             bool       `json:"partial"`
 	RunID               *string    `json:"runId"`
 	Status              string     `json:"status"`
 	Source              *string    `json:"source"`
@@ -189,6 +190,7 @@ func StartRun(source string, started time.Time, runID ...string) {
 		state.execution.RunID = &id
 	}
 	state.execution.FinishedAt = nil
+	state.execution.Partial = false
 	state.classification = nil
 	state.persistence = nil
 	state.providers = nil
@@ -228,6 +230,7 @@ func FinishRun(err error, runID ...string) {
 	state.execution.FinishedAt = &now
 	state.execution.LastDurationSeconds = duration
 	state.execution.LastStatus = &status
+	state.execution.Partial = err != nil && state.persistence != nil && (state.persistence.Inserted+state.persistence.Updated) > 0
 	if err == nil {
 		state.execution.Status = "completed"
 	} else {

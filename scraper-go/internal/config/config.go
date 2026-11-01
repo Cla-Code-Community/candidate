@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	DefaultScrapeTimeout           = 50 * time.Minute
 	DefaultCatalogLifetime         = 9 * 24 * time.Hour
 	DefaultMaxConcurrency          = 12
 	DefaultProviderMaxConcurrency  = 2
@@ -27,6 +28,7 @@ const (
 	SourceInternalDefault = "internal_default"
 
 	ScraperMaxConcurrencyEnv               = "SCRAPER_MAX_CONCURRENCY"
+	ScraperScrapeTimeoutEnv                = "SCRAPER_SCRAPE_TIMEOUT"
 	ScraperProviderMaxConcurrencyEnv       = "SCRAPER_PROVIDER_MAX_CONCURRENCY"
 	ScraperProviderConcurrencyOverridesEnv = "SCRAPER_PROVIDER_CONCURRENCY_OVERRIDES"
 	ScraperRunLockTTLEnv                   = "SCRAPER_RUN_LOCK_TTL"
@@ -37,6 +39,7 @@ const (
 )
 
 type RuntimeConfig struct {
+	ScrapeTimeout                time.Duration
 	ApplicationVersion           string
 	CatalogLifetime              time.Duration
 	MaxConcurrency               int
@@ -115,6 +118,10 @@ func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeCon
 	}
 
 	var err error
+	cfg.ScrapeTimeout, err = durationFromLookup(lookup, ScraperScrapeTimeoutEnv, DefaultScrapeTimeout)
+	if err != nil {
+		return RuntimeConfig{}, err
+	}
 	cfg.CatalogLifetime, err = durationFromLookup(lookup, "SCRAPER_CATALOG_LIFETIME", DefaultCatalogLifetime)
 	if err != nil {
 		return RuntimeConfig{}, err

@@ -112,6 +112,9 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 
 	// ── Scheduler (cronjob) ──
 	schedulerCfg := cronjob.DefaultConfig()
+
+	schedulerCfg.ScrapeTimeout = runtimeCfg.ScrapeTimeout
+
 	schedulerCfg.MaxConcurrency = runtimeCfg.MaxConcurrency
 	schedulerCfg.ProviderMaxConcurrency = runtimeCfg.ProviderMaxConcurrency
 	schedulerCfg.ProviderConcurrencyOverrides = runtimeCfg.ProviderConcurrencyOverrides

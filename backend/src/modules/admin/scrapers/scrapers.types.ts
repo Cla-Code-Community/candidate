@@ -40,8 +40,16 @@ export type TriggerScrapeError = z.infer<typeof TriggerScrapeErrorSchema>;
 export const ScraperStatusSchema = z.object({
   name: z.string().optional(),
   running: z.boolean(),
-  lastRunAt: z.string().optional(),
+  lastRunAt: z.string().nullable().optional(),
   jobsCollected: z.number().int().min(0).optional(),
+  lastRun: z.object({
+    runId: z.string(),
+    status: z.enum(["success", "partial", "failed", "timeout", "canceled"]),
+    finishedAt: z.string().datetime(),
+    jobsSaved: z.number().int().nonnegative(),
+    jobsIndexed: z.number().int().nonnegative(),
+    errorType: z.string(),
+  }).nullable().optional(),
 });
 export type ScraperStatus = z.infer<typeof ScraperStatusSchema>;
 

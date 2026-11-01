@@ -20,5 +20,13 @@ func TestCollectionTimeoutPersistsPartialJobsBeforeReleasingGlobalLock(t *testin
 	require.Greater(t, count, int64(0))
 	require.False(t, completed)
 	require.False(t, scheduler.IsRunning())
+	summary := scheduler.LastRun()
+	require.NotNil(t, summary)
+	require.Equal(t, "partial", summary.Status)
+	require.Positive(t, summary.JobsSaved)
+	require.Positive(t, summary.JobsIndexed)
+	_, lastRunAt, jobs := scheduler.Snapshot()
+	require.False(t, lastRunAt.IsZero())
+	require.Positive(t, jobs)
 	require.Zero(t, client.Exists(context.Background(), runlock.LockKey).Val())
 }

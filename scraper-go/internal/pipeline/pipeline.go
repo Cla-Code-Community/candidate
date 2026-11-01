@@ -132,8 +132,12 @@ func runWithConcurrency(
 	defer closeIncomingFn()
 
 	var incomingSendWait time.Duration
+	collectionFailed := 0
 	defer func() { metrics.ChannelSendWait.WithLabelValues("incoming").Observe(incomingSendWait.Seconds()) }()
 	for r := range results {
+		if r.err != nil {
+			collectionFailed++
+		}
 		for _, job := range r.jobs {
 			if context.Cause(processingCtx) != nil {
 				break
@@ -148,6 +152,7 @@ func runWithConcurrency(
 	}
 	closeIncomingFn()
 	processWg.Wait()
+	processStats.CollectionFailed = collectionFailed
 	gatherWg.Wait()
 	logProviderRunStats(runStats)
 	if processErr != nil {

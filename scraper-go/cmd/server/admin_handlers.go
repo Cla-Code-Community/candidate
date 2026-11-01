@@ -118,6 +118,7 @@ func handleScraperStatus(scheduler *cronjob.Scheduler) http.HandlerFunc {
 			"running":       running,
 			"lastRunAt":     lastRunAtValue,
 			"jobsCollected": jobsCollected,
+			"lastRun":       scheduler.LastRun(),
 		})
 	}
 }

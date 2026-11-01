@@ -47,6 +47,7 @@ func logRuntimeConfig(cfg config.RuntimeConfig) {
 	memLimit := debug.SetMemoryLimit(-1)
 
 	slog.Info("scraper runtime configurado",
+		"scrape_timeout", cfg.ScrapeTimeout,
 		"max_concurrency", cfg.MaxConcurrency,
 		"max_concurrency_source", cfg.MaxConcurrencySource,
 		"provider_max_concurrency", cfg.ProviderMaxConcurrency,

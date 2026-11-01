@@ -134,6 +134,9 @@ func ScrapeAllSources(
 	if err != nil {
 		return jobs, stats, err
 	}
+	if stats.CollectionFailed > 0 {
+		return jobs, stats, fmt.Errorf("collection: %d task(s) failed", stats.CollectionFailed)
+	}
 
 	slog.Info("scrape finished",
 		"total_jobs", len(jobs),

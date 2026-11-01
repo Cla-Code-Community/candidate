@@ -38,7 +38,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		Interval:                     3 * time.Hour,
-		ScrapeTimeout:                40 * time.Minute,
+		ScrapeTimeout:                config.DefaultScrapeTimeout,
 		SearchLocation:               "Brasil",
 		JobTypes:                     "C,F",
 		TimeFilter:                   "r604800",
@@ -53,6 +53,7 @@ func DefaultConfig() Config {
 }
 
 type Scheduler struct {
+	lastSummary *RunSummary
 	cfg         Config
 	kwStore     *keywords.Store
 	jobStore    *jobstore.Store
@@ -219,7 +220,11 @@ func (s *Scheduler) acquire(ctx context.Context, source string) (*runlock.Lease,
 }
 
 func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
-	defer func() { metrics.FinishRun(runErr, lease.RunID()) }()
+	var stats pipeline.ProcessStats
+	defer func() {
+		s.recordResult(lease.RunID(), stats, runErr)
+		metrics.FinishRun(runErr, lease.RunID())
+	}()
 	s.mu.Lock()
 	s.running = true
 	s.mu.Unlock()
@@ -303,6 +308,37 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 		s.OnComplete(kws, scraped, saved, time.Since(start))
 	}
 	return nil
+}
+
+type RunSummary struct {
+	RunID       string    `json:"runId"`
+	Status      string    `json:"status"`
+	FinishedAt  time.Time `json:"finishedAt"`
+	JobsSaved   int       `json:"jobsSaved"`
+	JobsIndexed int       `json:"jobsIndexed"`
+	ErrorType   string    `json:"errorType"`
+}
+
+func (s *Scheduler) recordResult(runID string, stats pipeline.ProcessStats, err error) {
+	status := metrics.Status(err)
+	if err != nil && stats.Saved() > 0 {
+		status = "partial"
+	}
+	now := time.Now().UTC()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.lastRunAt, s.lastJobs = now, stats.Saved()
+	s.lastSummary = &RunSummary{runID, status, now, stats.Saved(), stats.Indexed, metrics.ErrorType(err)}
+}
+
+func (s *Scheduler) LastRun() *RunSummary {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lastSummary == nil {
+		return nil
+	}
+	copy := *s.lastSummary
+	return &copy
 }
 
 func (s *Scheduler) searchConfig(kws []string, runID string) pipeline.SearchConfig {
