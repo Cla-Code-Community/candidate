@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
 )
 
 func main() {
@@ -35,6 +36,12 @@ func main() {
 	}
 
 	adapterList := buildAdapters(rdb)
+	for _, window := range runtimeCfg.ProviderWindows {
+		if _, err := pipeline.SelectProviders(adapterList, []string{string(window.Provider)}); err != nil {
+			slog.Error("provider window references an unavailable provider", "error", err)
+			os.Exit(1)
+		}
+	}
 	slog.Info("servidor inicializado", "adapters_total", len(adapterList))
 
 	run(adapterList, runtimeCfg)

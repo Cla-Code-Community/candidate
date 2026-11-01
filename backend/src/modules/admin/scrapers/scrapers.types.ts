@@ -25,6 +25,10 @@ export const TriggerScrapeResultSchema = z.object({
 });
 export type TriggerScrapeResult = z.infer<typeof TriggerScrapeResultSchema>;
 
+export const TriggerScrapeRequestSchema = z.object({
+  sources: z.array(z.enum(["linkedin", "adzuna", "gupy", "inhire", "greenhouse", "lever", "jooble", "themuse"])).max(8).optional(),
+}).strict();
+
 export const TriggerScrapeErrorSchema = z.object({
   ok: z.literal(false),
   code: z.enum([
@@ -44,12 +48,14 @@ export const ScraperStatusSchema = z.object({
   jobsCollected: z.number().int().min(0).optional(),
   lastRun: z.object({
     runId: z.string(),
+    providers: z.array(z.string()).nullable().optional(),
     status: z.enum(["success", "partial", "failed", "timeout", "canceled"]),
     finishedAt: z.string().datetime(),
     jobsSaved: z.number().int().nonnegative(),
     jobsIndexed: z.number().int().nonnegative(),
     errorType: z.string(),
   }).nullable().optional(),
+  providerWindows: z.array(z.object({ provider: z.string(), startMinuteUTC: z.number().int().min(0).max(1439), endMinuteUTC: z.number().int().min(1).max(1440) })).nullable().optional(),
 });
 export type ScraperStatus = z.infer<typeof ScraperStatusSchema>;
 

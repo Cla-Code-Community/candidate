@@ -11,6 +11,12 @@ import (
 // configured registry. An explicit selection must never fall back to all sources.
 var ErrInvalidProviderSelection = errors.New("invalid provider selection")
 
+// SelectProviders validates an explicit request against the startup registry.
+// Callers use the same selection rules for scheduling and manual execution.
+func SelectProviders(sources []ports.JobSource, requested []string) ([]ports.JobSource, error) {
+	return selectProviders(sources, requested)
+}
+
 func selectProviders(sources []ports.JobSource, requested []string) ([]ports.JobSource, error) {
 	if len(requested) == 0 {
 		return sources, nil

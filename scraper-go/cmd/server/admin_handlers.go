@@ -8,6 +8,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
+	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/runlock"
 )
 
@@ -23,9 +25,29 @@ import (
 // retorna 409 se já houver uma execução em andamento.
 func handleTriggerScrape(scheduler *cronjob.Scheduler, executionCtx context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Sources []string `json:"sources"`
+		}
+		if r.Body != nil {
+			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&request); err != nil && !errors.Is(err, io.EOF) {
+				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", "invalid request body")
+				return
+			}
+			var trailing any
+			if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", "unexpected trailing request data")
+				return
+			}
+		}
 		// A execução manual precisa sobreviver ao fim da request HTTP; se usarmos
 		// r.Context(), o scraper nasce com contexto cancelado assim que respondemos.
-		if err := scheduler.RunNow(executionCtx); err != nil {
+		if err := scheduler.RunProvidersNow(executionCtx, request.Sources); err != nil {
+			if errors.Is(err, pipeline.ErrInvalidProviderSelection) {
+				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", err.Error())
+				return
+			}
 			if errors.Is(err, cronjob.ErrAlreadyRunning) {
 				writeScraperError(
 					w,
@@ -114,11 +136,12 @@ func handleScraperStatus(scheduler *cronjob.Scheduler) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"name":          "go-scraper",
-			"running":       running,
-			"lastRunAt":     lastRunAtValue,
-			"jobsCollected": jobsCollected,
-			"lastRun":       scheduler.LastRun(),
+			"name":            "go-scraper",
+			"running":         running,
+			"lastRunAt":       lastRunAtValue,
+			"jobsCollected":   jobsCollected,
+			"lastRun":         scheduler.LastRun(),
+			"providerWindows": scheduler.ProviderWindows(),
 		})
 	}
 }

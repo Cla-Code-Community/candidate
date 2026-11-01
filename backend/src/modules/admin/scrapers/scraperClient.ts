@@ -1,4 +1,4 @@
-import { JobsCountResultSchema } from "./scrapers.types";
+import { JobsCountResultSchema, ScraperStatusSchema } from "./scrapers.types";
 import { config } from "../../../config";
 import type {
   GetJobsResult,
@@ -9,6 +9,10 @@ import type {
 } from "./scrapers.types";
 
 const TIMEOUT_MS = 5000;
+
+export class ScraperInvalidSelectionError extends Error {
+  readonly code = "INVALID_PROVIDER_SELECTION";
+}
 
 /** Lançado quando o Go scraper responde 409 (já em execução) */
 export class ScraperAlreadyRunningError extends Error {
@@ -41,6 +45,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const body = await response.json().catch(() => null);
     throw new ScraperAlreadyRunningError(body?.message);
   }
+	if (response.status === 400) {
+		const body = await response.json().catch(() => null);
+		throw new ScraperInvalidSelectionError(body?.message ?? "Seleção de provedor inválida.");
+	}
 
   if (response.status === 503) {
     const body = await response.json().catch(() => null);
@@ -55,12 +63,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const scraperClient = {
-  triggerScrape(): Promise<TriggerScrapeResult> {
-    return request<TriggerScrapeResult>("/admin/scrape", { method: "POST" });
+  triggerScrape(sources?: string[]): Promise<TriggerScrapeResult> {
+    return request<TriggerScrapeResult>("/admin/scrape", {
+      method: "POST",
+      ...(sources !== undefined ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sources }) } : {}),
+    });
   },
 
-  getStatus(): Promise<ScraperStatus> {
-    return request<ScraperStatus>("/admin/scrape/status");
+  async getStatus(): Promise<ScraperStatus> {
+    return ScraperStatusSchema.parse(await request<unknown>("/admin/scrape/status"));
   },
 
   getJobs(limit?: number): Promise<GetJobsResult> {

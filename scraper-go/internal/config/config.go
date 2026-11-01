@@ -39,6 +39,8 @@ const (
 )
 
 type RuntimeConfig struct {
+	ProviderWindows              []ProviderWindow
+	GreenhouseBatchSize          int
 	ScrapeTimeout                time.Duration
 	ApplicationVersion           string
 	CatalogLifetime              time.Duration
@@ -118,6 +120,16 @@ func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeCon
 	}
 
 	var err error
+	if value, ok := lookup(ProviderWindowsEnv); ok {
+		cfg.ProviderWindows, err = ParseProviderWindows(value)
+		if err != nil {
+			return RuntimeConfig{}, err
+		}
+	}
+	cfg.GreenhouseBatchSize, err = boundedPositiveIntFromLookup(lookup, "SCRAPER_GREENHOUSE_BATCH_SIZE", 1000, 1000)
+	if err != nil {
+		return RuntimeConfig{}, err
+	}
 	cfg.ScrapeTimeout, err = durationFromLookup(lookup, ScraperScrapeTimeoutEnv, DefaultScrapeTimeout)
 	if err != nil {
 		return RuntimeConfig{}, err

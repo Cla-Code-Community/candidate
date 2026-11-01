@@ -21,6 +21,8 @@ import (
 )
 
 type Config struct {
+	ProviderWindows              []config.ProviderWindow
+	GreenhouseBatchSize          int
 	Interval                     time.Duration
 	ScrapeTimeout                time.Duration
 	SearchLocation               string
@@ -37,6 +39,7 @@ type Config struct {
 
 func DefaultConfig() Config {
 	return Config{
+		GreenhouseBatchSize:          1000,
 		Interval:                     3 * time.Hour,
 		ScrapeTimeout:                config.DefaultScrapeTimeout,
 		SearchLocation:               "Brasil",
@@ -93,6 +96,11 @@ func New(
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
+	if len(s.cfg.ProviderWindows) > 0 {
+		metrics.CronInterval.Set((24 * time.Hour).Seconds())
+		go s.startProviderWindows(ctx)
+		return
+	}
 	metrics.CronInterval.Set(s.cfg.Interval.Seconds())
 	slog.Info("cronjob: scheduler iniciado", "interval", s.cfg.Interval)
 
@@ -148,6 +156,14 @@ func (s *Scheduler) Shutdown(ctx context.Context) error {
 }
 
 func (s *Scheduler) RunNow(ctx context.Context) error {
+	return s.RunProvidersNow(ctx, nil)
+}
+
+func (s *Scheduler) RunProvidersNow(ctx context.Context, sources []string) error {
+	if _, err := pipeline.SelectProviders(s.adapterList, sources); err != nil {
+		return err
+	}
+	sources = append([]string(nil), sources...)
 	lease, err := s.acquire(ctx, "admin_manual")
 	if err != nil {
 		return err
@@ -155,10 +171,9 @@ func (s *Scheduler) RunNow(ctx context.Context) error {
 
 	// Contabiliza a execução antes do yield da goroutine para o Shutdown não
 	// retornar enquanto o lease ainda estiver ativo.
-	s.active.Add(1)
 	go func() {
 		defer s.active.Done()
-		if runErr := s.runWithLease(lease); runErr != nil {
+		if runErr := s.runSelectedWithLease(lease, sources, s.cfg.ScrapeTimeout); runErr != nil {
 			slog.Error("cronjob: execução manual falhou",
 				"source", "admin_manual",
 				"error", runErr,
@@ -199,7 +214,6 @@ func (s *Scheduler) runCron(ctx context.Context) {
 		return
 	}
 
-	s.active.Add(1)
 	defer s.active.Done()
 	if err := s.runWithLease(lease); err != nil {
 		slog.Error("cronjob: execução falhou", "source", "cron", "error", err)
@@ -209,20 +223,32 @@ func (s *Scheduler) runCron(ctx context.Context) {
 func (s *Scheduler) acquire(ctx context.Context, source string) (*runlock.Lease, error) {
 	s.mu.Lock()
 	stopped := s.stopped
+	if !stopped {
+		s.active.Add(1)
+	}
 	s.mu.Unlock()
 	if stopped {
 		return nil, fmt.Errorf("%w: scheduler is shutting down", runlock.ErrUnavailable)
 	}
 	if s.runLock == nil {
+		s.active.Done()
 		return nil, fmt.Errorf("%w: lock service is not configured", runlock.ErrUnavailable)
 	}
-	return s.runLock.Acquire(ctx, source)
+	lease, err := s.runLock.Acquire(ctx, source)
+	if err != nil {
+		s.active.Done()
+	}
+	return lease, err
 }
 
 func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
+	return s.runSelectedWithLease(lease, nil, s.cfg.ScrapeTimeout)
+}
+
+func (s *Scheduler) runSelectedWithLease(lease *runlock.Lease, sources []string, timeout time.Duration) (runErr error) {
 	var stats pipeline.ProcessStats
 	defer func() {
-		s.recordResult(lease.RunID(), stats, runErr)
+		s.recordResult(lease.RunID(), stats, runErr, sources)
 		metrics.FinishRun(runErr, lease.RunID())
 	}()
 	s.mu.Lock()
@@ -244,7 +270,7 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 	}()
 
 	start := time.Now()
-	scrapeCtx, cancel := context.WithTimeout(lease.Context(), s.cfg.ScrapeTimeout)
+	scrapeCtx, cancel := context.WithTimeout(lease.Context(), timeout)
 	defer cancel()
 
 	if s.BeforeRun != nil {
@@ -265,6 +291,12 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 	}
 
 	config := s.searchConfig(kws, lease.RunID())
+	config.Sources = sources
+	config.CollectionTimeout = timeout
+	adapters, checkpoint, err := s.providerBatch(scrapeCtx, sources)
+	if err != nil {
+		return err
+	}
 	slog.Info("scraper execução iniciada",
 		"source", lease.State().Source,
 		"run_id", lease.RunID(),
@@ -272,16 +304,22 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 		"max_concurrency_effective", config.MaxConcurrency,
 		"provider_max_concurrency", config.ProviderMaxConcurrency,
 		"keywords", len(kws),
-		"adapters", len(s.adapterList),
+		"adapters", len(adapters),
+		"sources", sources,
 	)
 
-	jobs, stats, err := pipeline.ScrapeAllSources(lease.Context(), config, s.adapterList, s.rdb)
+	jobs, stats, err := pipeline.ScrapeAllSources(lease.Context(), config, adapters, s.rdb)
 	if err != nil {
 		slog.Error("cronjob: scrape falhou", "error", err)
 		return fmt.Errorf("cronjob: scrape: %w", err)
 	}
 	if err := executionError(lease.Context()); err != nil {
 		return err
+	}
+	if checkpoint != nil {
+		if err := checkpoint(lease); err != nil {
+			return err
+		}
 	}
 
 	scraped := stats.Received
@@ -311,6 +349,7 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 }
 
 type RunSummary struct {
+	Providers   []string  `json:"providers"`
 	RunID       string    `json:"runId"`
 	Status      string    `json:"status"`
 	FinishedAt  time.Time `json:"finishedAt"`
@@ -319,7 +358,7 @@ type RunSummary struct {
 	ErrorType   string    `json:"errorType"`
 }
 
-func (s *Scheduler) recordResult(runID string, stats pipeline.ProcessStats, err error) {
+func (s *Scheduler) recordResult(runID string, stats pipeline.ProcessStats, err error, sources []string) {
 	status := metrics.Status(err)
 	if err != nil && stats.Saved() > 0 {
 		status = "partial"
@@ -328,7 +367,7 @@ func (s *Scheduler) recordResult(runID string, stats pipeline.ProcessStats, err 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.lastRunAt, s.lastJobs = now, stats.Saved()
-	s.lastSummary = &RunSummary{runID, status, now, stats.Saved(), stats.Indexed, metrics.ErrorType(err)}
+	s.lastSummary = &RunSummary{Providers: append([]string(nil), sources...), RunID: runID, Status: status, FinishedAt: now, JobsSaved: stats.Saved(), JobsIndexed: stats.Indexed, ErrorType: metrics.ErrorType(err)}
 }
 
 func (s *Scheduler) LastRun() *RunSummary {
@@ -338,6 +377,7 @@ func (s *Scheduler) LastRun() *RunSummary {
 		return nil
 	}
 	copy := *s.lastSummary
+	copy.Providers = append([]string(nil), s.lastSummary.Providers...)
 	return &copy
 }
 
