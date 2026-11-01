@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -164,7 +165,28 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	}
 
 	// ── Background: inicia o scheduler ──
-	scheduler.Start(bgCtx)
+	//scheduler.Start(bgCtx)
+	schedulerEnabled := true
+
+	if value, exists := os.LookupEnv("SCRAPER_SCHEDULER_ENABLED"); exists {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			slog.Error(
+				"valor inválido para SCRAPER_SCHEDULER_ENABLED",
+				"value", value,
+				"error", err,
+			)
+			return
+		}
+		schedulerEnabled = enabled
+	}
+
+	if schedulerEnabled {
+		scheduler.Start(bgCtx)
+		slog.Info("scheduler automático habilitado")
+	} else {
+		slog.Info("scheduler automático desabilitado; execução manual disponível")
+	}
 
 	// ── Graceful shutdown ──
 	stop := make(chan os.Signal, 1)
