@@ -34,6 +34,10 @@ type adapterTask struct {
 }
 
 func Run(ctx context.Context, adapterList []ports.JobSource, req domain.ScrapeRequest) ([]domain.Job, error) {
+	adapterList, err := selectProviders(adapterList, req.Sources)
+	if err != nil {
+		return nil, err
+	}
 	jobs, _, err := runWithConcurrency(ctx, adapterList, req, 2, nil, defaultProcessConfig())
 	return jobs, err
 }

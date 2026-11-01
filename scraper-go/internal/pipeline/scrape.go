@@ -52,6 +52,10 @@ func ScrapeAllSources(
 	adapterList []ports.JobSource,
 	rdb *redis.Client,
 ) ([]domain.Job, ProcessStats, error) {
+	adapterList, err := selectProviders(adapterList, config.Sources)
+	if err != nil {
+		return nil, ProcessStats{}, err
+	}
 	config = normalizeSearchConfig(config)
 	if config.Store != nil && config.Store.Durable() {
 		release, err := config.Store.ProcessingLease(ctx)

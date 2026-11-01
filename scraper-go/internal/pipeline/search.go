@@ -34,6 +34,10 @@ func SearchJobs(
 	runLock *runlock.Manager,
 	source string,
 ) (SearchResult, error) {
+	adapterList, err := selectProviders(adapterList, config.Sources)
+	if err != nil {
+		return SearchResult{}, err
+	}
 	config = normalizeSearchConfig(config)
 	cacheKey := BuildCacheKey(config)
 
