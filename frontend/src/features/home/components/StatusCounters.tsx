@@ -1,4 +1,4 @@
-import type { Job } from "../../types";
+import type { Job } from "@/features/jobs/domain/job";
 
 interface StatusCountersProps {
   jobs: Job[];

@@ -1,5 +1,5 @@
 import { BriefcaseBusiness, Sparkles } from "lucide-react";
-import type { UserProfile } from "../../types";
+import type { UserProfile } from "@/features/profile/domain/user";
 
 interface WelcomeBannerProps {
   userProfile: UserProfile;

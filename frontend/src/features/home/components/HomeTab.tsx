@@ -1,6 +1,7 @@
 import { ClipboardList } from "lucide-react";
-import { jobStatuses } from "../../constants";
-import type { CareerChecklist as CareerChecklistList, Job, UserProfile } from "../../types";
+import { jobStatuses } from "@/features/jobs/constants";
+import type { CareerChecklist as CareerChecklistList, UserProfile } from "@/features/profile/domain/user";
+import type { Job } from "@/features/jobs/domain/job";
 import { CareerChecklist } from "./CareerChecklist";
 import { StatusCounters } from "./StatusCounters";
 import { WelcomeBanner } from "./WelcomeBanner";

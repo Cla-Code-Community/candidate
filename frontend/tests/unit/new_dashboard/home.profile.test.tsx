@@ -1,5 +1,5 @@
-import { CareerChecklist } from "@/domains/new_dashboard/components/home/CareerChecklist";
-import { HomeTab } from "@/domains/new_dashboard/components/home/HomeTab";
+import { CareerChecklist } from "@/features/home/components/CareerChecklist";
+import { HomeTab } from "@/features/home/components/HomeTab";
 import { PreferencesForm } from "@/domains/new_dashboard/components/profile/PreferencesForm";
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
 import {

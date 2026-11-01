@@ -1,4 +1,4 @@
-import { CareerChecklist } from "@/domains/new_dashboard/components/home/CareerChecklist";
+import { CareerChecklist } from "@/features/home/components/CareerChecklist";
 import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
 import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
 import { Header } from "@/domains/new_dashboard/components/layout/Header";

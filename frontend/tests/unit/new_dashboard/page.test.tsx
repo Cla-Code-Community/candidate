@@ -49,7 +49,7 @@ vi.mock("@/features/help/components/HelpTab", () => ({
   HelpTab: () => <div data-testid="help-tab">Help</div>,
 }));
 
-vi.mock("@/domains/new_dashboard/components/home/HomeTab", () => ({
+vi.mock("@/features/home/components/HomeTab", () => ({
   HomeTab: (props: any) => (
     <div data-testid="home-tab">
       <button onClick={() => props.onCareerChecklistChange([{ id: "c1" }])}>
