@@ -70,6 +70,9 @@ func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) e
 		if exists > 0 {
 			return nil
 		}
+		if err := s.checkProviderDelay(ctx, []string{string(w.Provider)}); err != nil {
+			return err
+		}
 		windowCtx, cancel := context.WithDeadline(ctx, end.Add(-5*time.Second))
 		defer cancel()
 		lease, err := s.acquire(windowCtx, "cron")

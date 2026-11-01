@@ -35,6 +35,8 @@ export const TriggerScrapeErrorSchema = z.object({
     "SCRAPER_ALREADY_RUNNING",
     "SCRAPER_RUN_LOCK_UNAVAILABLE",
     "SCRAPER_RUN_LOCK_LOST",
+    "INVALID_PROVIDER_SELECTION",
+    "PROVIDER_RATE_LIMITED",
   ]),
   message: z.string(),
 });

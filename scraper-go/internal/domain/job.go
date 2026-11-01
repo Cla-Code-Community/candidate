@@ -34,6 +34,7 @@ type Classification struct {
 }
 
 type ScrapeRequest struct {
+	RunID                 string   `json:"-"`
 	Keywords              []string `json:"keywords"`
 	SearchLocation        string   `json:"searchLocation"`
 	SearchGeoID           string   `json:"searchGeoId"`

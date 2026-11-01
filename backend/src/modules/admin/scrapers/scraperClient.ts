@@ -14,6 +14,11 @@ export class ScraperInvalidSelectionError extends Error {
   readonly code = "INVALID_PROVIDER_SELECTION";
 }
 
+export class ScraperRateLimitedError extends Error {
+  readonly code = "PROVIDER_RATE_LIMITED";
+  constructor(message: string, readonly retryAfter: string | null) { super(message); }
+}
+
 /** Lançado quando o Go scraper responde 409 (já em execução) */
 export class ScraperAlreadyRunningError extends Error {
   readonly code = "SCRAPER_ALREADY_RUNNING";
@@ -49,6 +54,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 		const body = await response.json().catch(() => null);
 		throw new ScraperInvalidSelectionError(body?.message ?? "Seleção de provedor inválida.");
 	}
+  if (response.status === 429) {
+    const body = await response.json().catch(() => null);
+    throw new ScraperRateLimitedError(body?.message ?? "Provedor aguardando Retry-After.", response.headers?.get("Retry-After") ?? null);
+  }
 
   if (response.status === 503) {
     const body = await response.json().catch(() => null);

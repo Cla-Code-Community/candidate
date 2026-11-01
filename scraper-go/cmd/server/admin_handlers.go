@@ -44,6 +44,13 @@ func handleTriggerScrape(scheduler *cronjob.Scheduler, executionCtx context.Cont
 		// A execução manual precisa sobreviver ao fim da request HTTP; se usarmos
 		// r.Context(), o scraper nasce com contexto cancelado assim que respondemos.
 		if err := scheduler.RunProvidersNow(executionCtx, request.Sources); err != nil {
+			var limit *ports.RateLimitError
+			if errors.As(err, &limit) {
+				seconds := max(1, int((time.Until(limit.NotBefore)+time.Second-1)/time.Second))
+				w.Header().Set("Retry-After", strconv.Itoa(seconds))
+				writeScraperError(w, http.StatusTooManyRequests, "PROVIDER_RATE_LIMITED", err.Error())
+				return
+			}
 			if errors.Is(err, pipeline.ErrInvalidProviderSelection) {
 				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", err.Error())
 				return

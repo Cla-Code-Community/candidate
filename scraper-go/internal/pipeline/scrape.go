@@ -40,6 +40,16 @@ type SearchConfig struct {
 	IndexBatchSize               int                      `json:"-"`
 }
 
+type collectionFailure struct {
+	count int
+	cause error
+}
+
+func (e collectionFailure) Error() string {
+	return fmt.Sprintf("collection: %d task(s) failed", e.count)
+}
+func (e collectionFailure) Unwrap() error { return e.cause }
+
 func normalizeSearchConfig(config SearchConfig) SearchConfig {
 	config.Keywords = keywords.GenerateSearchKeywords(config.Keywords)
 	if config.ProviderMaxConcurrency <= 0 {
@@ -135,7 +145,7 @@ func ScrapeAllSources(
 		return jobs, stats, err
 	}
 	if stats.CollectionFailed > 0 {
-		return jobs, stats, fmt.Errorf("collection: %d task(s) failed", stats.CollectionFailed)
+		return jobs, stats, collectionFailure{stats.CollectionFailed, stats.CollectionError}
 	}
 
 	slog.Info("scrape finished",

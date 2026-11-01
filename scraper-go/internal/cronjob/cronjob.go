@@ -164,6 +164,9 @@ func (s *Scheduler) RunProvidersNow(ctx context.Context, sources []string) error
 		return err
 	}
 	sources = append([]string(nil), sources...)
+	if err := s.checkProviderDelay(ctx, sources); err != nil {
+		return err
+	}
 	lease, err := s.acquire(ctx, "admin_manual")
 	if err != nil {
 		return err
@@ -270,6 +273,9 @@ func (s *Scheduler) runSelectedWithLease(lease *runlock.Lease, sources []string,
 	}()
 
 	start := time.Now()
+	if err := s.checkProviderDelay(lease.Context(), sources); err != nil {
+		return err
+	}
 	scrapeCtx, cancel := context.WithTimeout(lease.Context(), timeout)
 	defer cancel()
 
@@ -309,6 +315,9 @@ func (s *Scheduler) runSelectedWithLease(lease *runlock.Lease, sources []string,
 	)
 
 	jobs, stats, err := pipeline.ScrapeAllSources(lease.Context(), config, adapters, s.rdb)
+	if retryErr := s.rememberRetryAfter(lease, sources, stats.CollectionError); retryErr != nil {
+		err = errors.Join(err, retryErr)
+	}
 	if err != nil {
 		slog.Error("cronjob: scrape falhou", "error", err)
 		return fmt.Errorf("cronjob: scrape: %w", err)

@@ -88,6 +88,10 @@ func ErrorType(err error) string {
 	if errors.Is(err, context.Canceled) {
 		return "canceled"
 	}
+	var limit *ports.RateLimitError
+	if errors.As(err, &limit) {
+		return "rate_limit"
+	}
 	var e net.Error
 	if errors.As(err, &e) {
 		if e.Timeout() {

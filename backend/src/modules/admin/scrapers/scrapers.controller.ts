@@ -4,6 +4,7 @@ import {
   ScraperAlreadyRunningError,
   ScraperRunLockUnavailableError,
   ScraperInvalidSelectionError,
+  ScraperRateLimitedError,
 } from "./scraperClient";
 import { ScrapersService } from "./scrapers.service";
 import { TriggerScrapeRequestSchema } from "./scrapers.types";
@@ -24,6 +25,10 @@ export class ScrapersController {
 
       res.status(202).json(result);
     } catch (error) {
+      if (error instanceof ScraperRateLimitedError) {
+        if (error.retryAfter) res.setHeader("Retry-After", error.retryAfter);
+        res.status(429).json({ ok: false, code: error.code, message: error.message }); return;
+      }
       if (error instanceof ScraperInvalidSelectionError) { res.status(400).json({ ok: false, code: error.code, message: error.message }); return; }
       if (error instanceof ScraperAlreadyRunningError) {
         res.status(409).json({
@@ -57,6 +62,10 @@ export class ScrapersController {
 
       res.status(202).json({ ...result, scraper: scraperName });
     } catch (error) {
+      if (error instanceof ScraperRateLimitedError) {
+        if (error.retryAfter) res.setHeader("Retry-After", error.retryAfter);
+        res.status(429).json({ ok: false, code: error.code, message: error.message }); return;
+      }
       if (error instanceof ScraperInvalidSelectionError) { res.status(400).json({ ok: false, code: error.code, message: error.message }); return; }
       if (error instanceof ScraperAlreadyRunningError) {
         res.status(409).json({

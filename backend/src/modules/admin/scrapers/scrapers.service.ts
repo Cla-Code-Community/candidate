@@ -2,6 +2,7 @@ import {
   ScraperAlreadyRunningError,
   ScraperRunLockUnavailableError,
   ScraperInvalidSelectionError,
+  ScraperRateLimitedError,
   scraperClient,
 } from "./scraperClient";
 import type {
@@ -21,7 +22,7 @@ export class ScrapersService {
     } catch (error) {
       if (
         error instanceof ScraperAlreadyRunningError ||
-        error instanceof ScraperRunLockUnavailableError || error instanceof ScraperInvalidSelectionError
+        error instanceof ScraperRunLockUnavailableError || error instanceof ScraperInvalidSelectionError || error instanceof ScraperRateLimitedError
       ) {
         // repropaga para o controller decidir o status HTTP (409)
         throw error;

@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -51,6 +52,10 @@ func runWithConcurrency(
 	processCfg processConfig,
 ) ([]domain.Job, ProcessStats, error) {
 	pipelineStart := time.Now()
+	req.RunID = processCfg.RunID
+	if req.RunID == "" {
+		req.RunID = pipelineStart.Format(time.RFC3339Nano)
+	}
 	// Collection expiry must not cancel already returned jobs. Both contexts
 	// still inherit shutdown and lock loss; draining has a hard upper bound.
 	processingCtx := ctx
@@ -133,10 +138,12 @@ func runWithConcurrency(
 
 	var incomingSendWait time.Duration
 	collectionFailed := 0
+	var collectionError error
 	defer func() { metrics.ChannelSendWait.WithLabelValues("incoming").Observe(incomingSendWait.Seconds()) }()
 	for r := range results {
 		if r.err != nil {
 			collectionFailed++
+			collectionError = errors.Join(collectionError, r.err)
 		}
 		for _, job := range r.jobs {
 			if context.Cause(processingCtx) != nil {
@@ -153,6 +160,7 @@ func runWithConcurrency(
 	closeIncomingFn()
 	processWg.Wait()
 	processStats.CollectionFailed = collectionFailed
+	processStats.CollectionError = collectionError
 	gatherWg.Wait()
 	logProviderRunStats(runStats)
 	if processErr != nil {

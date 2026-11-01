@@ -16,6 +16,7 @@ import (
 )
 
 type dispatchSource struct {
+	err      error
 	provider ports.ProviderID
 	name     string
 	calls    *atomic.Int32
@@ -29,6 +30,9 @@ func (s dispatchSource) Capabilities() ports.SourceCapabilities {
 func (s dispatchSource) Search(context.Context, string, domain.ScrapeRequest) ([]domain.Job, error) {
 	if s.calls != nil {
 		s.calls.Add(1)
+	}
+	if s.err != nil {
+		return nil, s.err
 	}
 	if s.fail != nil && s.fail.Load() {
 		return nil, errors.New("provider unavailable")

@@ -37,6 +37,7 @@ type processConfig struct {
 
 type ProcessStats struct {
 	CollectionFailed                int
+	CollectionError                 error
 	Received                        int
 	Valid                           int
 	Invalid                         int
