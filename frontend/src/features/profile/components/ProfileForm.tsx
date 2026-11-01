@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { UserProfile } from "../../types";
+import type { UserProfile } from "../domain/user";
 
 interface ProfileFormProps {
   userProfile: UserProfile;

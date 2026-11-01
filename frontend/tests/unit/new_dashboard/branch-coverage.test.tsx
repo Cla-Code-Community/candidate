@@ -4,7 +4,7 @@ import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
 import { Header } from "@/domains/new_dashboard/components/layout/Header";
 import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
 import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
-import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
+import { ProfileForm } from "@/features/profile/components/ProfileForm";
 import { Modal } from "@/shared/ui/Modal";
 import {
   clearDashboardNotifications,

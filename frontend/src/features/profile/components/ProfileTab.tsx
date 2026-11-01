@@ -1,4 +1,4 @@
-import type { SearchPreferences, UserProfile } from "../../types";
+import type { SearchPreferences, UserProfile } from "../domain/user";
 import { ConnectionsForm } from "./ConnectionsForm";
 import { PreferencesForm } from "./PreferencesForm";
 import { ProfileForm } from "./ProfileForm";

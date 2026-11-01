@@ -1,7 +1,7 @@
 import { CareerChecklist } from "@/features/home/components/CareerChecklist";
 import { HomeTab } from "@/features/home/components/HomeTab";
-import { PreferencesForm } from "@/domains/new_dashboard/components/profile/PreferencesForm";
-import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
+import { PreferencesForm } from "@/features/profile/components/PreferencesForm";
+import { ProfileForm } from "@/features/profile/components/ProfileForm";
 import {
     initialPreferences,
     initialUser,

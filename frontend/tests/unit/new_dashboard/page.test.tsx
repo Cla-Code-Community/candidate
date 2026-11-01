@@ -110,7 +110,7 @@ vi.mock("@/features/mentoring/components/MentoringTab", () => ({
   MentoringTab: () => <div data-testid="mentoring-tab" />,
 }));
 
-vi.mock("@/domains/new_dashboard/components/profile/ProfileTab", () => ({
+vi.mock("@/features/profile/components/ProfileTab", () => ({
   ProfileTab: (props: any) => (
     <div data-testid="profile-tab">
       <button onClick={() => props.onSaveProfile({ name: "x" })}>save-profile</button>

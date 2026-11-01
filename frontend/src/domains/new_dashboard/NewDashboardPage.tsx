@@ -11,7 +11,7 @@ import { Header } from "./components/layout/Header";
 import { MobileTabBar } from "./components/layout/MobileTabBar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
-import { ProfileTab } from "./components/profile/ProfileTab";
+import { ProfileTab } from "@/features/profile/components/ProfileTab";
 import { Toast } from "@/shared/ui/Toast";
 import { jobStatuses } from "./constants";
 import { useDashboardJobs } from "./hooks/useDashboardJobs";

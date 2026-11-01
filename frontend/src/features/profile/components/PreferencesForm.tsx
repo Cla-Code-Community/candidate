@@ -1,4 +1,5 @@
-import type { JobModelFilter, SearchPreferences } from "../../types";
+import type { SearchPreferences } from "../domain/user";
+import type { JobModelFilter } from "@/features/jobs/domain/job";
 import {
   getJobTypesFromModelFilter,
   getModelFilterFromJobTypes,
