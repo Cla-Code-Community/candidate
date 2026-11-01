@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const seedMocks = vi.hoisted(() => ({
   applicationEventsFindFirst: vi.fn(),
@@ -34,6 +34,9 @@ const originalArgv = [...process.argv];
 
 describe("seed script", () => {
   beforeEach(() => {
+    vi.stubEnv("APP_ENV", "local");
+    vi.stubEnv("ALLOW_DEMO_SEED", "true");
+    vi.stubEnv("NODE_ENV", "test");
     vi.resetModules();
     vi.clearAllMocks();
     process.argv = [...originalArgv];
@@ -54,6 +57,22 @@ describe("seed script", () => {
     });
     vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.spyOn(console, "error").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    process.exitCode = 0;
+  });
+
+  it("blocks DEV fixtures before any database or catalog write", async () => {
+    vi.stubEnv("APP_ENV", "dev");
+    await import("../../../src/scripts/seed");
+    await vi.waitFor(() => expect(seedMocks.poolEnd).toHaveBeenCalledOnce());
+    expect(seedMocks.credentialsFindFirst).not.toHaveBeenCalled();
+    expect(seedMocks.update).not.toHaveBeenCalled();
+    expect(seedMocks.insert).not.toHaveBeenCalled();
+    expect(seedMocks.seedCatalogJobs).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 
   it("preserves existing records while refreshing profile and catalog data", async () => {
