@@ -45,7 +45,7 @@ vi.mock("@/domains/new_dashboard/components/dashboard/DashboardTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/help/HelpTab", () => ({
+vi.mock("@/features/help/components/HelpTab", () => ({
   HelpTab: () => <div data-testid="help-tab">Help</div>,
 }));
 
