@@ -4,8 +4,8 @@ import type {
   JobModelFilter,
   JobStatus,
   MatchSort,
-  SearchPreferences,
-} from "../../types";
+} from "../domain/job";
+import type { SearchPreferences } from "@/features/profile/domain/user";
 import {
   type ContinentFilter,
   type CountryFilter,

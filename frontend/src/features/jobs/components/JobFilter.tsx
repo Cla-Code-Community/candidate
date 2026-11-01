@@ -1,7 +1,7 @@
 import { Search, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect, useMemo } from "react";
-import { jobLevels } from "../../constants";
-import type { JobModelFilter, MatchSort } from "../../types";
+import { jobLevels } from "../constants";
+import type { JobModelFilter, MatchSort } from "../domain/job";
 import { jobModelFilterOptions } from "@/features/jobs/domain/jobModelFilters";
 import {
   continentOptions,

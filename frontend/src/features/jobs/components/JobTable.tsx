@@ -6,7 +6,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { Job, JobStatus } from "../../types";
+import type { Job, JobStatus } from "../domain/job";
 import { JobRow } from "./JobRow";
 
 type SortColumn = "source" | "level" | "posted";

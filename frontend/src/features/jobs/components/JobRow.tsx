@@ -1,5 +1,5 @@
-import { jobStatuses } from "../../constants";
-import type { Job, JobStatus } from "../../types";
+import { jobStatuses } from "../constants";
+import type { Job, JobStatus } from "../domain/job";
 import { getFamilyLabel } from "@/features/jobs/infrastructure/dashboardJobsApi";
 
 interface JobRowProps {

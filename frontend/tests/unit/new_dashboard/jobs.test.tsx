@@ -3,11 +3,11 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AddJobModal } from "@/domains/new_dashboard/components/jobs/AddJobModal";
 import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
-import { JobFilter } from "@/domains/new_dashboard/components/jobs/JobFilter";
-import { FormattedJobDescription } from "@/domains/new_dashboard/components/jobs/FormattedJobDescription";
-import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
-import { JobTab } from "@/domains/new_dashboard/components/jobs/JobTab";
-import { JobTable } from "@/domains/new_dashboard/components/jobs/JobTable";
+import { JobFilter } from "@/features/jobs/components/JobFilter";
+import { FormattedJobDescription } from "@/features/jobs/components/FormattedJobDescription";
+import { JobRow } from "@/features/jobs/components/JobRow";
+import { JobTab } from "@/features/jobs/components/JobTab";
+import { JobTable } from "@/features/jobs/components/JobTable";
 import { initialPreferences } from "@/domains/new_dashboard/constants";
 import type { Job, JobModelFilter } from "@/domains/new_dashboard/types";
 import type {

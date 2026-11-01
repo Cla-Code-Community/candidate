@@ -1,6 +1,6 @@
 import { CareerChecklist } from "@/features/home/components/CareerChecklist";
 import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
-import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
+import { JobRow } from "@/features/jobs/components/JobRow";
 import { Header } from "@/domains/new_dashboard/components/layout/Header";
 import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
 import { MentoringTab } from "@/features/mentoring/components/MentoringTab";

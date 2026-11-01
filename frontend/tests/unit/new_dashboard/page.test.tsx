@@ -84,7 +84,7 @@ vi.mock("@/domains/new_dashboard/components/jobs/JobDetailModal", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/JobTab", () => ({
+vi.mock("@/features/jobs/components/JobTab", () => ({
   JobTab: (props: any) => (
     <div data-testid="job-tab">
       <button onClick={() => props.setSearchQuery("react")}>set-search</button>
