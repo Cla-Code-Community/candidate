@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { initialMentors } from "../../constants";
-import type { Mentor } from "../../types";
+import { initialMentors } from "../demoMentors";
+import type { Mentor } from "../types";
 import { MentorCard } from "./MentorCard";
 import { MentorDetailModal } from "./MentorDetailModal";
 

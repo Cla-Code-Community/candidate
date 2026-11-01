@@ -10,7 +10,7 @@ import { JobTab } from "./components/jobs/JobTab";
 import { Header } from "./components/layout/Header";
 import { MobileTabBar } from "./components/layout/MobileTabBar";
 import { Sidebar } from "./components/layout/Sidebar";
-import { MentoringTab } from "./components/mentoring/MentoringTab";
+import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
 import { ProfileTab } from "./components/profile/ProfileTab";
 import { Toast } from "@/shared/ui/Toast";
 import { jobStatuses } from "./constants";

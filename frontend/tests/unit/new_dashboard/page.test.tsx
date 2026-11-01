@@ -106,7 +106,7 @@ vi.mock("@/domains/new_dashboard/components/jobs/JobTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/mentoring/MentoringTab", () => ({
+vi.mock("@/features/mentoring/components/MentoringTab", () => ({
   MentoringTab: () => <div data-testid="mentoring-tab" />,
 }));
 

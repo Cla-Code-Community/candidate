@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronRight, Clock3, Star } from "lucide-react";
-import type { Mentor } from "../../types";
+import type { Mentor } from "../types";
 
 interface MentorCardProps {
   mentor: Mentor;

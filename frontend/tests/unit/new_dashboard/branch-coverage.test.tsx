@@ -3,7 +3,7 @@ import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetai
 import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
 import { Header } from "@/domains/new_dashboard/components/layout/Header";
 import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
-import { MentoringTab } from "@/domains/new_dashboard/components/mentoring/MentoringTab";
+import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
 import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
 import { Modal } from "@/shared/ui/Modal";
 import {
