@@ -14,13 +14,13 @@ import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
 import { ProfileTab } from "@/features/profile/components/ProfileTab";
 import { Toast } from "@/shared/ui/Toast";
 import { jobStatuses } from "./constants";
-import { useDashboardJobs } from "./hooks/useDashboardJobs";
+import { useDashboardJobs } from "@/features/jobs/application/useDashboardJobs";
 import { useUserDashboardData } from "@/features/profile/application/useUserDashboardData";
 import {
   getJobFilterOptions,
   FALLBACK_JOB_FAMILIES,
   type JobFamilyOption,
-} from "./infrastructure/dashboardJobsApi";
+} from "@/features/jobs/infrastructure/dashboardJobsApi";
 import type {
   CareerChecklist,
   Job,

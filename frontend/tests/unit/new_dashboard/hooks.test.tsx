@@ -9,14 +9,14 @@ const dashboardApiMock = vi.hoisted(() => ({
   updateDashboardSavedJob: vi.fn(),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/infrastructure/dashboardJobsApi", () => ({
   getDashboardSavedJobs: dashboardApiMock.getDashboardSavedJobs,
   searchDashboardJobs: dashboardApiMock.searchDashboardJobs,
   createDashboardSavedJob: dashboardApiMock.createDashboardSavedJob,
   updateDashboardSavedJob: dashboardApiMock.updateDashboardSavedJob,
 }));
 
-import { useDashboardJobs } from "@/domains/new_dashboard/hooks/useDashboardJobs";
+import { useDashboardJobs } from "@/features/jobs/application/useDashboardJobs";
 import type { User } from "@/features/auth/domain/auth.types";
 import type { Job } from "@/domains/new_dashboard/types";
 

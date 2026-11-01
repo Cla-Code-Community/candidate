@@ -19,7 +19,7 @@ import {
   searchDashboardJobs,
   toRecommendedJob,
   updateDashboardSavedJob,
-} from "@/domains/new_dashboard/infrastructure/dashboardJobsApi";
+} from "@/features/jobs/infrastructure/dashboardJobsApi";
 import {
   clearDashboardNotifications,
   getDashboardNotificationFeed as getNotificationFeed,

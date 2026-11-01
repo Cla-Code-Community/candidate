@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@/features/auth/domain/auth.types";
 import { isApiError } from "@/shared/lib/apiError";
-import type { Job, JobStatus, NewJob } from "../types";
+import type { Job, JobStatus, NewJob } from "../domain/job";
 import {
   createDashboardSavedJob,
   getDashboardSavedJobs,
@@ -10,7 +10,7 @@ import {
   type SearchJobsResult,
   updateDashboardSavedJob,
 } from "../infrastructure/dashboardJobsApi";
-import { requestDashboardNotificationsRefresh } from "../utils/notificationEvents";
+import { requestDashboardNotificationsRefresh } from "@/domains/new_dashboard/utils/notificationEvents";
 
 interface UseDashboardJobsOptions {
   onError?: (message: string) => void;

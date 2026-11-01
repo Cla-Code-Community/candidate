@@ -5,7 +5,7 @@ import {
   deleteDashboardApplicationNote,
   getDashboardApplicationNotes,
   updateDashboardApplicationNote,
-} from "../../infrastructure/dashboardJobsApi";
+} from "@/features/jobs/infrastructure/dashboardJobsApi";
 
 export function ApplicationNotesSection({ savedJobId }: { savedJobId: string }) {
   const [notes, setNotes] = useState<ApplicationNote[]>([]);

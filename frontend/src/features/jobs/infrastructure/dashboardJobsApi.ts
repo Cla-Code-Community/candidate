@@ -8,7 +8,7 @@ import type {
   JobType,
   MatchSort,
   NewJob,
-} from "../types";
+} from "../domain/job";
 
 const ApiSearchJobSchema = z
   .object({

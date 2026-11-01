@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/domains/new_dashboard/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/infrastructure/dashboardJobsApi", () => ({
   getDashboardSavedJobEvents: vi.fn().mockResolvedValue([]),
 }));
 

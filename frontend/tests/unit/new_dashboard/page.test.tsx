@@ -177,7 +177,7 @@ const mockSaveJobNotes = vi.fn().mockResolvedValue(undefined);
 
 let mockJobs: any = {};
 
-vi.mock("@/domains/new_dashboard/hooks/useDashboardJobs", () => ({
+vi.mock("@/features/jobs/application/useDashboardJobs", () => ({
   useDashboardJobs: () => mockJobs,
 }));
 

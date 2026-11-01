@@ -23,7 +23,7 @@ const dashboardApiMock = vi.hoisted(() => ({
   deleteDashboardApplicationNote: vi.fn(),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/infrastructure/dashboardJobsApi", () => ({
   getDashboardSavedJobEvents: dashboardApiMock.getDashboardSavedJobEvents,
   getDashboardApplicationNotes: dashboardApiMock.getDashboardApplicationNotes,
   createDashboardApplicationNote: dashboardApiMock.createDashboardApplicationNote,
