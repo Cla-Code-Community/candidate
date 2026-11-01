@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AddJobModal } from "@/features/applications/components/AddJobModal";
-import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
+import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
 import { JobFilter } from "@/features/jobs/components/JobFilter";
 import { FormattedJobDescription } from "@/features/jobs/components/FormattedJobDescription";
 import { JobRow } from "@/features/jobs/components/JobRow";

@@ -69,7 +69,7 @@ vi.mock("@/features/applications/components/AddJobModal", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/JobDetailModal", () => ({
+vi.mock("@/features/jobs/components/JobDetailModal", () => ({
   JobDetailModal: (props: any) => (
     <div data-testid="job-detail-modal">
       <span data-testid="detail-job-id">{props.job.id}</span>

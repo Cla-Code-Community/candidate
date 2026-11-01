@@ -1,11 +1,11 @@
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
-import { jobStatusClasses, jobStatuses } from "../../constants";
+import { jobStatusClasses, jobStatuses } from "../constants";
 import {
   getDashboardSavedJobEvents,
   getFamilyLabel,
 } from "@/features/jobs/infrastructure/dashboardJobsApi";
-import type { Job, JobStatus, JobTimelineEvent } from "../../types";
+import type { Job, JobStatus, JobTimelineEvent } from "../domain/job";
 import { Modal } from "@/shared/ui/Modal";
 import { ApplicationNotesSection } from "@/features/applications/components/ApplicationNotesSection";
 import { FormattedJobDescription } from "@/features/jobs/components/FormattedJobDescription";

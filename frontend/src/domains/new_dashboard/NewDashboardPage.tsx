@@ -5,7 +5,7 @@ import { DashboardTab } from "./components/dashboard/DashboardTab";
 import { HelpTab } from "@/features/help/components/HelpTab";
 import { HomeTab } from "@/features/home/components/HomeTab";
 import { AddJobModal } from "@/features/applications/components/AddJobModal";
-import { JobDetailModal } from "./components/jobs/JobDetailModal";
+import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
 import { JobTab } from "@/features/jobs/components/JobTab";
 import { Header } from "./components/layout/Header";
 import { MobileTabBar } from "./components/layout/MobileTabBar";
