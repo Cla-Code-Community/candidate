@@ -13,7 +13,7 @@ export function WelcomeBanner({
   onExploreJobs,
 }: WelcomeBannerProps) {
   return (
-    <section className="relative overflow-hidden rounded-2xl bg-primary px-6 py-6 text-primary-foreground shadow-sm md:px-8 md:py-7">
+    <section className="relative overflow-hidden rounded-2xl bg-[var(--hero-background)] px-6 py-6 text-[color:var(--hero-foreground)] shadow-sm md:px-8 md:py-7">
       <BriefcaseBusiness className="pointer-events-none absolute -right-12 -top-14 h-80 w-80 text-white/10" />
 
       <div className="relative z-10 max-w-3xl space-y-3">
@@ -26,7 +26,7 @@ export function WelcomeBanner({
           Que bom te ver de volta, {userProfile.displayName}!
         </h2>
 
-        <p className="max-w-2xl text-sm leading-relaxed text-white/90 md:text-base">
+        <p className="max-w-2xl text-sm leading-relaxed text-[color:var(--hero-secondary-foreground)] md:text-base">
           Sua conta de nível{" "}
           <strong className="text-white">{userProfile.level}</strong> monitora
           atualmente <strong className="text-white">{jobsCount}</strong>{" "}

@@ -39,7 +39,7 @@ export function Sidebar() {
               className={cn(
                 "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold transition-colors",
                 active
-                  ? "bg-primary text-primary-foreground shadow-sm"
+                  ? "bg-[var(--menu-active-background)] text-[color:var(--menu-active-foreground)] shadow-sm ring-1 ring-inset ring-[color:var(--menu-active-border)]"
                   : "text-slate-500 hover:bg-muted hover:text-foreground dark:text-slate-300",
               )}
             >
@@ -62,7 +62,7 @@ export function Sidebar() {
                   className={cn(
                     "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-semibold transition-colors",
                     active
-                      ? "bg-primary text-primary-foreground shadow-sm"
+                      ? "bg-[var(--menu-active-background)] text-[color:var(--menu-active-foreground)] shadow-sm ring-1 ring-inset ring-[color:var(--menu-active-border)]"
                       : "text-slate-500 hover:bg-muted hover:text-foreground dark:text-slate-300",
                   )}
                 >
