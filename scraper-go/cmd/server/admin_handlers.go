@@ -44,6 +44,9 @@ func handleTriggerScrape(scheduler *cronjob.Scheduler, executionCtx context.Cont
 		// A execução manual precisa sobreviver ao fim da request HTTP; se usarmos
 		// r.Context(), o scraper nasce com contexto cancelado assim que respondemos.
 		if err := scheduler.RunProvidersNow(executionCtx, request.Sources); err != nil {
+			if writeGlobalPauseError(w, err) {
+				return
+			}
 			var limit *ports.RateLimitError
 			if errors.As(err, &limit) {
 				seconds := max(1, int((time.Until(limit.NotBefore)+time.Second-1)/time.Second))
@@ -101,6 +104,9 @@ func writeScraperError(w http.ResponseWriter, status int, code, message string) 
 }
 
 func mapRunLockError(w http.ResponseWriter, err error) bool {
+	if writeGlobalPauseError(w, err) {
+		return true
+	}
 	switch {
 	case errors.Is(err, runlock.ErrAlreadyHeld):
 		writeScraperError(
@@ -129,6 +135,16 @@ func mapRunLockError(w http.ResponseWriter, err error) bool {
 	default:
 		return false
 	}
+}
+
+func writeGlobalPauseError(w http.ResponseWriter, err error) bool {
+	var pause *runlock.CooldownError
+	if !errors.As(err, &pause) {
+		return false
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(max(1, int((time.Until(pause.NextAllowedAt)+time.Second-1)/time.Second))))
+	writeScraperError(w, http.StatusConflict, "SCRAPER_ALREADY_RUNNING", pause.Error())
+	return true
 }
 
 // handleScraperStatus retorna o estado atual do scheduler via GET /admin/scrape/status

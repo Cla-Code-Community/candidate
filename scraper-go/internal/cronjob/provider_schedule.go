@@ -2,6 +2,7 @@ package cronjob
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,7 +10,20 @@ import (
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/runlock"
+	"github.com/redis/go-redis/v9"
 )
+
+// ProviderStartTolerance accommodates the existing 15-second polling cadence.
+// It never permits retrying a consumed or impeded occurrence.
+const ProviderStartTolerance = 30 * time.Second
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
 
 // Windows use the existing global lease. A persistent daily claim prevents
 // repeated starts after completion, replica startup or a process restart.
@@ -65,54 +79,110 @@ func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) e
 	metrics.SetNextRun(next)
 	for _, w := range s.cfg.ProviderWindows {
 		start, end := windowBounds(now, w)
+		if !now.Before(end) {
+			if err := s.omitProviderWindow(ctx, start, w, "window_expired"); err != nil {
+				return err
+			}
+			continue
+		}
 		if now.Before(start) || !now.Before(end) {
 			continue
 		}
-		// Leave 30s for processing and 5s for releasing the global lease.
-		remaining := end.Sub(now) - 35*time.Second
-		if remaining <= 0 {
-			return nil
-		}
-		if s.rdb == nil {
-			return ErrLockUnavailable
+		if now.Sub(start) > ProviderStartTolerance {
+			if err := s.omitProviderWindow(ctx, start, w, "late_start"); err != nil {
+				return err
+			}
+			continue
 		}
 		key := windowOccurrenceKey(start, w)
-		exists, err := s.rdb.Exists(ctx, key).Result()
+		attempt := "admitting:" + rand.Text()
+		s.mu.Lock()
+		previous := s.failedAdmissions[key]
+		s.mu.Unlock()
+		if previous != "" && s.rdb != nil {
+			value, readErr := s.rdb.Get(ctx, key).Result()
+			if readErr == redis.Nil {
+				return s.omitProviderWindow(ctx, start, w, "admission_unavailable")
+			}
+			if readErr != nil {
+				return readErr
+			}
+			if value == previous {
+				return s.rdb.SetXX(ctx, key, "missed:admission_unavailable", 48*time.Hour).Err()
+			}
+			return nil
+		}
+		rememberFailure := func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if s.failedAdmissions == nil {
+				s.failedAdmissions = map[string]string{}
+			}
+			s.failedAdmissions[key] = attempt
+		}
+		if s.rdb == nil {
+			rememberFailure()
+			return ErrLockUnavailable
+		}
+		claimed, err := s.rdb.SetNX(ctx, key, attempt, 48*time.Hour).Result()
 		if err != nil {
+			rememberFailure()
+		}
+		if err != nil || !claimed {
 			return err
 		}
-		if exists > 0 {
-			return nil
+		miss := func(reason string, cause error) error {
+			written, updateErr := s.rdb.SetXX(ctx, key, "missed:"+reason, 48*time.Hour).Result()
+			if written {
+				slog.Warn("provider window missed", "provider", w.Provider, "window_id", w.WindowID(), "local_date", start.Format("2006-01-02"), "reason", reason)
+			}
+			return errors.Join(cause, updateErr)
 		}
 		if err := s.checkProviderDelay(ctx, []string{string(w.Provider)}); err != nil {
-			return err
+			return miss("provider_delay", err)
 		}
-		windowCtx, cancel := context.WithDeadline(ctx, end.Add(-5*time.Second))
+		deadline := minTime(end, start.Add(runlock.MaxExecutionDuration))
+		windowCtx, cancel := context.WithDeadline(ctx, deadline)
 		defer cancel()
 		lease, err := s.acquire(windowCtx, "cron")
-		if errors.Is(err, ErrAlreadyRunning) {
-			return nil
-		} // Retry during this window after the active run finishes.
 		if err != nil {
-			return err
+			var pause *runlock.CooldownError
+			if errors.As(err, &pause) {
+				return miss("global_pause", nil)
+			}
+			if errors.Is(err, ErrAlreadyRunning) {
+				return miss("lock_busy", nil)
+			}
+			return miss("admission_failed", err)
 		}
-		claimed, err := s.rdb.SetNX(windowCtx, key, lease.RunID(), 48*time.Hour).Result()
-		if err != nil || !claimed {
+		if err := s.rdb.Set(windowCtx, key, lease.RunID(), 48*time.Hour).Err(); err != nil {
 			s.active.Done()
 			releaseCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stop()
 			_ = lease.Release(releaseCtx)
-			metrics.FinishRun(context.Canceled, lease.RunID())
+			metrics.FinishRun(err, lease.RunID())
 			return err
 		}
+
 		defer s.active.Done()
 		fields := []any{"provider", w.Provider, "window_id", w.WindowID(), "local_date", start.Format("2006-01-02"), "timezone", w.Location().String(), "window_end", end, "run_id", lease.RunID()}
 		slog.Info("provider window started", fields...)
-		err = s.runSelectedWindowWithLease(lease, []string{string(w.Provider)}, min(s.cfg.ScrapeTimeout, remaining), &w)
+		err = s.runSelectedWindowWithLease(lease, []string{string(w.Provider)}, s.cfg.ScrapeTimeout, &w)
 		slog.Info("provider window finished", append(fields, "errorType", metrics.ErrorType(err))...)
 		return err
 	}
 	return nil
+}
+
+func (s *Scheduler) omitProviderWindow(ctx context.Context, start time.Time, w config.ProviderWindow, reason string) error {
+	if s.rdb == nil {
+		return ErrLockUnavailable
+	}
+	written, err := s.rdb.SetNX(ctx, windowOccurrenceKey(start, w), "missed:"+reason, 48*time.Hour).Result()
+	if written {
+		slog.Warn("provider window omitted", "provider", w.Provider, "window_id", w.WindowID(), "local_date", start.Format("2006-01-02"), "reason", reason)
+	}
+	return err
 }
 
 func (s *Scheduler) ProviderWindows() []config.ProviderWindow {

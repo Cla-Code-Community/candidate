@@ -56,23 +56,24 @@ func DefaultConfig() Config {
 }
 
 type Scheduler struct {
-	lastSummary *RunSummary
-	cfg         Config
-	kwStore     *keywords.Store
-	jobStore    *jobstore.Store
-	adapterList []ports.JobSource
-	rdb         *redis.Client
-	runLock     *runlock.Manager
-	BeforeRun   func(context.Context) error
-	OnComplete  func(keywords []string, scraped, saved int, duration time.Duration)
-	mu          sync.Mutex
-	running     bool
-	stopped     bool
-	lastRunAt   time.Time
-	lastJobs    int
-	stop        chan struct{}
-	stopOnce    sync.Once
-	active      sync.WaitGroup
+	failedAdmissions map[string]string
+	lastSummary      *RunSummary
+	cfg              Config
+	kwStore          *keywords.Store
+	jobStore         *jobstore.Store
+	adapterList      []ports.JobSource
+	rdb              *redis.Client
+	runLock          *runlock.Manager
+	BeforeRun        func(context.Context) error
+	OnComplete       func(keywords []string, scraped, saved int, duration time.Duration)
+	mu               sync.Mutex
+	running          bool
+	stopped          bool
+	lastRunAt        time.Time
+	lastJobs         int
+	stop             chan struct{}
+	stopOnce         sync.Once
+	active           sync.WaitGroup
 }
 
 func New(
@@ -280,7 +281,8 @@ func (s *Scheduler) runSelectedWindowWithLease(lease *runlock.Lease, sources []s
 	if err := s.checkProviderDelay(lease.Context(), sources); err != nil {
 		return err
 	}
-	scrapeCtx, cancel := context.WithTimeout(lease.Context(), timeout)
+	collectionDeadline := lease.CollectionDeadline(timeout)
+	scrapeCtx, cancel := context.WithDeadline(lease.Context(), collectionDeadline)
 	defer cancel()
 
 	if s.BeforeRun != nil {
@@ -303,6 +305,7 @@ func (s *Scheduler) runSelectedWindowWithLease(lease *runlock.Lease, sources []s
 	config := s.searchConfig(kws, lease.RunID())
 	config.Sources = sources
 	config.CollectionTimeout = timeout
+	config.CollectionDeadline = collectionDeadline
 	var adapters []ports.JobSource
 	var checkpoint func(*runlock.Lease) error
 	if window != nil && window.GreenhouseFixedGroup {

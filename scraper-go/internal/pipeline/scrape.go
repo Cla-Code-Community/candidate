@@ -18,6 +18,7 @@ import (
 
 type SearchConfig struct {
 	CollectionTimeout            time.Duration            `json:"-"`
+	CollectionDeadline           time.Time                `json:"-"`
 	Store                        *jobstore.Store          `json:"-"`
 	Keywords                     []string                 `json:"keywords"`
 	SearchLocation               string                   `json:"searchLocation"`
@@ -85,6 +86,7 @@ func ScrapeAllSources(
 
 	processCfg := processConfig{
 		CollectionTimeout:       config.CollectionTimeout,
+		CollectionDeadline:      config.CollectionDeadline,
 		RunID:                   config.RunID,
 		Keywords:                config.Keywords,
 		ClassificationBatchSize: config.ClassificationBatchSize,

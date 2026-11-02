@@ -132,12 +132,12 @@ func TestProviderWindowInterruptedClaimAndBusyLockDoNotStartProviders(t *testing
 	s.adapterList = []ports.JobSource{dispatchSource{provider: ports.ProviderLinkedIn, calls: &calls}}
 	w := config.ProviderWindow{Provider: ports.ProviderLinkedIn, ID: "linkedin-1", Start: 0, End: 1440, Timezone: config.ProviderScheduleTimezone}
 	s.cfg.ProviderWindows = []config.ProviderWindow{w}
-	now := time.Now().UTC().Add(time.Hour)
+	now, _ := windowBounds(time.Now().UTC().Add(24*time.Hour), w)
 	held, err := s.runLock.Acquire(context.Background(), "admin_manual")
 	require.NoError(t, err)
 	require.NoError(t, s.dispatchProviderWindow(context.Background(), now))
 	require.Zero(t, calls.Load())
-	require.Empty(t, client.Keys(context.Background(), "scraper:window:*").Val())
+	require.Len(t, client.Keys(context.Background(), "scraper:window:*").Val(), 1)
 	require.NoError(t, held.Release(context.Background()))
 	// Simulate a process that died after claiming but before completing work.
 	start, _ := windowBounds(now, w)

@@ -21,6 +21,7 @@ type indexBatchFn func(ctx context.Context, jobs []domain.Job) error
 
 type processConfig struct {
 	CollectionTimeout       time.Duration
+	CollectionDeadline      time.Time
 	DrainTimeout            time.Duration
 	RunID                   string
 	Keywords                []string

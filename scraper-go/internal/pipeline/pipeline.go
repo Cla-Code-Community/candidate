@@ -60,7 +60,17 @@ func runWithConcurrency(
 	// still inherit shutdown and lock loss; draining has a hard upper bound.
 	processingCtx := ctx
 	collectionCtx := ctx
-	if processCfg.CollectionTimeout > 0 {
+	if !processCfg.CollectionDeadline.IsZero() {
+		drain := processCfg.DrainTimeout
+		if drain <= 0 {
+			drain = 30 * time.Second
+		}
+		var cancelProcessing, cancelCollection context.CancelFunc
+		processingCtx, cancelProcessing = context.WithDeadline(ctx, processCfg.CollectionDeadline.Add(drain))
+		defer cancelProcessing()
+		collectionCtx, cancelCollection = context.WithDeadline(processingCtx, processCfg.CollectionDeadline)
+		defer cancelCollection()
+	} else if processCfg.CollectionTimeout > 0 {
 		drain := processCfg.DrainTimeout
 		if drain <= 0 {
 			drain = 30 * time.Second

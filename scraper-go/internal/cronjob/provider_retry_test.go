@@ -23,8 +23,9 @@ func TestProviderRetryAfterSurvivesRestartAndDoesNotConsumeWindow(t *testing.T) 
 	require.True(t, errors.As(restarted.RunProvidersNow(context.Background(), []string{"greenhouse"}), &limited))
 	require.Error(t, restarted.RunNow(context.Background())) // Global requests cannot bypass provider cooldowns.
 	restarted.cfg.ProviderWindows = []config.ProviderWindow{{Provider: ports.ProviderGreenhouse, Start: 0, End: 1440}}
-	require.Error(t, restarted.dispatchProviderWindow(context.Background(), time.Now().UTC()))
-	require.Empty(t, client.Keys(context.Background(), "scraper:window:*").Val())
+	now, _ := windowBounds(time.Now().Add(24*time.Hour), restarted.cfg.ProviderWindows[0])
+	require.Error(t, restarted.dispatchProviderWindow(context.Background(), now))
+	require.Len(t, client.Keys(context.Background(), "scraper:window:*").Val(), 1)
 	require.EqualValues(t, 1, calls.Load())
 	require.NoError(t, client.Set(context.Background(), providerRetryKey(ports.ProviderGreenhouse), time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano), 0).Err())
 	restarted.adapterList = []ports.JobSource{dispatchSource{provider: ports.ProviderGreenhouse, name: "a", calls: &calls}}

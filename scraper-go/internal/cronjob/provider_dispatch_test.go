@@ -67,12 +67,16 @@ func TestProviderWindowClaimSurvivesRestartAndWaitsForGlobalLock(t *testing.T) {
 	var calls atomic.Int32
 	s.adapterList = []ports.JobSource{dispatchSource{provider: ports.ProviderLinkedIn, calls: &calls}}
 	s.cfg.ProviderWindows = []config.ProviderWindow{{Provider: ports.ProviderLinkedIn, Start: 0, End: 1440}}
-	now := time.Now().UTC()
+	now := time.Now().UTC().AddDate(0, 0, 1)
+	now = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	held, err := s.runLock.Acquire(context.Background(), "public_endpoint")
 	require.NoError(t, err)
 	require.NoError(t, s.dispatchProviderWindow(context.Background(), now))
 	require.Zero(t, calls.Load())
 	require.NoError(t, held.Release(context.Background()))
+	require.NoError(t, s.dispatchProviderWindow(context.Background(), now))
+	require.Zero(t, calls.Load())
+	now = now.AddDate(0, 0, 1)
 	require.NoError(t, s.dispatchProviderWindow(context.Background(), now))
 	require.EqualValues(t, 1, calls.Load())
 	restarted := New(s.cfg, s.kwStore, s.jobStore, s.adapterList, s.rdb, s.runLock)

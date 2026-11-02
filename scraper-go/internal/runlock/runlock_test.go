@@ -134,6 +134,8 @@ func TestLockExpiresAfterOwnerCrashes(t *testing.T) {
 	lease, err := manager.Acquire(ctx, "cron")
 	require.NoError(t, err)
 	cancel()
+	lease.cancelRenewal()
+	lease.stopOnce.Do(func() { close(lease.stopRenewal) })
 
 	select {
 	case <-lease.renewalDone:
@@ -315,7 +317,7 @@ func newTestManager(
 		_ = client.Close()
 	})
 
-	manager, err := New(NewValkeyStore(client), Config{
+	manager, err := New(NewValkeyStore(client, 0), Config{
 		TTL:           ttl,
 		RenewInterval: renewInterval,
 	})

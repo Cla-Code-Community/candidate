@@ -111,7 +111,7 @@ func newHandlerTestScheduler(
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
 
-	manager, err := runlock.New(runlock.NewValkeyStore(client), runlock.Config{
+	manager, err := runlock.New(runlock.NewValkeyStore(client, 0), runlock.Config{
 		TTL:           2 * time.Second,
 		RenewInterval: 500 * time.Millisecond,
 	})
