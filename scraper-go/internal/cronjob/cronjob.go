@@ -306,6 +306,10 @@ func (s *Scheduler) runSelectedWindowWithLease(lease *runlock.Lease, sources []s
 	config.Sources = sources
 	config.CollectionTimeout = timeout
 	config.CollectionDeadline = collectionDeadline
+	if window != nil {
+		config.FullKeywordCoverage = window.FullKeywordCoverage
+		config.WindowID = window.WindowID()
+	}
 	var adapters []ports.JobSource
 	var checkpoint func(*runlock.Lease) error
 	if window != nil && window.GreenhouseFixedGroup {

@@ -34,6 +34,8 @@ type Classification struct {
 }
 
 type ScrapeRequest struct {
+	FullKeywordCoverage   bool     `json:"-"`
+	WindowID              string   `json:"-"`
 	RunID                 string   `json:"-"`
 	Keywords              []string `json:"keywords"`
 	SearchLocation        string   `json:"searchLocation"`

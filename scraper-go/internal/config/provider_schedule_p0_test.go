@@ -20,6 +20,7 @@ func TestProviderSchedulePresetHas21IndependentWindows(t *testing.T) {
 		require.Equal(t, (i+1)*60, w.End)
 		require.Equal(t, ProviderScheduleTimezone, w.Location().String())
 		require.Equal(t, string(w.Provider) == "greenhouse", w.GreenhouseFixedGroup)
+		require.Equal(t, string(w.Provider) == "linkedin" || string(w.Provider) == "adzuna", w.FullKeywordCoverage)
 		require.False(t, ids[w.WindowID()])
 		ids[w.WindowID()] = true
 		counts[string(w.Provider)]++
@@ -35,6 +36,9 @@ func TestProviderSchedulePresetHas21IndependentWindows(t *testing.T) {
 	custom, err := ParseProviderWindowsInTimezone("greenhouse-1@greenhouse=00:00-01:00", ProviderScheduleTimezone)
 	require.NoError(t, err)
 	require.False(t, custom[0].GreenhouseFixedGroup)
+	custom, err = ParseProviderWindowsInTimezone("linkedin-1@linkedin=03:00-04:00", ProviderScheduleTimezone)
+	require.NoError(t, err)
+	require.False(t, custom[0].FullKeywordCoverage)
 }
 
 func TestProviderWindowIDsAreStableAndTimezoneIsExplicit(t *testing.T) {

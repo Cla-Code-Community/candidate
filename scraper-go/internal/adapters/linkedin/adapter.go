@@ -111,6 +111,13 @@ func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, re
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
+		if req.FullKeywordCoverage {
+			at, ok := adapterutil.ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+			if !ok {
+				at = time.Now().Add(15 * time.Second)
+			}
+			return nil, &ports.RateLimitError{Provider: ports.ProviderLinkedIn, NotBefore: at}
+		}
 		return nil, fmt.Errorf("status 429")
 	}
 	if resp.StatusCode != http.StatusOK {
@@ -271,6 +278,10 @@ func (a *LinkedInAdapter) Search(ctx context.Context, keyword string, req domain
 }
 
 func (a *LinkedInAdapter) SearchBatch(ctx context.Context, keywords []string, req domain.ScrapeRequest) ([]domain.Job, error) {
+	if req.FullKeywordCoverage {
+		jobs, err := adapterutil.SearchAllKeywords(ctx, keywords, req, ports.ProviderLinkedIn, a.searchKeyword)
+		return dedupeLinkedIn(jobs), err
+	}
 	slot := a.nextKeywordSlot(keywords, linkedinKeywordSlotSize())
 	if len(slot) == 0 {
 		return nil, nil
@@ -355,6 +366,9 @@ func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req
 
 		jobs, err := a.fetchJobsChunk(ctx, keyword, req, start)
 		if err != nil {
+			if req.FullKeywordCoverage {
+				return dedupeLinkedIn(allJobs), err
+			}
 			// 429 → back-off e tenta a mesma página uma vez
 			if strings.Contains(err.Error(), "429") {
 				backoff := 15 * time.Second

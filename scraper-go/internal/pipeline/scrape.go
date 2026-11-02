@@ -17,6 +17,8 @@ import (
 )
 
 type SearchConfig struct {
+	FullKeywordCoverage          bool                     `json:"-"`
+	WindowID                     string                   `json:"-"`
 	CollectionTimeout            time.Duration            `json:"-"`
 	CollectionDeadline           time.Time                `json:"-"`
 	Store                        *jobstore.Store          `json:"-"`
@@ -113,6 +115,8 @@ func ScrapeAllSources(
 	adapterList = filterAdaptersByCadence(ctx, rdb, adapterList)
 
 	req := domain.ScrapeRequest{
+		FullKeywordCoverage:   config.FullKeywordCoverage,
+		WindowID:              config.WindowID,
 		Keywords:              config.Keywords,
 		SearchLocation:        config.SearchLocation,
 		SearchGeoID:           config.SearchGeoID,
