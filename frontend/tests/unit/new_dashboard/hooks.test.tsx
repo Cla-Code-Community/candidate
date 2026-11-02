@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/shared/lib/apiError";
+import { ApiError } from "@/shared/api/apiError";
 
 const dashboardApiMock = vi.hoisted(() => ({
   getDashboardSavedJobs: vi.fn(),
@@ -9,14 +9,14 @@ const dashboardApiMock = vi.hoisted(() => ({
   updateDashboardSavedJob: vi.fn(),
 }));
 
-vi.mock("@/features/jobs/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/api/dashboardJobsApi", () => ({
   getDashboardSavedJobs: dashboardApiMock.getDashboardSavedJobs,
   searchDashboardJobs: dashboardApiMock.searchDashboardJobs,
   createDashboardSavedJob: dashboardApiMock.createDashboardSavedJob,
   updateDashboardSavedJob: dashboardApiMock.updateDashboardSavedJob,
 }));
 
-import { useDashboardJobs } from "@/features/jobs/application/useDashboardJobs";
+import { useDashboardJobs } from "@/features/jobs/hooks/useDashboardJobs";
 import type { User } from "@/features/auth/domain/auth.types";
 import type { Job } from "@/features/jobs/domain/job";
 

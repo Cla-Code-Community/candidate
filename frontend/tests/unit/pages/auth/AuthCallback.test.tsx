@@ -16,7 +16,7 @@ vi.mock("@/shared/ui/Loading", () => ({
   default: () => <div data-testid="loading">Loading...</div>,
 }));
 
-import AuthCallback from "@/features/auth/presentation/pages/AuthCallbackPage";
+import AuthCallback from "@/features/auth/pages/AuthCallbackPage";
 
 describe("AuthCallback", () => {
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { cn } from "@/shared/lib/utils";
+import { cn } from "@/shared/utils/utils";
 import { Link, useLocation } from "react-router-dom";
 import { Icons } from "@/app/dashboard/components/Icons";
 

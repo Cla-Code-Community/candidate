@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 const mockApiGet = vi.fn();
 const mockApiPost = vi.fn();
 
-vi.mock("@/shared/lib/apiClient", () => ({
+vi.mock("@/shared/api/apiClient", () => ({
   api: {
     get: (...args: any[]) => mockApiGet(...args),
     post: (...args: any[]) => mockApiPost(...args),

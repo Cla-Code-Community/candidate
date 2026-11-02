@@ -3,7 +3,7 @@ import {
   getGoogleAuthUrl,
   getGithubAuthUrl,
   getLinkedinAuthUrl,
-} from "@/features/auth/infrastructure/authApi";
+} from "@/features/auth/api/authApi";
 import { useAuth } from "@/features/auth/application/AuthContext";
 import { Image } from "@unpic/react";
 import { motion } from "framer-motion";

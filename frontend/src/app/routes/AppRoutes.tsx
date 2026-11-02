@@ -1,8 +1,8 @@
-import NotFound from "@/app/NotFound";
+import NotFound from "@/app/routes/NotFound";
 import { useAuth } from "@/features/auth/application/AuthContext";
-import AuthCallbackPage from "@/features/auth/presentation/pages/AuthCallbackPage";
-import LoginPage from "@/features/auth/presentation/pages/LoginPage";
-import RegisterPage from "@/features/auth/presentation/pages/RegisterPage";
+import AuthCallbackPage from "@/features/auth/pages/AuthCallbackPage";
+import LoginPage from "@/features/auth/pages/LoginPage";
+import RegisterPage from "@/features/auth/pages/RegisterPage";
 import LandingPage from "@/features/marketing/pages/LandingPage";
 import PrivacyPolicyPage from "@/features/marketing/pages/PrivacyPolicyPage";
 import TermsOfUsePage from "@/features/marketing/pages/TermsOfUsePage";

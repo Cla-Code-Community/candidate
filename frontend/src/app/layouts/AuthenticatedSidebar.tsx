@@ -1,5 +1,5 @@
 import { useAuth } from "@/features/auth/application/AuthContext";
-import { cn } from "@/shared/lib/utils";
+import { cn } from "@/shared/utils/utils";
 import {
   BriefcaseBusiness,
   ChartNoAxesColumn,

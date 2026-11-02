@@ -50,7 +50,7 @@ Variáveis usadas:
 
 ## Organização
 
-O frontend segue uma estrutura orientada por domínio:
+O frontend segue uma arquitetura Feature-Based, com domínio separado quando necessário:
 
 - `src/app`: composição da aplicação, providers, rotas e layouts autenticados.
 - `src/features/auth`: login, registro, callback OAuth e estado de sessão.

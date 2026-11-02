@@ -1,5 +1,5 @@
 import axios from "axios";
-import { parseApiError } from "./apiError";
+import { parseApiError } from "@/shared/api/apiError";
 
 const API_URL =
   import.meta.env.VITE_API_BASE_URL ??

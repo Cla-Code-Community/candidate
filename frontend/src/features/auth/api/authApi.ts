@@ -2,7 +2,7 @@ import type {
   LoginCredentials,
   RegisterData,
 } from "@/features/auth/domain/auth.types";
-import { parseApiError } from "@/shared/lib/apiError";
+import { parseApiError } from "@/shared/api/apiError";
 
 function getBaseUrl(): string {
   const base = import.meta.env.VITE_API_BASE_URL;

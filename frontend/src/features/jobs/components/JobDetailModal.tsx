@@ -4,7 +4,7 @@ import { jobStatusClasses, jobStatuses } from "../constants";
 import {
   getDashboardSavedJobEvents,
   getFamilyLabel,
-} from "@/features/jobs/infrastructure/dashboardJobsApi";
+} from "@/features/jobs/api/dashboardJobsApi";
 import type { Job, JobStatus, JobTimelineEvent } from "../domain/job";
 import { Modal } from "@/shared/ui/Modal";
 import { ApplicationNotesSection } from "@/features/applications/components/ApplicationNotesSection";

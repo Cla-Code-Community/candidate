@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
-import { isApiError } from "@/shared/lib/apiError";
+import { isApiError } from "@/shared/api/apiError";
 import type { User } from "@/features/auth/domain/auth.types";
-import { initialPreferences, initialUser } from "../defaults";
-import type { SearchPreferences, UserProfile } from "../domain/user";
+import { initialPreferences, initialUser } from "@/features/profile/defaults";
+import type { SearchPreferences, UserProfile } from "@/features/profile/domain/user";
 import {
   createUserPreferences,
   getUserPreferences,
   getUserProfile,
   updateUserPreferences,
   updateUserProfile,
-} from "../infrastructure/userDashboardApi";
+} from "@/features/profile/api/userDashboardApi";
 
 function profileFromAuthUser(user: User | null): UserProfile {
   const displayName =

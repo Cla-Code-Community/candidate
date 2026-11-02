@@ -1,5 +1,5 @@
-import LeftSide from "@/features/auth/presentation/components/AuthVisualPanel";
-import RightSide from "@/features/auth/presentation/components/LoginFormPanel";
+import LeftSide from "@/features/auth/components/AuthVisualPanel";
+import RightSide from "@/features/auth/components/LoginFormPanel";
 
 export default function LoginPage() {
   return (

@@ -1,5 +1,5 @@
-import { AuthenticatedHeader } from "@/app/AuthenticatedHeader";
-import { AuthenticatedSidebar } from "@/app/AuthenticatedSidebar";
+import { AuthenticatedHeader } from "@/app/layouts/AuthenticatedHeader";
+import { AuthenticatedSidebar } from "@/app/layouts/AuthenticatedSidebar";
 import { Outlet } from "react-router-dom";
 
 export function AuthenticatedLayout() {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "@/features/auth/domain/auth.types";
-import { isApiError } from "@/shared/lib/apiError";
-import type { Job, JobStatus, NewJob } from "../domain/job";
+import { isApiError } from "@/shared/api/apiError";
+import type { Job, JobStatus, NewJob } from "@/features/jobs/domain/job";
 import {
   createDashboardSavedJob,
   getDashboardSavedJobs,
@@ -9,7 +9,7 @@ import {
   type SearchJobFilters,
   type SearchJobsResult,
   updateDashboardSavedJob,
-} from "../infrastructure/dashboardJobsApi";
+} from "@/features/jobs/api/dashboardJobsApi";
 import { requestDashboardNotificationsRefresh } from "@/features/notifications/events";
 
 interface UseDashboardJobsOptions {

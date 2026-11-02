@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/shared/ui/table";
-import { cn } from "@/shared/lib/utils";
+import { cn } from "@/shared/utils/utils";
 import type { Job } from "@/features/jobs/types/job.types";
 import type { JobsPaginationMeta } from "@/features/jobs/hooks/useJobsData";
 import { useState } from "react";

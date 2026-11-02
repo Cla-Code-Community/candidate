@@ -1,4 +1,4 @@
-import { api } from "@/shared/lib/apiClient";
+import { api } from "@/shared/api/apiClient";
 import { z } from "zod";
 import type {
   Job,
@@ -8,7 +8,7 @@ import type {
   JobType,
   MatchSort,
   NewJob,
-} from "../domain/job";
+} from "@/features/jobs/domain/job";
 
 const ApiSearchJobSchema = z
   .object({

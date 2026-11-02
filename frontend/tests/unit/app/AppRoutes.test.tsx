@@ -1,4 +1,4 @@
-import { AppRoutes } from "@/app/AppRoutes";
+import { AppRoutes } from "@/app/routes/AppRoutes";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,19 +35,19 @@ vi.mock("@/features/marketing/pages/LandingPage", () => ({
   default: () => <main>Landing route</main>,
 }));
 
-vi.mock("@/features/auth/presentation/pages/LoginPage", () => ({
+vi.mock("@/features/auth/pages/LoginPage", () => ({
   default: () => <main>Login route</main>,
 }));
 
-vi.mock("@/features/auth/presentation/pages/RegisterPage", () => ({
+vi.mock("@/features/auth/pages/RegisterPage", () => ({
   default: () => <main>Register route</main>,
 }));
 
-vi.mock("@/features/auth/presentation/pages/AuthCallbackPage", () => ({
+vi.mock("@/features/auth/pages/AuthCallbackPage", () => ({
   default: () => <main>Callback route</main>,
 }));
 
-vi.mock("@/app/NotFound", () => ({
+vi.mock("@/app/routes/NotFound", () => ({
   default: () => <main>Not found route</main>,
 }));
 

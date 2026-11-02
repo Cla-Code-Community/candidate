@@ -10,7 +10,7 @@ import {
   getGoogleAuthUrl,
   getLinkedinAuthUrl,
   register,
-} from "../../infrastructure/authApi";
+} from "@/features/auth/api/authApi";
 
 const STATIC_STARS = Array.from({ length: 40 }).map((_, i) => {
   const random = (min: number, max: number) =>

@@ -1,5 +1,5 @@
-import LeftSide from "@/features/auth/presentation/components/AuthVisualPanel";
-import RegisterSide from "@/features/auth/presentation/components/RegisterFormPanel";
+import LeftSide from "@/features/auth/components/AuthVisualPanel";
+import RegisterSide from "@/features/auth/components/RegisterFormPanel";
 
 
 export default function RegisterPage() {

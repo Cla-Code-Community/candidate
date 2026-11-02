@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/shared/lib/apiError";
+import { ApiError } from "@/shared/api/apiError";
 
 const userApiMock = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
@@ -10,7 +10,7 @@ const userApiMock = vi.hoisted(() => ({
   createUserPreferences: vi.fn(),
 }));
 
-vi.mock("@/features/profile/infrastructure/userDashboardApi", () => ({
+vi.mock("@/features/profile/api/userDashboardApi", () => ({
   getUserProfile: userApiMock.getUserProfile,
   getUserPreferences: userApiMock.getUserPreferences,
   updateUserProfile: userApiMock.updateUserProfile,
@@ -19,7 +19,7 @@ vi.mock("@/features/profile/infrastructure/userDashboardApi", () => ({
 }));
 
 import { initialPreferences, initialUser } from "@/features/profile/defaults";
-import { useUserDashboardData } from "@/features/profile/application/useUserDashboardData";
+import { useUserDashboardData } from "@/features/profile/hooks/useUserDashboardData";
 import type { User } from "@/features/auth/domain/auth.types";
 
 const user: User = {

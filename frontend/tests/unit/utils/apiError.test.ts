@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, parseApiError } from "@/shared/lib/apiError";
+import { ApiError, parseApiError } from "@/shared/api/apiError";
 
 describe("parseApiError", () => {
   it("lê o envelope padronizado code/message/details", () => {

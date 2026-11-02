@@ -6,7 +6,7 @@ import {
   getConnections,
   type SupportedProvider,
   type UserConnections,
-} from "@/features/auth/infrastructure/connectionsApi";
+} from "@/features/auth/api/connectionsApi";
 
 const PROVIDER_LABELS: Record<SupportedProvider, string> = {
   google: "Google",

@@ -23,7 +23,7 @@ const dashboardApiMock = vi.hoisted(() => ({
   deleteDashboardApplicationNote: vi.fn(),
 }));
 
-vi.mock("@/features/jobs/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/api/dashboardJobsApi", () => ({
   getDashboardSavedJobEvents: dashboardApiMock.getDashboardSavedJobEvents,
   getDashboardApplicationNotes: dashboardApiMock.getDashboardApplicationNotes,
   createDashboardApplicationNote: dashboardApiMock.createDashboardApplicationNote,
@@ -676,6 +676,9 @@ describe("new_dashboard job components", () => {
           setCountryFilter={setCountryFilter}
           matchSort={matchSort}
           setMatchSort={setMatchSort}
+          selectedFamilies={[]}
+          setSelectedFamilies={vi.fn()}
+          familyOptions={[]}
           searchPreferences={{ ...initialPreferences, remoteOnly: false }}
           onSearchJobs={onSearchJobs}
           onOpenJob={onOpenJob}

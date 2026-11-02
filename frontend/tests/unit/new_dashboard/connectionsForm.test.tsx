@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   disconnectProvider: vi.fn(),
 }));
 
-vi.mock("@/features/auth/infrastructure/connectionsApi", () => ({
+vi.mock("@/features/auth/api/connectionsApi", () => ({
   getConnections: mocks.getConnections,
   connectProvider: mocks.connectProvider,
   disconnectProvider: mocks.disconnectProvider,

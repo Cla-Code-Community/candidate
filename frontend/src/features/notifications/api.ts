@@ -1,4 +1,4 @@
-import { api } from "@/shared/lib/apiClient";
+import { api } from "@/shared/api/apiClient";
 import { z } from "zod";
 import type { Message, MessageOrigin, Notification } from "@/features/notifications/types";
 

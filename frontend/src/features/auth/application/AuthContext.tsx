@@ -6,7 +6,7 @@ import {
   ReactNode,
 } from "react";
 import type { LoginCredentials, User } from "@/features/auth/domain/auth.types";
-import { api } from "@/shared/lib/apiClient";
+import { api } from "@/shared/api/apiClient";
 
 interface AuthContextData {
   user: User | null;
