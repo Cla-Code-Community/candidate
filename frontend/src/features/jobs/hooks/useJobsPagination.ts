@@ -1,10 +1,10 @@
-import type { Job } from "@/domains/jobs/domain/job.types";
+import type { Job } from "@/features/jobs/types/job.types";
 import {
   clampPageSize,
   getCurrentPage,
   getTotalPages,
   paginateItems,
-} from "@/domains/jobs/domain/jobPagination";
+} from "@/features/jobs/domain/jobPagination";
 import { useMemo, useState } from "react";
 
 interface UseJobsPaginationParams {

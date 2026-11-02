@@ -1,7 +1,7 @@
 import {
   fetchKeywords,
   saveKeywords,
-} from "@/domains/jobs/infrastructure/jobsApi";
+} from "@/features/jobs/api/jobsApi";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Badge } from "@/shared/ui/badge";

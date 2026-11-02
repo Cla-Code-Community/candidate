@@ -1,4 +1,4 @@
-import { JobsHeaderCard } from "@/domains/jobs/presentation/components/JobsHeaderCard";
+import { JobsHeaderCard } from "@/features/jobs/components/JobsHeaderCard";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

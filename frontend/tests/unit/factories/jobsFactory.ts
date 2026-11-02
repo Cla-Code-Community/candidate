@@ -1,4 +1,4 @@
-import type { Job, JobsMeta } from "@/domains/jobs/domain/job.types";
+import type { Job, JobsMeta } from "@/features/jobs/types/job.types";
 
 export function makeJob(overrides: Partial<Job> = {}): Job {
   return {

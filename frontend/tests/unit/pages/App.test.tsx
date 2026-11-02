@@ -18,7 +18,7 @@ vi.mock("@/features/marketing/pages/LandingPage", () => ({
   default: () => <main>Funcionalidades</main>,
 }));
 
-vi.mock("@/domains/jobs/application/useJobsData", () => ({
+vi.mock("@/features/jobs/hooks/useJobsData", () => ({
   useJobsData: () => ({
     files: [{ file: "vagas.xlsx" }],
     selectedFile: "vagas.xlsx",
@@ -33,7 +33,7 @@ vi.mock("@/domains/jobs/application/useJobsData", () => ({
   }),
 }));
 
-vi.mock("@/domains/jobs/application/useJobsFiltering", () => ({
+vi.mock("@/features/jobs/hooks/useJobsFiltering", () => ({
   useJobsFiltering: () => ({
     search: "",
     setSearch: vi.fn(),
@@ -44,7 +44,7 @@ vi.mock("@/domains/jobs/application/useJobsFiltering", () => ({
   }),
 }));
 
-vi.mock("@/domains/jobs/application/useJobsPagination", () => ({
+vi.mock("@/features/jobs/hooks/useJobsPagination", () => ({
   useJobsPagination: () => ({
     currentPage: 1,
     setCurrentPage: vi.fn(),

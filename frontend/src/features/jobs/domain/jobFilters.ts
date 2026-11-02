@@ -1,4 +1,4 @@
-import type { Job } from "@/domains/jobs/domain/job.types";
+import type { Job } from "@/features/jobs/types/job.types";
 
 export function normalizeComparableText(value?: string | null) {
   return String(value || "")

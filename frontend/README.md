@@ -54,7 +54,7 @@ O frontend segue uma estrutura orientada por domínio:
 
 - `src/app`: composição da aplicação, providers, rotas e layouts autenticados.
 - `src/features/auth`: login, registro, callback OAuth e estado de sessão.
-- `src/domains/jobs`: busca, filtros, paginação e interface de vagas.
+- `src/features/jobs`: busca, filtros, paginação e interface de vagas, preservando os contratos distintos dos catálogos.
 - `src/features/marketing`: landing page pública.
 - `src/app/dashboard`: composição, providers, tema e navegação do painel. As funcionalidades de home, vagas, candidaturas, mentoria, perfil, ajuda e notificações estão em `src/features/`.
 - `src/shared`: componentes de UI, assets, hooks e utilitários reutilizáveis.

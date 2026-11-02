@@ -1,4 +1,4 @@
-import type { JobsResponse } from "@/domains/jobs/domain/job.types";
+import type { JobsResponse } from "@/features/jobs/types/job.types";
 
 function normalizeBaseUrl(value: string | undefined): string {
   return typeof value === "string" ? value.trim().replace(/\/+$/, "") : "";

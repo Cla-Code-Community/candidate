@@ -1,8 +1,8 @@
 import {
   fetchJobsByAPI,
   runScraperRequest,
-} from "@/domains/jobs/infrastructure/jobsApi";
-import type { Job, JobsResponse } from "@/domains/jobs/domain/job.types";
+} from "@/features/jobs/api/jobsApi";
+import type { Job, JobsResponse } from "@/features/jobs/types/job.types";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type JobsPaginationMeta = Omit<JobsResponse, "jobs">;

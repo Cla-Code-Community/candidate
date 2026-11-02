@@ -43,15 +43,15 @@ const hookState = vi.hoisted(() => ({
   capturedTableProps: null as any,
 }));
 
-vi.mock("@/domains/jobs/application/useJobsData", () => ({
+vi.mock("@/features/jobs/hooks/useJobsData", () => ({
   useJobsData: () => hookState.useJobsDataValue,
 }));
 
-vi.mock("@/domains/jobs/application/useJobsFiltering", () => ({
+vi.mock("@/features/jobs/hooks/useJobsFiltering", () => ({
   useJobsFiltering: () => hookState.useJobsFilteringValue,
 }));
 
-vi.mock("@/domains/jobs/presentation/components/JobsFiltersCard", () => ({
+vi.mock("@/features/jobs/components/JobsFiltersCard", () => ({
   JobsFiltersCard: (props: any) => {
     hookState.capturedFiltersProps = props;
 
@@ -89,7 +89,7 @@ vi.mock("@/domains/jobs/presentation/components/JobsFiltersCard", () => ({
   },
 }));
 
-vi.mock("@/domains/jobs/presentation/components/JobsTableCard", () => ({
+vi.mock("@/features/jobs/components/JobsTableCard", () => ({
   JobsTableCard: (props: any) => {
     hookState.capturedTableProps = props;
 
@@ -122,7 +122,7 @@ function renderPage(initialEntry = "/vagas") {
   );
 }
 
-import JobsPage from "@/domains/jobs/presentation/pages/JobsPage";
+import JobsPage from "@/features/jobs/pages/JobsPage";
 
 describe("JobsPage", () => {
   beforeEach(() => {

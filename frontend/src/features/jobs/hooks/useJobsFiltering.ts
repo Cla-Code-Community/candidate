@@ -1,9 +1,9 @@
-import type { Job } from "@/domains/jobs/domain/job.types";
+import type { Job } from "@/features/jobs/types/job.types";
 import {
   dedupeJobs,
   filterJobs,
   getAvailableKeywords,
-} from "@/domains/jobs/domain/jobFilters";
+} from "@/features/jobs/domain/jobFilters";
 import { useMemo } from "react";
 
 export function useJobsFiltering(

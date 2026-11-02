@@ -1,6 +1,6 @@
-import { JobsFiltersCard } from "@/domains/jobs/presentation/components/JobsFiltersCard";
-import { JobsTableCard } from "@/domains/jobs/presentation/components/JobsTableCard";
-import { useJobsData } from "@/domains/jobs/application/useJobsData";
+import { JobsFiltersCard } from "@/features/jobs/components/JobsFiltersCard";
+import { JobsTableCard } from "@/features/jobs/components/JobsTableCard";
+import { useJobsData } from "@/features/jobs/hooks/useJobsData";
 import { useCallback, useEffect, useMemo, type SetStateAction } from "react";
 import { useSearchParams } from "react-router-dom";
 

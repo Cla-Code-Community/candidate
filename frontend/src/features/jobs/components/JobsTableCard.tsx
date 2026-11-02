@@ -15,8 +15,8 @@ import {
   TableRow,
 } from "@/shared/ui/table";
 import { cn } from "@/shared/lib/utils";
-import type { Job } from "@/domains/jobs/domain/job.types";
-import type { JobsPaginationMeta } from "@/domains/jobs/application/useJobsData";
+import type { Job } from "@/features/jobs/types/job.types";
+import type { JobsPaginationMeta } from "@/features/jobs/hooks/useJobsData";
 import { useState } from "react";
 import {
   FiCheckSquare,

@@ -1,4 +1,4 @@
-import { KeywordsModal } from "@/domains/jobs/presentation/components/KeywordsModal";
+import { KeywordsModal } from "@/features/jobs/components/KeywordsModal";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   saveKeywordsMock: vi.fn(async () => {}),
 }));
 
-vi.mock("@/domains/jobs/infrastructure/jobsApi", () => ({
+vi.mock("@/features/jobs/api/jobsApi", () => ({
   fetchKeywords: mocks.fetchKeywordsMock,
   saveKeywords: mocks.saveKeywordsMock,
 }));

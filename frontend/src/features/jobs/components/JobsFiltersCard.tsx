@@ -1,7 +1,7 @@
 import { Badge } from "@/shared/ui/badge";
 import { Card, CardContent } from "@/shared/ui/card";
 import { Input } from "@/shared/ui/input";
-import type { JobsPaginationMeta } from "@/domains/jobs/application/useJobsData";
+import type { JobsPaginationMeta } from "@/features/jobs/hooks/useJobsData";
 import {
   useMemo,
   useState,
@@ -19,7 +19,7 @@ import {
   FiSlash,
   FiTag,
 } from "react-icons/fi";
-import { KeywordsModal } from "./KeywordsModal";
+import { KeywordsModal } from "@/features/jobs/components/KeywordsModal";
 import { Button } from "@/shared/ui/button";
 interface JobsFiltersCardProps {
   search: string;
