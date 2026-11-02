@@ -121,7 +121,8 @@ func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeCon
 
 	var err error
 	if value, ok := lookup(ProviderWindowsEnv); ok {
-		cfg.ProviderWindows, err = ParseProviderWindows(value)
+		timezone, _ := lookup(ProviderScheduleTimezoneEnv)
+		cfg.ProviderWindows, err = ParseProviderWindowsInTimezone(value, timezone)
 		if err != nil {
 			return RuntimeConfig{}, err
 		}

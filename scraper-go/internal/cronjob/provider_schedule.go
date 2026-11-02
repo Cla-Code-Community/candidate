@@ -32,18 +32,32 @@ func (s *Scheduler) startProviderWindows(ctx context.Context) {
 }
 
 func windowBounds(now time.Time, w config.ProviderWindow) (time.Time, time.Time) {
-	now = now.UTC()
-	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-	return day.Add(time.Duration(w.Start) * time.Minute), day.Add(time.Duration(w.End) * time.Minute)
+	loc := w.Location()
+	now = now.In(loc)
+	return time.Date(now.Year(), now.Month(), now.Day(), w.Start/60, w.Start%60, 0, 0, loc),
+		time.Date(now.Year(), now.Month(), now.Day(), w.End/60, w.End%60, 0, 0, loc)
+}
+
+func nextWindowStart(now time.Time, w config.ProviderWindow) time.Time {
+	start, _ := windowBounds(now, w)
+	if !start.After(now) {
+		start, _ = windowBounds(now.In(w.Location()).AddDate(0, 0, 1), w)
+	}
+	return start
+}
+
+func windowOccurrenceKey(start time.Time, w config.ProviderWindow) string {
+	// Keep the existing persisted key for legacy configurations across upgrades.
+	if w.ID == "" && w.Location() == time.UTC {
+		return fmt.Sprintf("scraper:window:%s:%s:%d", start.Format("2006-01-02"), w.Provider, w.Start)
+	}
+	return fmt.Sprintf("scraper:window:%s:%s:%s", w.Location().String(), start.Format("2006-01-02"), w.WindowID())
 }
 
 func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) error {
 	var next time.Time
 	for _, w := range s.cfg.ProviderWindows {
-		start, _ := windowBounds(now, w)
-		if !start.After(now) {
-			start = start.Add(24 * time.Hour)
-		}
+		start := nextWindowStart(now, w)
 		if next.IsZero() || start.Before(next) {
 			next = start
 		}
@@ -62,7 +76,7 @@ func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) e
 		if s.rdb == nil {
 			return ErrLockUnavailable
 		}
-		key := fmt.Sprintf("scraper:window:%s:%s:%d", start.Format("2006-01-02"), w.Provider, w.Start)
+		key := windowOccurrenceKey(start, w)
 		exists, err := s.rdb.Exists(ctx, key).Result()
 		if err != nil {
 			return err
@@ -92,8 +106,11 @@ func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) e
 			return err
 		}
 		defer s.active.Done()
-		slog.Info("provider window started", "provider", w.Provider, "window_end", end, "run_id", lease.RunID())
-		return s.runSelectedWithLease(lease, []string{string(w.Provider)}, min(s.cfg.ScrapeTimeout, remaining))
+		fields := []any{"provider", w.Provider, "window_id", w.WindowID(), "local_date", start.Format("2006-01-02"), "timezone", w.Location().String(), "window_end", end, "run_id", lease.RunID()}
+		slog.Info("provider window started", fields...)
+		err = s.runSelectedWithLease(lease, []string{string(w.Provider)}, min(s.cfg.ScrapeTimeout, remaining))
+		slog.Info("provider window finished", append(fields, "errorType", metrics.ErrorType(err))...)
+		return err
 	}
 	return nil
 }

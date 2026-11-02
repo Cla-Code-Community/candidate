@@ -57,7 +57,16 @@ export const ScraperStatusSchema = z.object({
     jobsIndexed: z.number().int().nonnegative(),
     errorType: z.string(),
   }).nullable().optional(),
-  providerWindows: z.array(z.object({ provider: z.string(), startMinuteUTC: z.number().int().min(0).max(1439), endMinuteUTC: z.number().int().min(1).max(1440) })).nullable().optional(),
+  providerWindows: z.array(z.union([
+    z.object({
+      provider: z.string(), id: z.string().optional(), timezone: z.literal("UTC").optional(),
+      startMinuteUTC: z.number().int().min(0).max(1439), endMinuteUTC: z.number().int().min(1).max(1440),
+    }),
+    z.object({
+      provider: z.string(), id: z.string(), timezone: z.string().min(1),
+      startMinuteLocal: z.number().int().min(0).max(1439), endMinuteLocal: z.number().int().min(1).max(1440),
+    }),
+  ])).nullable().optional(),
 });
 export type ScraperStatus = z.infer<typeof ScraperStatusSchema>;
 
