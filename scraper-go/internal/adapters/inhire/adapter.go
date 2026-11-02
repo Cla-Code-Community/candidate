@@ -3,6 +3,7 @@ package inhire
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -112,16 +113,10 @@ func (a *InHireAdapter) SearchBatch(ctx context.Context, keywords []string, req 
 		return nil, nil
 	}
 
-	rawJobs := a.fetchAllTenants(ctx, tenants, req)
-	if cause := context.Cause(ctx); cause != nil {
-		return nil, cause
-	}
+	rawJobs, collectionErr := a.fetchAllTenants(ctx, tenants, req)
 	jobs := make([]domain.Job, 0, len(rawJobs))
 	var skippedStatus, skippedRemote int
 	for _, job := range rawJobs {
-		if cause := context.Cause(ctx); cause != nil {
-			return nil, cause
-		}
 		if status := strings.TrimSpace(job.raw.Status); status != "" && !strings.EqualFold(status, "published") {
 			skippedStatus++
 			continue
@@ -143,7 +138,7 @@ func (a *InHireAdapter) SearchBatch(ctx context.Context, keywords []string, req 
 	if inhireDetailEnrichmentEnabled() {
 		jobs = a.enrichJobsWithDetails(ctx, jobs, keywords)
 		if cause := context.Cause(ctx); cause != nil {
-			return nil, cause
+			return jobs, errors.Join(collectionErr, cause)
 		}
 	}
 
@@ -155,7 +150,7 @@ func (a *InHireAdapter) SearchBatch(ctx context.Context, keywords []string, req 
 		"jobs_returned", len(jobs),
 	)
 
-	return jobs, nil
+	return jobs, errors.Join(collectionErr, context.Cause(ctx))
 }
 
 func (a *InHireAdapter) enrichJobsWithDetails(ctx context.Context, jobs []domain.Job, keywords []string) []domain.Job {
@@ -381,16 +376,18 @@ type inhireTenantJob struct {
 	raw    inhireJob
 }
 
-func (a *InHireAdapter) fetchAllTenants(ctx context.Context, tenants []inhireTenant, req domain.ScrapeRequest) []inhireTenantJob {
+func (a *InHireAdapter) fetchAllTenants(ctx context.Context, tenants []inhireTenant, req domain.ScrapeRequest) ([]inhireTenantJob, error) {
 	jobs := make([]inhireTenantJob, 0)
 	var fetched, failed, withJobs int
+	var collectedErr error
 	for _, tenant := range tenants {
 		if context.Cause(ctx) != nil {
-			return jobs
+			return jobs, errors.Join(collectedErr, context.Cause(ctx))
 		}
 		page, err := a.fetchTenant(ctx, tenant, req)
 		if err != nil {
 			failed++
+			collectedErr = errors.Join(collectedErr, err)
 			continue
 		}
 		if page.TenantName != "" {
@@ -413,7 +410,7 @@ func (a *InHireAdapter) fetchAllTenants(ctx context.Context, tenants []inhireTen
 		"jobs_raw", len(jobs),
 	)
 
-	return jobs
+	return jobs, errors.Join(collectedErr, context.Cause(ctx))
 }
 
 func (a *InHireAdapter) fetchTenant(ctx context.Context, tenant inhireTenant, req domain.ScrapeRequest) (inhirePageResponse, error) {

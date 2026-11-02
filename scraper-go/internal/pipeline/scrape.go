@@ -17,6 +17,8 @@ import (
 )
 
 type SearchConfig struct {
+	GupyWindow                   bool                     `json:"-"`
+	QueryCursor                  domain.QueryCursor       `json:"-"`
 	FullKeywordCoverage          bool                     `json:"-"`
 	WindowID                     string                   `json:"-"`
 	CollectionTimeout            time.Duration            `json:"-"`
@@ -115,6 +117,8 @@ func ScrapeAllSources(
 	adapterList = filterAdaptersByCadence(ctx, rdb, adapterList)
 
 	req := domain.ScrapeRequest{
+		GupyWindow:            config.GupyWindow,
+		QueryCursor:           config.QueryCursor,
 		FullKeywordCoverage:   config.FullKeywordCoverage,
 		WindowID:              config.WindowID,
 		Keywords:              config.Keywords,

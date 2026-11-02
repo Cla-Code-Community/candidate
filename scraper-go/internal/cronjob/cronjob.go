@@ -309,6 +309,10 @@ func (s *Scheduler) runSelectedWindowWithLease(lease *runlock.Lease, sources []s
 	if window != nil {
 		config.FullKeywordCoverage = window.FullKeywordCoverage
 		config.WindowID = window.WindowID()
+		config.GupyWindow = window.GupyWindow
+		if window.GupyWindow {
+			config.QueryCursor = &gupyCursor{scheduler: s, lease: lease}
+		}
 	}
 	var adapters []ports.JobSource
 	var checkpoint func(*runlock.Lease) error

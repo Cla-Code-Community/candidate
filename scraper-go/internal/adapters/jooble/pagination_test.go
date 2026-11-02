@@ -12,7 +12,7 @@ import (
 
 func TestJoobleSearchUsesRestPayloadAndPagination(t *testing.T) {
 	calls := 0
-	adapter := NewJooble("test-key", nil)
+	adapter := newQuotaTestAdapter(t)
 	adapter.client = testutil.HTTPClient(func(req *http.Request) (*http.Response, error) {
 		calls++
 

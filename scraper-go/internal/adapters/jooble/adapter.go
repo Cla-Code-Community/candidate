@@ -21,7 +21,7 @@ import (
 
 const (
 	joobleQuotaKey               = "jooble:quota:daily"     // contador no Valkey
-	joobleQuotaLimit             = 300                      // chamadas máximas por dia
+	joobleQuotaLimit             = 150                      // chamadas máximas por dia
 	joobleSlotSize               = 37                       // keywords por execução
 	joobleRotationKey            = "jooble:rotation:offset" // offset rotativo no Valkey
 	joobleDefaultPagesPerKeyword = 3
@@ -53,46 +53,80 @@ func (a *JoobleAdapter) Capabilities() ports.SourceCapabilities {
 	}
 }
 
-// quotaRemaining retorna quantas chamadas ainda cabem hoje.
-// Se Valkey estiver indisponível, segue com o limite local para não zerar o adapter silenciosamente.
-func (a *JoobleAdapter) quotaRemaining(ctx context.Context) int {
-	if a.rdb == nil {
-		slog.Warn("jooble: Valkey indisponível, seguindo sem contador distribuído de cota")
-		return joobleQuotaLimit
+// Quota reservations fail closed and are shared by manual and scheduled runs.
+func joobleDailyLimit() (int, error) {
+	value := strings.TrimSpace(os.Getenv("JOOBLE_DAILY_HTTP_LIMIT"))
+	if value == "" {
+		return joobleQuotaLimit, nil
 	}
-
+	limit, err := strconv.Atoi(value)
+	if err != nil || limit <= 0 || limit > joobleQuotaLimit {
+		return 0, fmt.Errorf("JOOBLE_DAILY_HTTP_LIMIT must be between 1 and 150")
+	}
+	return limit, nil
+}
+func (a *JoobleAdapter) quotaRemaining(ctx context.Context) (int, error) {
+	limit, err := joobleDailyLimit()
+	if err != nil {
+		return 0, err
+	}
+	if a.rdb == nil {
+		return 0, fmt.Errorf("jooble quota store unavailable")
+	}
 	used, err := a.rdb.Get(ctx, joobleQuotaKey).Int()
 	if err == redis.Nil {
-		return joobleQuotaLimit // chave não existe ainda → dia novo
+		return limit, nil
 	}
 	if err != nil {
-		slog.Warn("jooble: falha ao ler cota no Valkey, seguindo sem bloquear adapter", "error", err)
-		return joobleQuotaLimit
+		return 0, err
 	}
-	remaining := joobleQuotaLimit - used
-	if remaining < 0 {
-		return 0
+	if used < 0 {
+		return 0, fmt.Errorf("invalid jooble quota counter")
 	}
-	return remaining
+	return max(0, limit-used), nil
 }
 
-// incrementQuota registra 1 chamada usada.
-// Na primeira chamada do dia, define TTL até meia-noite.
-func (a *JoobleAdapter) incrementQuota(ctx context.Context) {
-	if a.rdb == nil {
-		return
+var reserveJoobleQuota = redis.NewScript(`
+local used=tonumber(redis.call('GET',KEYS[1]) or '0')
+if used < 0 then return -1 end
+local clock=redis.call('TIME')
+local now=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)
+if tonumber(ARGV[2]) <= now then return -2 end
+if used >= tonumber(ARGV[1]) then return 0 end
+redis.call('INCR',KEYS[1])
+redis.call('PEXPIREAT',KEYS[1],ARGV[2])
+return 1
+`)
+
+func (a *JoobleAdapter) reserveQuota(ctx context.Context) error {
+	limit, err := joobleDailyLimit()
+	if err != nil {
+		return err
 	}
-
-	pipe := a.rdb.Pipeline()
-	pipe.Incr(ctx, joobleQuotaKey)
-
-	// TTL dinâmico: segundos restantes até meia-noite
-	now := time.Now()
-	midnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
-	ttl := time.Until(midnight)
-	pipe.Expire(ctx, joobleQuotaKey, ttl)
-
-	pipe.Exec(ctx) //nolint:errcheck — falha aqui não deve parar o scraper
+	if a.rdb == nil {
+		return fmt.Errorf("jooble quota store unavailable")
+	}
+	now, err := a.rdb.Time(ctx).Result()
+	if err != nil {
+		return err
+	}
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		return err
+	}
+	local := now.In(loc)
+	midnight := time.Date(local.Year(), local.Month(), local.Day()+1, 0, 0, 0, 0, loc)
+	reserved, err := reserveJoobleQuota.Run(ctx, a.rdb, []string{joobleQuotaKey}, limit, midnight.UnixMilli()).Int()
+	if err != nil {
+		return err
+	}
+	if reserved < 0 {
+		return fmt.Errorf("jooble quota counter/period changed; admission rejected")
+	}
+	if reserved != 1 {
+		return &ports.RateLimitError{Provider: ports.ProviderJooble, NotBefore: midnight}
+	}
+	return nil
 }
 
 // nextSlot retorna o subconjunto rotacionado de keywords para essa execução.
@@ -132,10 +166,13 @@ func (a *JoobleAdapter) SearchBatch(ctx context.Context, allKeywords []string, r
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
-	remaining := a.quotaRemaining(ctx)
+	remaining, quotaErr := a.quotaRemaining(ctx)
+	if quotaErr != nil {
+		return nil, quotaErr
+	}
 	if remaining <= 0 {
 		slog.Warn("jooble: cota diária esgotada, adapter não fará novas chamadas", "limit", joobleQuotaLimit)
-		return nil, nil // cota esgotada → para silenciosamente
+		return nil, fmt.Errorf("jooble daily HTTP quota exhausted")
 	}
 
 	slotSize := joobleSlotSize
@@ -152,11 +189,7 @@ func (a *JoobleAdapter) SearchBatch(ctx context.Context, allKeywords []string, r
 	for _, keyword := range slot {
 		jobs, err := a.search(ctx, keyword, req)
 		if err != nil {
-			if len(allJobs) == 0 {
-				return nil, err
-			}
-			slog.Warn("jooble: busca interrompida após resultados parciais", "keyword", keyword, "error", err)
-			break
+			return append(allJobs, jobs...), err
 		}
 		allJobs = append(allJobs, jobs...)
 	}
@@ -194,13 +227,10 @@ func (a *JoobleAdapter) search(ctx context.Context, keyword string, req domain.S
 
 		if err != nil {
 			if len(allJobs) > 0 {
-				slog.Warn("jooble: página falhou após resultados parciais", "keyword", keyword, "page", page, "error", err)
-				break
+				return allJobs, err
 			}
 			return nil, err
 		}
-
-		a.incrementQuota(ctx)
 
 		if len(jobs) == 0 {
 			break
@@ -262,6 +292,9 @@ func (a *JoobleAdapter) fetchPage(
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("User-Agent", "JobsScraper/1.0")
 
+	if err := a.reserveQuota(ctx); err != nil {
+		return nil, 0, err
+	}
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
 		return nil, 0, err
@@ -269,7 +302,11 @@ func (a *JoobleAdapter) fetchPage(
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return nil, 0, fmt.Errorf("jooble: 429")
+		at, ok := adapterutil.ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+		if !ok {
+			at = time.Now().Add(time.Minute)
+		}
+		return nil, 0, &ports.RateLimitError{Provider: ports.ProviderJooble, NotBefore: at}
 	}
 	if resp.StatusCode == http.StatusForbidden {
 		return nil, 0, fmt.Errorf("jooble: 403 acesso negado, verifique JOOBLE_API_KEY")

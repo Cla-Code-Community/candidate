@@ -29,6 +29,7 @@ type ProviderWindow struct {
 	// retain their existing batching behavior, even if they use the same IDs.
 	GreenhouseFixedGroup bool `json:"-"`
 	FullKeywordCoverage  bool `json:"-"`
+	GupyWindow           bool `json:"-"`
 }
 
 func (w ProviderWindow) WindowID() string {
@@ -137,6 +138,7 @@ func ParseProviderWindowsInTimezone(value, timezone string) ([]ProviderWindow, e
 			Provider: provider, Start: start, End: end, ID: id, Timezone: timezone,
 			GreenhouseFixedGroup: preset && provider == ports.ProviderGreenhouse,
 			FullKeywordCoverage:  preset && (provider == ports.ProviderLinkedIn || provider == ports.ProviderAdzuna),
+			GupyWindow:           preset && provider == ports.ProviderGupy,
 		})
 	}
 	ids := make(map[string]bool)

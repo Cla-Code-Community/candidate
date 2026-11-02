@@ -21,6 +21,7 @@ func TestProviderSchedulePresetHas21IndependentWindows(t *testing.T) {
 		require.Equal(t, ProviderScheduleTimezone, w.Location().String())
 		require.Equal(t, string(w.Provider) == "greenhouse", w.GreenhouseFixedGroup)
 		require.Equal(t, string(w.Provider) == "linkedin" || string(w.Provider) == "adzuna", w.FullKeywordCoverage)
+		require.Equal(t, string(w.Provider) == "gupy", w.GupyWindow)
 		require.False(t, ids[w.WindowID()])
 		ids[w.WindowID()] = true
 		counts[string(w.Provider)]++
