@@ -3,7 +3,7 @@ import {
     createJobFromForm,
     getInitials,
     splitTags,
-} from "@/domains/new_dashboard/utils/helpers";
+} from "@/features/jobs/legacy/domain/helpers";
 import {
     getJobTypesFromModelFilter,
     getModelFilterFromJobTypes,

@@ -1,6 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useTheme as useSharedTheme } from "@/shared/hooks/useTheme";
-import { darkColors, lightColors } from "@/domains/new_dashboard/constants/colors";
+import { darkColors, lightColors } from "@/app/dashboard/theme/colors";
 
 type ThemeContextValue = ReturnType<typeof useSharedTheme> & {
   colors: typeof lightColors;

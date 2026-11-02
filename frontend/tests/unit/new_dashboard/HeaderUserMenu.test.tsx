@@ -17,7 +17,7 @@ vi.mock("@/features/auth/application/AuthContext", () => ({
   }),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+vi.mock("@/features/notifications/api", () => ({
   getDashboardNotificationFeed: vi.fn().mockResolvedValue({
     messages: [],
     notifications: [],
@@ -31,7 +31,7 @@ vi.mock("@/domains/new_dashboard/components/layout/ThemeToggle", () => ({
   ThemeToggle: () => <button type="button">tema</button>,
 }));
 
-vi.mock("@/domains/new_dashboard/components/layout/MessageDetailModal", () => ({
+vi.mock("@/features/notifications/components/MessageDetailModal", () => ({
   MessageDetailModal: () => null,
 }));
 

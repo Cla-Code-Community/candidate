@@ -21,7 +21,7 @@ vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => mockUseTheme(),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+vi.mock("@/features/notifications/api", () => ({
   getDashboardNotificationFeed: vi.fn().mockResolvedValue({
     messages: [],
     notifications: [],

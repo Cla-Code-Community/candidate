@@ -7,13 +7,13 @@ import {
   getDashboardNotificationFeed,
   markDashboardNotificationsRead,
   markSingleNotificationRead,
-} from "../../infrastructure/notificationsApi";
+} from "@/features/notifications/api";
 import type { Message, Notification, UserProfile } from "../../types";
 import {
   DASHBOARD_NOTIFICATIONS_REFRESH_EVENT,
   type DashboardNotificationsRefreshDetail,
-} from "../../utils/notificationEvents";
-import { MessageDetailModal } from "./MessageDetailModal";
+} from "@/features/notifications/events";
+import { MessageDetailModal } from "@/features/notifications/components/MessageDetailModal";
 import { ThemeToggle } from "./ThemeToggle";
 
 interface HeaderProps {

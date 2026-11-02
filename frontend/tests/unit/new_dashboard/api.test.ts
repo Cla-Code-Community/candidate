@@ -25,7 +25,7 @@ import {
   getDashboardNotificationFeed as getNotificationFeed,
   markDashboardNotificationsRead as markNotificationsRead,
   markSingleNotificationRead,
-} from "@/domains/new_dashboard/infrastructure/notificationsApi";
+} from "@/features/notifications/api";
 import {
   getUserPreferences,
   getUserProfile,

@@ -1,4 +1,4 @@
-import type { Mentor } from "@/domains/new_dashboard/types/mentor";
+import type { Mentor } from "@/features/mentoring/types";
 
 export const initialMentors: Mentor[] = [
   {

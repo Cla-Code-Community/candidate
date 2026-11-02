@@ -10,7 +10,7 @@ import {
   type SearchJobsResult,
   updateDashboardSavedJob,
 } from "../infrastructure/dashboardJobsApi";
-import { requestDashboardNotificationsRefresh } from "@/domains/new_dashboard/utils/notificationEvents";
+import { requestDashboardNotificationsRefresh } from "@/features/notifications/events";
 
 interface UseDashboardJobsOptions {
   onError?: (message: string) => void;

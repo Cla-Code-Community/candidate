@@ -2,7 +2,7 @@ import { CareerChecklist } from "@/features/home/components/CareerChecklist";
 import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
 import { JobRow } from "@/features/jobs/components/JobRow";
 import { Header } from "@/domains/new_dashboard/components/layout/Header";
-import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
+import { MessageDetailModal } from "@/features/notifications/components/MessageDetailModal";
 import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
 import { ProfileForm } from "@/features/profile/components/ProfileForm";
 import { Modal } from "@/shared/ui/Modal";
@@ -11,9 +11,9 @@ import {
   getDashboardNotificationFeed,
   markDashboardNotificationsRead,
   markSingleNotificationRead,
-} from "@/domains/new_dashboard/infrastructure/notificationsApi";
+} from "@/features/notifications/api";
 import type { Job, UserProfile } from "@/domains/new_dashboard/types";
-import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/domains/new_dashboard/utils/notificationEvents";
+import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/features/notifications/events";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -41,7 +41,7 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+vi.mock("@/features/notifications/api", () => ({
   getDashboardNotificationFeed: vi.fn().mockResolvedValue({
     messages: [],
     notifications: [],

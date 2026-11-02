@@ -1,4 +1,4 @@
-import type { SearchPreferences, UserProfile } from "@/domains/new_dashboard/types/user";
+import type { SearchPreferences, UserProfile } from "@/features/profile/domain/user";
 
 export const initialUser: UserProfile = {
   firstName: "Bruna",

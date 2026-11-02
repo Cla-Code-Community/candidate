@@ -1,6 +1,6 @@
 import { api } from "@/shared/lib/apiClient";
 import { z } from "zod";
-import type { Message, MessageOrigin, Notification } from "../types";
+import type { Message, MessageOrigin, Notification } from "@/features/notifications/types";
 
 const ApiNotificationSchema = z.object({
   id: z.string(),

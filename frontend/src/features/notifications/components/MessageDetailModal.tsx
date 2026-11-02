@@ -1,5 +1,5 @@
 import { Bot, BriefcaseBusiness, UserRound } from "lucide-react";
-import type { Message, MessageOrigin } from "../../types";
+import type { Message, MessageOrigin } from "@/features/notifications/types";
 import { Modal } from "@/shared/ui/Modal";
 
 interface MessageDetailModalProps {

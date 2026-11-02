@@ -2,7 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { initialJobs } from "@/features/jobs/legacy/initialJobs";
 import { jobStatuses } from "@/features/jobs/constants";
 import type { Job, JobStatus, NewJob } from "@/features/jobs/domain/job";
-import { createJobFromForm } from "@/domains/new_dashboard/utils/helpers";
+import { createJobFromForm } from "@/features/jobs/legacy/domain/helpers";
 import { useToastContext } from "@/shared/feedback/ToastContext";
 
 interface JobsContextValue {

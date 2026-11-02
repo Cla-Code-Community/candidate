@@ -1,4 +1,4 @@
-import type { Job, NewJob } from "../types";
+import type { Job, NewJob } from "@/features/jobs/domain/job";
 
 export function splitTags(tags: string): string[] {
   return tags
