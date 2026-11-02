@@ -1,4 +1,4 @@
-import { AppRoutes } from "@/app/AppRoutes";
+import { AppRoutes } from "@/app/routes/AppRoutes";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +10,7 @@ const authState = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => authState.value,
 }));
 
@@ -18,7 +18,7 @@ vi.mock("@/shared/ui/Loading", () => ({
   default: () => <div role="status">Carregando...</div>,
 }));
 
-vi.mock("@/domains/new_dashboard/layout", () => ({
+vi.mock("@/app/dashboard/DashboardProviders", () => ({
   default: ({ children }: { children: React.ReactNode }) => (
     <div>
       <span>Dashboard shell</span>
@@ -27,27 +27,27 @@ vi.mock("@/domains/new_dashboard/layout", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/NewDashboardPage", () => ({
+vi.mock("@/app/dashboard/DashboardPage", () => ({
   default: () => <main>New dashboard route</main>,
 }));
 
-vi.mock("@/domains/marketing/presentation/pages/LandingPage", () => ({
+vi.mock("@/features/marketing/pages/LandingPage", () => ({
   default: () => <main>Landing route</main>,
 }));
 
-vi.mock("@/domains/auth/presentation/pages/LoginPage", () => ({
+vi.mock("@/features/auth/pages/LoginPage", () => ({
   default: () => <main>Login route</main>,
 }));
 
-vi.mock("@/domains/auth/presentation/pages/RegisterPage", () => ({
+vi.mock("@/features/auth/pages/RegisterPage", () => ({
   default: () => <main>Register route</main>,
 }));
 
-vi.mock("@/domains/auth/presentation/pages/AuthCallbackPage", () => ({
+vi.mock("@/features/auth/pages/AuthCallbackPage", () => ({
   default: () => <main>Callback route</main>,
 }));
 
-vi.mock("@/app/NotFound", () => ({
+vi.mock("@/app/routes/NotFound", () => ({
   default: () => <main>Not found route</main>,
 }));
 

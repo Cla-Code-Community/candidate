@@ -1,4 +1,4 @@
-import { useJobsFiltering } from "@/domains/jobs/application/useJobsFiltering";
+import { useJobsFiltering } from "@/features/jobs/hooks/useJobsFiltering";
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

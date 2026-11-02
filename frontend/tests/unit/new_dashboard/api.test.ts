@@ -7,7 +7,7 @@ const apiMock = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock("@/shared/lib/apiClient", () => ({
+vi.mock("@/shared/api/apiClient", () => ({
   api: apiMock,
 }));
 
@@ -19,13 +19,13 @@ import {
   searchDashboardJobs,
   toRecommendedJob,
   updateDashboardSavedJob,
-} from "@/domains/new_dashboard/infrastructure/dashboardJobsApi";
+} from "@/features/jobs/api/dashboardJobsApi";
 import {
   clearDashboardNotifications,
   getDashboardNotificationFeed as getNotificationFeed,
   markDashboardNotificationsRead as markNotificationsRead,
   markSingleNotificationRead,
-} from "@/domains/new_dashboard/infrastructure/notificationsApi";
+} from "@/features/notifications/api";
 import {
   getUserPreferences,
   getUserProfile,
@@ -33,7 +33,7 @@ import {
   toUserProfile,
   updateUserPreferences,
   updateUserProfile,
-} from "@/domains/new_dashboard/infrastructure/userDashboardApi";
+} from "@/features/profile/api/userDashboardApi";
 
 describe("new_dashboard api adapters", () => {
   beforeEach(() => {

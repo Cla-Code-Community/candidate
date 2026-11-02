@@ -4,7 +4,7 @@ import {
   connectProvider,
   disconnectProvider,
   getConnections,
-} from "@/domains/auth/infrastructure/connectionsApi";
+} from "@/features/auth/api/connectionsApi";
 
 const fetchMock = vi.fn();
 globalThis.fetch = fetchMock as any;

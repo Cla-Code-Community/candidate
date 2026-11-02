@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeComparableText, normalizeComparableLink } from "@/domains/jobs/domain/jobFilters";
+import { normalizeComparableText, normalizeComparableLink } from "@/features/jobs/domain/jobFilters";
 
 describe("jobFilters domain utilities", () => {
   describe("normalizeComparableText", () => {

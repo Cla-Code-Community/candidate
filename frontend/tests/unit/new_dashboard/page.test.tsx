@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
+import NewDashboardPage from "@/app/dashboard/DashboardPage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /* -------------------------------------------------------------------------- */
 /*                              MOCKS DE MÓDULOS                              */
-/*         ⚠️  caminhos SEMPRE com alias @/domains/new_dashboard/...           */
+/*         ⚠️  caminhos SEMPRE com aliases canônicos de app/ e features/           */
 /*         porque vi.mock resolve relativo ao ARQUIVO DE TESTE.               */
 /* -------------------------------------------------------------------------- */
 
@@ -25,7 +25,7 @@ vi.mock("react-router-dom", async (importOriginal) => {
 });
 
 const mockRefreshUser = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "u1", name: "Tester" },
     refreshUser: mockRefreshUser,
@@ -33,7 +33,7 @@ vi.mock("@/domains/auth/application/AuthContext", () => ({
 }));
 
 // ---------- Child components (paths com alias!) ----------
-vi.mock("@/domains/new_dashboard/components/dashboard/DashboardTab", () => ({
+vi.mock("@/features/dashboard/components/DashboardTab", () => ({
   DashboardTab: (props: any) => (
     <div data-testid="dashboard-tab">
       <button onClick={() => props.onOpenJob({ id: "job-1" })}>dash-open</button>
@@ -45,11 +45,11 @@ vi.mock("@/domains/new_dashboard/components/dashboard/DashboardTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/help/HelpTab", () => ({
+vi.mock("@/features/help/components/HelpTab", () => ({
   HelpTab: () => <div data-testid="help-tab">Help</div>,
 }));
 
-vi.mock("@/domains/new_dashboard/components/home/HomeTab", () => ({
+vi.mock("@/features/home/components/HomeTab", () => ({
   HomeTab: (props: any) => (
     <div data-testid="home-tab">
       <button onClick={() => props.onCareerChecklistChange([{ id: "c1" }])}>
@@ -60,7 +60,7 @@ vi.mock("@/domains/new_dashboard/components/home/HomeTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/AddJobModal", () => ({
+vi.mock("@/features/applications/components/AddJobModal", () => ({
   AddJobModal: (props: any) => (
     <div data-testid="add-job-modal">
       <button onClick={() => props.onAddJob({ title: "new" })}>add-submit</button>
@@ -69,7 +69,7 @@ vi.mock("@/domains/new_dashboard/components/jobs/AddJobModal", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/JobDetailModal", () => ({
+vi.mock("@/features/jobs/components/JobDetailModal", () => ({
   JobDetailModal: (props: any) => (
     <div data-testid="job-detail-modal">
       <span data-testid="detail-job-id">{props.job.id}</span>
@@ -84,7 +84,7 @@ vi.mock("@/domains/new_dashboard/components/jobs/JobDetailModal", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/JobTab", () => ({
+vi.mock("@/features/jobs/components/JobTab", () => ({
   JobTab: (props: any) => (
     <div data-testid="job-tab">
       <button onClick={() => props.setSearchQuery("react")}>set-search</button>
@@ -106,11 +106,11 @@ vi.mock("@/domains/new_dashboard/components/jobs/JobTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/mentoring/MentoringTab", () => ({
+vi.mock("@/features/mentoring/components/MentoringTab", () => ({
   MentoringTab: () => <div data-testid="mentoring-tab" />,
 }));
 
-vi.mock("@/domains/new_dashboard/components/profile/ProfileTab", () => ({
+vi.mock("@/features/profile/components/ProfileTab", () => ({
   ProfileTab: (props: any) => (
     <div data-testid="profile-tab">
       <button onClick={() => props.onSaveProfile({ name: "x" })}>save-profile</button>
@@ -121,37 +121,37 @@ vi.mock("@/domains/new_dashboard/components/profile/ProfileTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/layout/Header", () => ({
+vi.mock("@/app/dashboard/components/Header", () => ({
   Header: () => <div data-testid="header" />,
 }));
-vi.mock("@/domains/new_dashboard/components/layout/MobileTabBar", () => ({
+vi.mock("@/app/dashboard/components/MobileTabBar", () => ({
   MobileTabBar: () => <div data-testid="mobile-tab-bar" />,
 }));
-vi.mock("@/domains/new_dashboard/components/layout/Sidebar", () => ({
+vi.mock("@/app/dashboard/components/Sidebar", () => ({
   Sidebar: () => <div data-testid="sidebar" />,
 }));
 
-vi.mock("@/domains/new_dashboard/components/shared/Toast", () => ({
+vi.mock("@/shared/ui/Toast", () => ({
   Toast: ({ message }: any) =>
     message ? <div data-testid="toast">{message}</div> : null,
 }));
 
-vi.mock("@/domains/new_dashboard/constants", () => ({
+vi.mock("@/features/jobs/constants", () => ({
   jobStatuses: { applied: "Aplicada", interview: "Entrevista" },
 }));
 
-vi.mock("@/domains/new_dashboard/utils/searchKeywords", () => ({
+vi.mock("@/features/jobs/domain/searchKeywords", () => ({
   parseSearchKeywords: (s: string) =>
     s ? s.split(",").map((x) => x.trim()) : [],
 }));
 
-vi.mock("@/domains/new_dashboard/utils/jobModelFilters", () => ({
+vi.mock("@/features/jobs/domain/jobModelFilters", () => ({
   getModelFilterFromJobTypes: (types: string[]) =>
     types.includes("Remoto") ? "Remoto" : "Todos",
   modelFilterToApiFilter: (f: string) => (f === "Todos" ? {} : { model: f }),
 }));
 
-vi.mock("@/domains/new_dashboard/utils/locationFilters", () => ({}));
+vi.mock("@/features/jobs/domain/locationFilters", () => ({}));
 
 // ---------- Hooks ----------
 const mockSetUserProfile = vi.fn();
@@ -161,7 +161,7 @@ const mockSaveSearchPreferences = vi.fn().mockResolvedValue(undefined);
 
 let mockUserData: any = {};
 
-vi.mock("@/domains/new_dashboard/hooks/useUserDashboardData", () => ({
+vi.mock("@/features/profile/hooks/useUserDashboardData", () => ({
   useUserDashboardData: () => mockUserData,
 }));
 
@@ -177,7 +177,7 @@ const mockSaveJobNotes = vi.fn().mockResolvedValue(undefined);
 
 let mockJobs: any = {};
 
-vi.mock("@/domains/new_dashboard/hooks/useDashboardJobs", () => ({
+vi.mock("@/features/jobs/hooks/useDashboardJobs", () => ({
   useDashboardJobs: () => mockJobs,
 }));
 

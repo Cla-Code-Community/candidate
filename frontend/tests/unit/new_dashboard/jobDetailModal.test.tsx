@@ -1,12 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/domains/new_dashboard/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/api/dashboardJobsApi", () => ({
   getDashboardSavedJobEvents: vi.fn().mockResolvedValue([]),
 }));
 
-import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
-import type { Job } from "@/domains/new_dashboard/types";
+import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
+import type { Job } from "@/features/jobs/domain/job";
 
 function job(overrides: Partial<Job> = {}): Job {
   return {

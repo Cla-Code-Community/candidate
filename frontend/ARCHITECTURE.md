@@ -1,25 +1,29 @@
 # Arquitetura do Frontend
 
-O frontend é organizado por domínios de negócio, não por tipos técnicos de arquivo.
+O frontend usa Feature-Based Architecture. Cada funcionalidade mantém seus componentes, contratos e integrações; camadas internas existem somente quando necessárias.
 
-## Camadas
+## Organização
 
-- `src/app`: composição da aplicação, providers, rotas e páginas de nível global.
-- `src/domains/<domain>/domain`: tipos de negócio e regras puras, sem React ou HTTP.
-- `src/domains/<domain>/application`: hooks React e casos de uso que orquestram regras de domínio.
-- `src/domains/<domain>/infrastructure`: gateways de API e código específico de transporte.
-- `src/domains/<domain>/presentation`: páginas e componentes pertencentes ao domínio.
-- `src/shared`: primitivas de UI, assets, hooks e utilitários técnicos reutilizáveis.
+- `src/app/routes`: definição das rotas e página de rota não encontrada.
+- `src/app/providers`: composição dos providers globais.
+- `src/app/layouts`: layout autenticado e seus componentes de navegação.
+- `src/app/dashboard`: composição, navegação, providers e tema do painel atual.
+- `src/features`: applications, auth, dashboard, help, home, jobs, marketing, mentoring, notifications e profile.
+- `src/shared/api`: cliente HTTP compartilhado e tratamento de erros de API.
+- `src/shared/utils`, `hooks`, `ui`, `assets` e `feedback`: utilitários, hooks, componentes, recursos e contexto de feedback reutilizáveis.
+- `src/styles`: estilos globais.
 
-> Exceção: o domínio `new_dashboard` ainda não segue integralmente essas 4 camadas. Hoje ele usa uma organização própria (`components/`, `context/`, `hooks/`, `infrastructure/`, `types/`, `utils/`, `layout.tsx`, `page.tsx`), sem pastas `domain/`, `application/` ou `presentation/` separadas. `auth`, `jobs` e `marketing` seguem o padrão de 4 camadas descrito acima.
+## Convenções das funcionalidades
 
-## Domínios
+- `api/`: integrações HTTP; clientes e contratos existentes são preservados.
+- `hooks/`: hooks de carregamento, persistência e estado.
+- `components/` e `pages/`: componentes e páginas específicos da funcionalidade.
+- `domain/` e `types/`: regras puras, schemas e contratos, quando necessários.
+- `application/`: contextos e providers com responsabilidade de aplicação; não são hooks.
+- Arquivos pequenos de contratos, eventos ou dados podem permanecer na raiz da funcionalidade. Não criar diretórios vazios.
 
-- `auth`: estado de sessão, acesso à API de credenciais/OAuth e telas de login, registro e callback.
-- `jobs`: entidades de vagas, filtros, deduplicação, paginação, acesso à API de vagas/scraper e UI de vagas.
-- `marketing`: seções da landing page pública.
-- `new_dashboard`: nova estrutura de painel do frontend. Contribuidores que procuram a experiência atual de dashboard devem começar por aqui.
+O catálogo anterior mantém seu contrato em `features/jobs/types/job.types.ts`, distinto do contrato do painel em `features/jobs/domain/job.ts`. O contexto e os dados demonstrativos legados permanecem em `features/jobs/legacy`. Candidaturas, notas e Kanban pertencem a `features/applications`.
 
-## Política de imports
+## Imports
 
-O código deve importar a partir de `@/app`, `@/domains` ou `@/shared`. Pastas técnicas antigas como `src/components`, `src/pages`, `src/hooks`, `src/services`, `src/context`, `src/lib` e `src/types` foram removidas para manter uma estrutura única orientada por domínio.
+Preferir imports canônicos com `@/app`, `@/features` e `@/shared`. Preservar imports relativos locais quando claros. Código específico permanece na funcionalidade; somente recursos reutilizáveis pertencem a shared. Evitar dependências circulares. Rotas, exports, providers, APIs e modelos distintos são preservados pela organização.

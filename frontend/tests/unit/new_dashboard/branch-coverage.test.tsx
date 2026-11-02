@@ -1,19 +1,20 @@
-import { CareerChecklist } from "@/domains/new_dashboard/components/home/CareerChecklist";
-import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
-import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
-import { Header } from "@/domains/new_dashboard/components/layout/Header";
-import { MessageDetailModal } from "@/domains/new_dashboard/components/layout/MessageDetailModal";
-import { MentoringTab } from "@/domains/new_dashboard/components/mentoring/MentoringTab";
-import { ProfileForm } from "@/domains/new_dashboard/components/profile/ProfileForm";
-import { Modal } from "@/domains/new_dashboard/components/shared/Modal";
+import { CareerChecklist } from "@/features/home/components/CareerChecklist";
+import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
+import { JobRow } from "@/features/jobs/components/JobRow";
+import { Header } from "@/app/dashboard/components/Header";
+import { MessageDetailModal } from "@/features/notifications/components/MessageDetailModal";
+import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
+import { ProfileForm } from "@/features/profile/components/ProfileForm";
+import { Modal } from "@/shared/ui/Modal";
 import {
   clearDashboardNotifications,
   getDashboardNotificationFeed,
   markDashboardNotificationsRead,
   markSingleNotificationRead,
-} from "@/domains/new_dashboard/infrastructure/notificationsApi";
-import type { Job, UserProfile } from "@/domains/new_dashboard/types";
-import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/domains/new_dashboard/utils/notificationEvents";
+} from "@/features/notifications/api";
+import type { Job } from "@/features/jobs/domain/job";
+import type { UserProfile } from "@/features/profile/domain/user";
+import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/features/notifications/events";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +22,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockUseAuth = vi.fn();
 const mockUseTheme = vi.fn();
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
@@ -41,7 +42,7 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+vi.mock("@/features/notifications/api", () => ({
   getDashboardNotificationFeed: vi.fn().mockResolvedValue({
     messages: [],
     notifications: [],

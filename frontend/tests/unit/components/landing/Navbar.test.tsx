@@ -26,7 +26,7 @@ vi.mock("@/shared/hooks/useTheme", () => ({
   }),
 }));
 
-import { Navbar } from "@/domains/marketing/presentation/components/Navbar";
+import { Navbar } from "@/features/marketing/components/Navbar";
 
 describe("Navbar", () => {
   beforeEach(() => {

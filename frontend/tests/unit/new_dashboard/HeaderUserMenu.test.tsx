@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Header } from "@/domains/new_dashboard/components/layout/Header";
+import { Header } from "@/app/dashboard/components/Header";
 
 const mockNavigate = vi.fn();
 
@@ -10,14 +10,14 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "1", name: "Joao Silva", email: "joao@teste.com" },
     logout: vi.fn(),
   }),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+vi.mock("@/features/notifications/api", () => ({
   getDashboardNotificationFeed: vi.fn().mockResolvedValue({
     messages: [],
     notifications: [],
@@ -27,11 +27,11 @@ vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
   clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/domains/new_dashboard/components/layout/ThemeToggle", () => ({
+vi.mock("@/app/dashboard/components/ThemeToggle", () => ({
   ThemeToggle: () => <button type="button">tema</button>,
 }));
 
-vi.mock("@/domains/new_dashboard/components/layout/MessageDetailModal", () => ({
+vi.mock("@/features/notifications/components/MessageDetailModal", () => ({
   MessageDetailModal: () => null,
 }));
 

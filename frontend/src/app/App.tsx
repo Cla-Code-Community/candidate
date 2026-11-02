@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AppRoutes } from "@/app/AppRoutes";
+import { AppRoutes } from "@/app/routes/AppRoutes";
 import Loading from "@/shared/ui/Loading";
 
 function App() {

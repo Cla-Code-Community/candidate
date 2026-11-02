@@ -14,7 +14,7 @@ vi.mock("swiper/modules", () => ({
   Autoplay: {},
 }));
 
-import TeamSection from "@/domains/marketing/presentation/components/TeamSection";
+import TeamSection from "@/features/marketing/components/TeamSection";
 
 describe("TeamSection", () => {
   afterEach(() => {

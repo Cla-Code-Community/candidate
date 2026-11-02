@@ -1,22 +1,22 @@
-import type { Job, JobModelFilter, JobType } from "@/domains/new_dashboard/types";
+import type { Job, JobModelFilter, JobType } from "@/features/jobs/domain/job";
 import {
     createJobFromForm,
     getInitials,
     splitTags,
-} from "@/domains/new_dashboard/utils/helpers";
+} from "@/features/jobs/legacy/domain/helpers";
 import {
     getJobTypesFromModelFilter,
     getModelFilterFromJobTypes,
     modelFilterMatchesJob,
     modelFilterToApiFilter,
-} from "@/domains/new_dashboard/utils/jobModelFilters";
+} from "@/features/jobs/domain/jobModelFilters";
 import {
     getContinentFromLocation,
     matchesContinent,
     matchesCountry,
     matchesLocationFilters,
-} from "@/domains/new_dashboard/utils/locationFilters";
-import { parseSearchKeywords } from "@/domains/new_dashboard/utils/searchKeywords";
+} from "@/features/jobs/domain/locationFilters";
+import { parseSearchKeywords } from "@/features/jobs/domain/searchKeywords";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 describe("new_dashboard utils", () => {

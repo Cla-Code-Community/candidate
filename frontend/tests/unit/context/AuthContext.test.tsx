@@ -6,14 +6,14 @@ import "@testing-library/jest-dom/vitest";
 const mockApiGet = vi.fn();
 const mockApiPost = vi.fn();
 
-vi.mock("@/shared/lib/apiClient", () => ({
+vi.mock("@/shared/api/apiClient", () => ({
   api: {
     get: (...args: any[]) => mockApiGet(...args),
     post: (...args: any[]) => mockApiPost(...args),
   },
 }));
 
-import { AuthProvider, useAuth } from "@/domains/auth/application/AuthContext";
+import { AuthProvider, useAuth } from "@/features/auth/application/AuthContext";
 
 function TestConsumer() {
   const { user, isLoading, login, logout, refreshUser } = useAuth();

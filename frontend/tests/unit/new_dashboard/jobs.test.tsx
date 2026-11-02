@@ -1,19 +1,19 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AddJobModal } from "@/domains/new_dashboard/components/jobs/AddJobModal";
-import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
-import { JobFilter } from "@/domains/new_dashboard/components/jobs/JobFilter";
-import { FormattedJobDescription } from "@/domains/new_dashboard/components/jobs/FormattedJobDescription";
-import { JobRow } from "@/domains/new_dashboard/components/jobs/JobRow";
-import { JobTab } from "@/domains/new_dashboard/components/jobs/JobTab";
-import { JobTable } from "@/domains/new_dashboard/components/jobs/JobTable";
-import { initialPreferences } from "@/domains/new_dashboard/constants";
-import type { Job, JobModelFilter } from "@/domains/new_dashboard/types";
+import { AddJobModal } from "@/features/applications/components/AddJobModal";
+import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
+import { JobFilter } from "@/features/jobs/components/JobFilter";
+import { FormattedJobDescription } from "@/features/jobs/components/FormattedJobDescription";
+import { JobRow } from "@/features/jobs/components/JobRow";
+import { JobTab } from "@/features/jobs/components/JobTab";
+import { JobTable } from "@/features/jobs/components/JobTable";
+import { initialPreferences } from "@/features/profile/defaults";
+import type { Job, JobModelFilter } from "@/features/jobs/domain/job";
 import type {
   ContinentFilter,
   CountryFilter,
-} from "@/domains/new_dashboard/utils/locationFilters";
+} from "@/features/jobs/domain/locationFilters";
 
 const dashboardApiMock = vi.hoisted(() => ({
   getDashboardSavedJobEvents: vi.fn(),
@@ -23,7 +23,7 @@ const dashboardApiMock = vi.hoisted(() => ({
   deleteDashboardApplicationNote: vi.fn(),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/api/dashboardJobsApi", () => ({
   getDashboardSavedJobEvents: dashboardApiMock.getDashboardSavedJobEvents,
   getDashboardApplicationNotes: dashboardApiMock.getDashboardApplicationNotes,
   createDashboardApplicationNote: dashboardApiMock.createDashboardApplicationNote,
@@ -676,6 +676,9 @@ describe("new_dashboard job components", () => {
           setCountryFilter={setCountryFilter}
           matchSort={matchSort}
           setMatchSort={setMatchSort}
+          selectedFamilies={[]}
+          setSelectedFamilies={vi.fn()}
+          familyOptions={[]}
           searchPreferences={{ ...initialPreferences, remoteOnly: false }}
           onSearchJobs={onSearchJobs}
           onOpenJob={onOpenJob}

@@ -1,19 +1,19 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DashboardTab } from "@/domains/new_dashboard/components/dashboard/DashboardTab";
-import { KanbanBoard } from "@/domains/new_dashboard/components/dashboard/KanbanBoard";
-import { CandidateLogo } from "@/domains/new_dashboard/components/shared/CandidateLogo";
-import { Header } from "@/domains/new_dashboard/components/layout/Header";
-import { MobileTabBar } from "@/domains/new_dashboard/components/layout/MobileTabBar";
-import { Sidebar } from "@/domains/new_dashboard/components/layout/Sidebar";
-import { ThemeToggle } from "@/domains/new_dashboard/components/layout/ThemeToggle";
-import type { Job } from "@/domains/new_dashboard/types";
+import { DashboardTab } from "@/features/dashboard/components/DashboardTab";
+import { KanbanBoard } from "@/features/applications/components/KanbanBoard";
+import { CandidateLogo } from "@/app/dashboard/components/CandidateLogo";
+import { Header } from "@/app/dashboard/components/Header";
+import { MobileTabBar } from "@/app/dashboard/components/MobileTabBar";
+import { Sidebar } from "@/app/dashboard/components/Sidebar";
+import { ThemeToggle } from "@/app/dashboard/components/ThemeToggle";
+import type { Job } from "@/features/jobs/domain/job";
 
 const mockUseAuth = vi.fn();
 const mockUseTheme = vi.fn();
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => mockUseAuth(),
 }));
 
@@ -21,7 +21,7 @@ vi.mock("@/shared/hooks/useTheme", () => ({
   useTheme: () => mockUseTheme(),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/notificationsApi", () => ({
+vi.mock("@/features/notifications/api", () => ({
   getDashboardNotificationFeed: vi.fn().mockResolvedValue({
     messages: [],
     notifications: [],

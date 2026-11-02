@@ -1,9 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ThemeProvider, useDashboardTheme } from "@/domains/new_dashboard/context/ThemeContext";
-import { ToastProvider, useToastContext } from "@/domains/new_dashboard/context/ToastContext";
-import { Toast } from "@/domains/new_dashboard/components/shared/Toast";
+import { ThemeProvider, useDashboardTheme } from "@/app/dashboard/theme/ThemeContext";
+import { ToastProvider, useToastContext } from "@/shared/feedback/ToastContext";
+import { Toast } from "@/shared/ui/Toast";
 import { ThemeToggle } from "@/shared/ui/theme-toggle";
 
 const mockUseTheme = vi.fn();
