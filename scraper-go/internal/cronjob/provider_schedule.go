@@ -69,6 +69,13 @@ func windowOccurrenceKey(start time.Time, w config.ProviderWindow) string {
 }
 
 func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) error {
+	clock := s.admissionClock
+	if clock == nil {
+		clock = time.Now
+	}
+	// Include coordination latency in the schedule timestamp. Monotonic elapsed
+	// time prevents wall-clock adjustments from reopening the admission period.
+	dispatchStarted := clock()
 	var next time.Time
 	for _, w := range s.cfg.ProviderWindows {
 		start := nextWindowStart(now, w)
@@ -165,6 +172,16 @@ func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) e
 		}
 
 		defer s.active.Done()
+		// Decide admission while holding the global lease, after the last Redis
+		// operation. A slow claim or lock acquisition must never cause catch-up.
+		if now.Add(clock().Sub(dispatchStarted)).Sub(start) > ProviderStartTolerance {
+			missErr := miss("admission_late", nil)
+			releaseCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stop()
+			releaseErr := lease.Release(releaseCtx)
+			metrics.FinishRun(context.Canceled, lease.RunID())
+			return errors.Join(missErr, releaseErr)
+		}
 		fields := []any{"provider", w.Provider, "window_id", w.WindowID(), "local_date", start.Format("2006-01-02"), "timezone", w.Location().String(), "window_end", end, "run_id", lease.RunID()}
 		slog.Info("provider window started", fields...)
 		err = s.runSelectedWindowWithLease(lease, []string{string(w.Provider)}, s.cfg.ScrapeTimeout, &w)

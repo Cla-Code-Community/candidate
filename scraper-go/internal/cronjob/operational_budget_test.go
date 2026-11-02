@@ -80,6 +80,8 @@ func TestFixedWindowToleranceAndMissedOccurrenceNeverCatchUp(t *testing.T) {
 	for _, late := range []time.Duration{0, ProviderStartTolerance, ProviderStartTolerance + time.Nanosecond} {
 		t.Run(late.String(), func(t *testing.T) {
 			s, _, client := newConcurrentTestScheduler(t)
+			frozen := time.Now()
+			s.admissionClock = func() time.Time { return frozen }
 			var calls atomic.Int32
 			s.adapterList = []ports.JobSource{dispatchSource{provider: ports.ProviderLinkedIn, calls: &calls}}
 			w := config.ProviderWindow{Provider: ports.ProviderLinkedIn, ID: "linkedin-1", Start: 60, End: 120, Timezone: config.ProviderScheduleTimezone}

@@ -56,6 +56,7 @@ func DefaultConfig() Config {
 }
 
 type Scheduler struct {
+	admissionClock   func() time.Time
 	failedAdmissions map[string]string
 	lastSummary      *RunSummary
 	cfg              Config
