@@ -1,6 +1,6 @@
 import { cn } from "@/shared/lib/utils";
 import { Link, useLocation } from "react-router-dom";
-import { Icons } from "../shared/Icons";
+import { Icons } from "@/app/dashboard/components/Icons";
 
 const tabs = [
   { label: "Início", to: "/home", icon: Icons.Home },

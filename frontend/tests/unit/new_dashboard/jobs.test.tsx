@@ -8,8 +8,8 @@ import { FormattedJobDescription } from "@/features/jobs/components/FormattedJob
 import { JobRow } from "@/features/jobs/components/JobRow";
 import { JobTab } from "@/features/jobs/components/JobTab";
 import { JobTable } from "@/features/jobs/components/JobTable";
-import { initialPreferences } from "@/domains/new_dashboard/constants";
-import type { Job, JobModelFilter } from "@/domains/new_dashboard/types";
+import { initialPreferences } from "@/features/profile/defaults";
+import type { Job, JobModelFilter } from "@/features/jobs/domain/job";
 import type {
   ContinentFilter,
   CountryFilter,

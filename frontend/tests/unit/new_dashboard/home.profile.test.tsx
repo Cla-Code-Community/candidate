@@ -2,14 +2,8 @@ import { CareerChecklist } from "@/features/home/components/CareerChecklist";
 import { HomeTab } from "@/features/home/components/HomeTab";
 import { PreferencesForm } from "@/features/profile/components/PreferencesForm";
 import { ProfileForm } from "@/features/profile/components/ProfileForm";
-import {
-    initialPreferences,
-    initialUser,
-} from "@/domains/new_dashboard/constants";
-import type {
-    SearchPreferences,
-    UserProfile,
-} from "@/domains/new_dashboard/types";
+import { initialPreferences, initialUser } from "@/features/profile/defaults";
+import type { SearchPreferences, UserProfile } from "@/features/profile/domain/user";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { useState } from "react";

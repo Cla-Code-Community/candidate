@@ -18,7 +18,7 @@ vi.mock("@/features/jobs/infrastructure/dashboardJobsApi", () => ({
 
 import { useDashboardJobs } from "@/features/jobs/application/useDashboardJobs";
 import type { User } from "@/features/auth/domain/auth.types";
-import type { Job } from "@/domains/new_dashboard/types";
+import type { Job } from "@/features/jobs/domain/job";
 
 const user: User = {
   id: "user-1",

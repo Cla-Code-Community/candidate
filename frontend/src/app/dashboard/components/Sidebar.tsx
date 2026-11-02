@@ -2,8 +2,8 @@ import { cn } from "@/shared/lib/utils";
 import { LogOut } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/features/auth/application/AuthContext";
-import { CandidateLogo } from "../shared/CandidateLogo";
-import { Icons } from "../shared/Icons";
+import { CandidateLogo } from "@/app/dashboard/components/CandidateLogo";
+import { Icons } from "@/app/dashboard/components/Icons";
 
 const items = [
   { label: "Início", to: "/home", icon: Icons.Home },

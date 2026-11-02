@@ -7,13 +7,13 @@ import { HomeTab } from "@/features/home/components/HomeTab";
 import { AddJobModal } from "@/features/applications/components/AddJobModal";
 import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
 import { JobTab } from "@/features/jobs/components/JobTab";
-import { Header } from "./components/layout/Header";
-import { MobileTabBar } from "./components/layout/MobileTabBar";
-import { Sidebar } from "./components/layout/Sidebar";
+import { Header } from "@/app/dashboard/components/Header";
+import { MobileTabBar } from "@/app/dashboard/components/MobileTabBar";
+import { Sidebar } from "@/app/dashboard/components/Sidebar";
 import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
 import { ProfileTab } from "@/features/profile/components/ProfileTab";
 import { Toast } from "@/shared/ui/Toast";
-import { jobStatuses } from "./constants";
+import { jobStatuses } from "@/features/jobs/constants";
 import { useDashboardJobs } from "@/features/jobs/application/useDashboardJobs";
 import { useUserDashboardData } from "@/features/profile/application/useUserDashboardData";
 import {
@@ -21,17 +21,8 @@ import {
   FALLBACK_JOB_FAMILIES,
   type JobFamilyOption,
 } from "@/features/jobs/infrastructure/dashboardJobsApi";
-import type {
-  CareerChecklist,
-  Job,
-  JobModelFilter,
-  JobStatus,
-  MatchSort,
-  NewJob,
-  SearchPreferences,
-  TechnologyExperience,
-  UserProfile,
-} from "./types";
+import type { CareerChecklist, SearchPreferences, TechnologyExperience, UserProfile } from "@/features/profile/domain/user";
+import type { Job, JobModelFilter, JobStatus, MatchSort, NewJob } from "@/features/jobs/domain/job";
 import {
   type ContinentFilter,
   type CountryFilter,

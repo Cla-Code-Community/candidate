@@ -1,4 +1,4 @@
-import type { Job, JobModelFilter, JobType } from "@/domains/new_dashboard/types";
+import type { Job, JobModelFilter, JobType } from "@/features/jobs/domain/job";
 import {
     createJobFromForm,
     getInitials,

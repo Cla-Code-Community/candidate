@@ -18,7 +18,7 @@ vi.mock("@/features/profile/infrastructure/userDashboardApi", () => ({
   createUserPreferences: userApiMock.createUserPreferences,
 }));
 
-import { initialPreferences, initialUser } from "@/domains/new_dashboard/constants";
+import { initialPreferences, initialUser } from "@/features/profile/defaults";
 import { useUserDashboardData } from "@/features/profile/application/useUserDashboardData";
 import type { User } from "@/features/auth/domain/auth.types";
 

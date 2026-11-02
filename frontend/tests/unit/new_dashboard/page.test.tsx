@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
+import NewDashboardPage from "@/app/dashboard/DashboardPage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /* -------------------------------------------------------------------------- */
 /*                              MOCKS DE MÓDULOS                              */
-/*         ⚠️  caminhos SEMPRE com alias @/domains/new_dashboard/...           */
+/*         ⚠️  caminhos SEMPRE com aliases canônicos de app/ e features/           */
 /*         porque vi.mock resolve relativo ao ARQUIVO DE TESTE.               */
 /* -------------------------------------------------------------------------- */
 
@@ -121,13 +121,13 @@ vi.mock("@/features/profile/components/ProfileTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/layout/Header", () => ({
+vi.mock("@/app/dashboard/components/Header", () => ({
   Header: () => <div data-testid="header" />,
 }));
-vi.mock("@/domains/new_dashboard/components/layout/MobileTabBar", () => ({
+vi.mock("@/app/dashboard/components/MobileTabBar", () => ({
   MobileTabBar: () => <div data-testid="mobile-tab-bar" />,
 }));
-vi.mock("@/domains/new_dashboard/components/layout/Sidebar", () => ({
+vi.mock("@/app/dashboard/components/Sidebar", () => ({
   Sidebar: () => <div data-testid="sidebar" />,
 }));
 
@@ -136,7 +136,7 @@ vi.mock("@/shared/ui/Toast", () => ({
     message ? <div data-testid="toast">{message}</div> : null,
 }));
 
-vi.mock("@/domains/new_dashboard/constants", () => ({
+vi.mock("@/features/jobs/constants", () => ({
   jobStatuses: { applied: "Aplicada", interview: "Entrevista" },
 }));
 

@@ -6,7 +6,7 @@ vi.mock("@/features/jobs/infrastructure/dashboardJobsApi", () => ({
 }));
 
 import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
-import type { Job } from "@/domains/new_dashboard/types";
+import type { Job } from "@/features/jobs/domain/job";
 
 function job(overrides: Partial<Job> = {}): Job {
   return {

@@ -1,7 +1,7 @@
 import { CareerChecklist } from "@/features/home/components/CareerChecklist";
 import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
 import { JobRow } from "@/features/jobs/components/JobRow";
-import { Header } from "@/domains/new_dashboard/components/layout/Header";
+import { Header } from "@/app/dashboard/components/Header";
 import { MessageDetailModal } from "@/features/notifications/components/MessageDetailModal";
 import { MentoringTab } from "@/features/mentoring/components/MentoringTab";
 import { ProfileForm } from "@/features/profile/components/ProfileForm";
@@ -12,7 +12,8 @@ import {
   markDashboardNotificationsRead,
   markSingleNotificationRead,
 } from "@/features/notifications/api";
-import type { Job, UserProfile } from "@/domains/new_dashboard/types";
+import type { Job } from "@/features/jobs/domain/job";
+import type { UserProfile } from "@/features/profile/domain/user";
 import { DASHBOARD_NOTIFICATIONS_REFRESH_EVENT } from "@/features/notifications/events";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";

@@ -18,7 +18,7 @@ vi.mock("@/shared/ui/Loading", () => ({
   default: () => <div role="status">Carregando...</div>,
 }));
 
-vi.mock("@/domains/new_dashboard/layout", () => ({
+vi.mock("@/app/dashboard/DashboardProviders", () => ({
   default: ({ children }: { children: React.ReactNode }) => (
     <div>
       <span>Dashboard shell</span>
@@ -27,7 +27,7 @@ vi.mock("@/domains/new_dashboard/layout", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/NewDashboardPage", () => ({
+vi.mock("@/app/dashboard/DashboardPage", () => ({
   default: () => <main>New dashboard route</main>,
 }));
 

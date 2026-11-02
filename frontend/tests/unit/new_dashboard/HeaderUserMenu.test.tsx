@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Header } from "@/domains/new_dashboard/components/layout/Header";
+import { Header } from "@/app/dashboard/components/Header";
 
 const mockNavigate = vi.fn();
 
@@ -27,7 +27,7 @@ vi.mock("@/features/notifications/api", () => ({
   clearDashboardNotifications: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/domains/new_dashboard/components/layout/ThemeToggle", () => ({
+vi.mock("@/app/dashboard/components/ThemeToggle", () => ({
   ThemeToggle: () => <button type="button">tema</button>,
 }));
 

@@ -6,8 +6,8 @@ import RegisterPage from "@/features/auth/presentation/pages/RegisterPage";
 import LandingPage from "@/features/marketing/pages/LandingPage";
 import PrivacyPolicyPage from "@/features/marketing/pages/PrivacyPolicyPage";
 import TermsOfUsePage from "@/features/marketing/pages/TermsOfUsePage";
-import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
-import NewDashboardLayout from "@/domains/new_dashboard/layout";
+import NewDashboardPage from "@/app/dashboard/DashboardPage";
+import NewDashboardLayout from "@/app/dashboard/DashboardProviders";
 import Loading from "@/shared/ui/Loading";
 import { Navigate, Route, Routes } from "react-router-dom";
 
