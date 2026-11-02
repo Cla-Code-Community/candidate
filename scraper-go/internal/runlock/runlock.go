@@ -65,6 +65,8 @@ func New(store Store, cfg Config) (*Manager, error) {
 }
 
 func (m *Manager) Acquire(ctx context.Context, source string) (*Lease, error) {
+	startedAt := m.now().UTC()
+	deadline, processingDeadline, collectionDeadline := executionDeadlines(ctx, startedAt)
 	token, err := newToken()
 	if err != nil {
 		return nil, fmt.Errorf("runlock: generate token: %w", err)
@@ -74,18 +76,25 @@ func (m *Manager) Acquire(ctx context.Context, source string) (*Lease, error) {
 		return nil, fmt.Errorf("runlock: generate run id: %w", err)
 	}
 
-	acquired, err := m.store.TryAcquire(ctx, token, m.cfg.TTL)
+	deadlineCtx, cancelDeadline := context.WithDeadline(ctx, processingDeadline)
+	acquired, err := m.store.TryAcquire(deadlineCtx, token, m.cfg.TTL)
 	if err != nil {
+		cancelDeadline()
+		var cooldown *CooldownError
+		if errors.As(err, &cooldown) {
+			metrics.Attempt(source, "skipped")
+			return nil, err
+		}
 		metrics.Attempt(source, "failed")
 		return nil, fmt.Errorf("%w: acquire: %v", ErrUnavailable, err)
 	}
 	if !acquired {
+		cancelDeadline()
 		metrics.LockConflicts.WithLabelValues(metrics.Source(source)).Inc()
 		metrics.Attempt(source, "skipped")
 		return nil, ErrAlreadyHeld
 	}
 
-	startedAt := m.now().UTC()
 	metrics.StartRun(source, startedAt, runID)
 	metrics.LockAcquired(m.cfg.TTL, runID)
 	state := State{
@@ -94,7 +103,7 @@ func (m *Manager) Acquire(ctx context.Context, source string) (*Lease, error) {
 		StartedAt:     startedAt,
 		LockExpiresAt: startedAt.Add(m.cfg.TTL),
 	}
-	if written, stateErr := m.store.WriteState(ctx, token, state, m.cfg.TTL); stateErr != nil || !written {
+	if written, stateErr := m.store.WriteState(deadlineCtx, token, state, m.cfg.TTL); stateErr != nil || !written {
 		slog.Warn("scraper run state unavailable",
 			"source", source,
 			"run_id", runID,
@@ -102,13 +111,18 @@ func (m *Manager) Acquire(ctx context.Context, source string) (*Lease, error) {
 		)
 	}
 
-	leaseCtx, cancel := context.WithCancelCause(ctx)
+	leaseCtx, cancel := context.WithCancelCause(deadlineCtx)
+	// Keep ownership while canceled workers join. This context only coordinates
+	// renewal; every Redis RPC is bounded and Release cancels in-flight renewal.
+	renewCtx, cancelRenewal := context.WithCancel(context.WithoutCancel(ctx))
 	lease := &Lease{
-		manager:     m,
-		token:       token,
-		runID:       runID,
-		source:      source,
-		startedAt:   startedAt,
+		manager:   m,
+		token:     token,
+		runID:     runID,
+		source:    source,
+		startedAt: startedAt,
+		deadline:  deadline, collectionDeadline: collectionDeadline,
+		cancelDeadline: cancelDeadline, renewCtx: renewCtx, cancelRenewal: cancelRenewal,
 		ctx:         leaseCtx,
 		cancel:      cancel,
 		stopRenewal: make(chan struct{}),
@@ -125,11 +139,16 @@ func (m *Manager) Acquire(ctx context.Context, source string) (*Lease, error) {
 }
 
 type Lease struct {
-	manager   *Manager
-	token     string
-	runID     string
-	source    string
-	startedAt time.Time
+	manager            *Manager
+	token              string
+	runID              string
+	source             string
+	startedAt          time.Time
+	deadline           time.Time
+	collectionDeadline time.Time
+	cancelDeadline     context.CancelFunc
+	renewCtx           context.Context
+	cancelRenewal      context.CancelFunc
 
 	ctx    context.Context
 	cancel context.CancelCauseFunc
@@ -166,12 +185,16 @@ func (l *Lease) Release(ctx context.Context) error {
 	l.releaseOnce.Do(func() {
 		defer metrics.LockReleased(l.runID)
 		l.cancel(nil)
+		l.cancelDeadline()
+		l.cancelRenewal()
 		l.stopOnce.Do(func() {
 			close(l.stopRenewal)
 		})
 		<-l.renewalDone
 
-		released, err := l.manager.store.Release(ctx, l.token, l.runID)
+		releaseCtx, cancel := context.WithDeadline(ctx, l.deadline)
+		defer cancel()
+		released, err := l.manager.store.Release(releaseCtx, l.token, l.runID)
 		switch {
 		case err != nil:
 			l.releaseErr = fmt.Errorf("%w: release: %v", ErrUnavailable, err)
@@ -204,14 +227,15 @@ func (l *Lease) renew() {
 
 	safetyTimer := time.NewTimer(l.manager.cfg.TTL - l.manager.cfg.RenewInterval)
 	defer safetyTimer.Stop()
+	executionDone := l.ctx.Done()
 
 	for {
 		select {
 		case <-l.stopRenewal:
 			return
-		case <-l.ctx.Done():
+		case <-executionDone:
 			metrics.Canceling(l.runID)
-			return
+			executionDone = nil // Keep the lock until workers have joined and Release runs.
 		case <-safetyTimer.C:
 			cause := fmt.Errorf("%w: renewal could not be confirmed before safety deadline", ErrLost)
 			slog.Error("scraper run lock lost",
@@ -226,7 +250,7 @@ func (l *Lease) renew() {
 			return
 		case <-ticker.C:
 			state := l.State()
-			renewCtx, cancelRenew := context.WithTimeout(l.ctx, l.renewTimeout())
+			renewCtx, cancelRenew := context.WithTimeout(l.renewCtx, l.renewTimeout())
 			renewed, err := l.manager.store.Renew(
 				renewCtx,
 				l.token,
@@ -235,7 +259,7 @@ func (l *Lease) renew() {
 			)
 			cancelRenew()
 			if err != nil {
-				if l.ctx.Err() != nil {
+				if l.renewCtx.Err() != nil {
 					return
 				}
 				metrics.LockRenewFailures.Inc()

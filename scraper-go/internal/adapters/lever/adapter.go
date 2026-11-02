@@ -28,6 +28,7 @@ type LeverAdapter struct {
 	cachedJobs []leverPosting
 	cacheErr   error
 	loaded     bool
+	cacheRunID string
 }
 
 type leverCompany struct {
@@ -198,11 +199,12 @@ func (a *LeverAdapter) SearchBatch(ctx context.Context, keywords []string, req d
 
 func (a *LeverAdapter) fetchPostings(ctx context.Context, req domain.ScrapeRequest) ([]leverPosting, error) {
 	a.mu.Lock()
-	if a.loaded {
+	if a.loaded && a.cacheRunID == req.RunID {
 		defer a.mu.Unlock()
 		return a.cachedJobs, a.cacheErr
 	}
 	defer a.mu.Unlock()
+	a.cacheRunID, a.loaded, a.cachedJobs, a.cacheErr = req.RunID, false, nil, nil
 
 	pageTimeout := time.Duration(req.PageTimeoutMs) * time.Millisecond
 	if pageTimeout <= 0 {

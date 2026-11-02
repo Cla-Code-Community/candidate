@@ -13,9 +13,15 @@ func BuildCacheKey(config SearchConfig) string {
 	sort.Strings(normalizedKeywords)
 
 	sources := normalizeCacheValues(config.Sources)
+	cacheNamespace := "jobs"
+	if len(config.Sources) > 0 {
+		// Earlier versions accepted sources without filtering adapters. Do not
+		// reuse those results for a now-enforced provider selection.
+		cacheNamespace = "jobs:providers:v1"
+	}
 
 	return strings.Join([]string{
-		"jobs",
+		cacheNamespace,
 		strings.Join(normalizedKeywords, ","),
 		normalizeCacheValue(config.SearchLocation),
 		normalizeCacheValue(config.SearchGeoID),

@@ -273,7 +273,7 @@ func newConcurrentTestScheduler(t *testing.T) (*Scheduler, *blockingAdapter, *re
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
 
-	lockManager, err := runlock.New(runlock.NewValkeyStore(client), runlock.Config{
+	lockManager, err := runlock.New(runlock.NewValkeyStore(client, 0), runlock.Config{
 		TTL:           2 * time.Second,
 		RenewInterval: 500 * time.Millisecond,
 	})

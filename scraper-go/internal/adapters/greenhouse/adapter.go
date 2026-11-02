@@ -115,6 +115,7 @@ type GreenhouseAdapter struct {
 	cachedJobs []greenhouseListJob
 	cacheErr   error
 	loaded     bool
+	cacheRunID string
 }
 
 func NewGreenhouse(boardToken, companyName string) *GreenhouseAdapter {
@@ -127,6 +128,10 @@ func NewGreenhouse(boardToken, companyName string) *GreenhouseAdapter {
 
 func (a *GreenhouseAdapter) SourceName() string {
 	return fmt.Sprintf("Green House:%s", a.companyName)
+}
+
+func (a *GreenhouseAdapter) SourceID() string {
+	return strings.TrimSpace(a.boardToken)
 }
 
 func (a *GreenhouseAdapter) Capabilities() ports.SourceCapabilities {
@@ -193,11 +198,12 @@ func (a *GreenhouseAdapter) SearchBatch(ctx context.Context, keywords []string, 
 
 func (a *GreenhouseAdapter) fetchJobs(ctx context.Context, req domain.ScrapeRequest) ([]greenhouseListJob, error) {
 	a.mu.Lock()
-	if a.loaded {
+	if a.loaded && a.cacheRunID == req.RunID {
 		defer a.mu.Unlock()
 		return a.cachedJobs, a.cacheErr
 	}
 	defer a.mu.Unlock()
+	a.cacheRunID, a.loaded, a.cachedJobs, a.cacheErr = req.RunID, false, nil, nil
 
 	pageTimeout := time.Duration(req.PageTimeoutMs) * time.Millisecond
 	if pageTimeout <= 0 {
@@ -227,7 +233,14 @@ func (a *GreenhouseAdapter) fetchJobs(ctx context.Context, req domain.ScrapeRequ
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		err := fmt.Errorf("greenhouse: status inesperado %d para board '%s'", resp.StatusCode, a.boardToken)
+		var err error = fmt.Errorf("greenhouse: status inesperado %d para board '%s'", resp.StatusCode, a.boardToken)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			at, valid := adapterutil.ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+			if !valid {
+				at = time.Now().Add(time.Minute)
+			}
+			err = &ports.RateLimitError{Provider: ports.ProviderGreenhouse, NotBefore: at}
+		}
 		a.cachedJobs = nil
 		a.cacheErr = err
 		a.loaded = true

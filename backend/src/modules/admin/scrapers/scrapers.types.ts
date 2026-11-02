@@ -25,12 +25,18 @@ export const TriggerScrapeResultSchema = z.object({
 });
 export type TriggerScrapeResult = z.infer<typeof TriggerScrapeResultSchema>;
 
+export const TriggerScrapeRequestSchema = z.object({
+  sources: z.array(z.enum(["linkedin", "adzuna", "gupy", "inhire", "greenhouse", "lever", "jooble", "themuse"])).max(8).optional(),
+}).strict();
+
 export const TriggerScrapeErrorSchema = z.object({
   ok: z.literal(false),
   code: z.enum([
     "SCRAPER_ALREADY_RUNNING",
     "SCRAPER_RUN_LOCK_UNAVAILABLE",
     "SCRAPER_RUN_LOCK_LOST",
+    "INVALID_PROVIDER_SELECTION",
+    "PROVIDER_RATE_LIMITED",
   ]),
   message: z.string(),
 });
@@ -40,8 +46,27 @@ export type TriggerScrapeError = z.infer<typeof TriggerScrapeErrorSchema>;
 export const ScraperStatusSchema = z.object({
   name: z.string().optional(),
   running: z.boolean(),
-  lastRunAt: z.string().optional(),
+  lastRunAt: z.string().nullable().optional(),
   jobsCollected: z.number().int().min(0).optional(),
+  lastRun: z.object({
+    runId: z.string(),
+    providers: z.array(z.string()).nullable().optional(),
+    status: z.enum(["success", "partial", "failed", "timeout", "canceled"]),
+    finishedAt: z.string().datetime(),
+    jobsSaved: z.number().int().nonnegative(),
+    jobsIndexed: z.number().int().nonnegative(),
+    errorType: z.string(),
+  }).nullable().optional(),
+  providerWindows: z.array(z.union([
+    z.object({
+      provider: z.string(), id: z.string().optional(), timezone: z.literal("UTC").optional(),
+      startMinuteUTC: z.number().int().min(0).max(1439), endMinuteUTC: z.number().int().min(1).max(1440),
+    }),
+    z.object({
+      provider: z.string(), id: z.string(), timezone: z.string().min(1),
+      startMinuteLocal: z.number().int().min(0).max(1439), endMinuteLocal: z.number().int().min(1).max(1440),
+    }),
+  ])).nullable().optional(),
 });
 export type ScraperStatus = z.infer<typeof ScraperStatusSchema>;
 

@@ -108,6 +108,7 @@ export const ProcessorSnapshotSchema = z.object({
   status: z.enum(["ok", "partial"]),
   timestamp: z.string().datetime(),
   execution: z.object({
+    partial: z.boolean().optional(),
     runId: z.string().min(1).max(128).nullable().optional().default(null),
     status: z.enum(["idle", "running", "canceling", "failed", "completed"]),
     source: z.enum(["manual", "cron"]).nullable(),

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"time"
 
 	cfgpkg "github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
@@ -16,6 +17,12 @@ import (
 )
 
 type SearchConfig struct {
+	GupyWindow                   bool                     `json:"-"`
+	QueryCursor                  domain.QueryCursor       `json:"-"`
+	FullKeywordCoverage          bool                     `json:"-"`
+	WindowID                     string                   `json:"-"`
+	CollectionTimeout            time.Duration            `json:"-"`
+	CollectionDeadline           time.Time                `json:"-"`
 	Store                        *jobstore.Store          `json:"-"`
 	Keywords                     []string                 `json:"keywords"`
 	SearchLocation               string                   `json:"searchLocation"`
@@ -38,6 +45,16 @@ type SearchConfig struct {
 	IndexBatchSize               int                      `json:"-"`
 }
 
+type collectionFailure struct {
+	count int
+	cause error
+}
+
+func (e collectionFailure) Error() string {
+	return fmt.Sprintf("collection: %d task(s) failed", e.count)
+}
+func (e collectionFailure) Unwrap() error { return e.cause }
+
 func normalizeSearchConfig(config SearchConfig) SearchConfig {
 	config.Keywords = keywords.GenerateSearchKeywords(config.Keywords)
 	if config.ProviderMaxConcurrency <= 0 {
@@ -52,6 +69,10 @@ func ScrapeAllSources(
 	adapterList []ports.JobSource,
 	rdb *redis.Client,
 ) ([]domain.Job, ProcessStats, error) {
+	adapterList, err := selectProviders(adapterList, config.Sources)
+	if err != nil {
+		return nil, ProcessStats{}, err
+	}
 	config = normalizeSearchConfig(config)
 	if config.Store != nil && config.Store.Durable() {
 		release, err := config.Store.ProcessingLease(ctx)
@@ -68,6 +89,8 @@ func ScrapeAllSources(
 	)
 
 	processCfg := processConfig{
+		CollectionTimeout:       config.CollectionTimeout,
+		CollectionDeadline:      config.CollectionDeadline,
 		RunID:                   config.RunID,
 		Keywords:                config.Keywords,
 		ClassificationBatchSize: config.ClassificationBatchSize,
@@ -94,6 +117,10 @@ func ScrapeAllSources(
 	adapterList = filterAdaptersByCadence(ctx, rdb, adapterList)
 
 	req := domain.ScrapeRequest{
+		GupyWindow:            config.GupyWindow,
+		QueryCursor:           config.QueryCursor,
+		FullKeywordCoverage:   config.FullKeywordCoverage,
+		WindowID:              config.WindowID,
 		Keywords:              config.Keywords,
 		SearchLocation:        config.SearchLocation,
 		SearchGeoID:           config.SearchGeoID,
@@ -126,6 +153,9 @@ func ScrapeAllSources(
 	)
 	if err != nil {
 		return jobs, stats, err
+	}
+	if stats.CollectionFailed > 0 {
+		return jobs, stats, collectionFailure{stats.CollectionFailed, stats.CollectionError}
 	}
 
 	slog.Info("scrape finished",

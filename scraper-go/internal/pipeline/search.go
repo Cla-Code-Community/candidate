@@ -34,6 +34,10 @@ func SearchJobs(
 	runLock *runlock.Manager,
 	source string,
 ) (SearchResult, error) {
+	adapterList, err := selectProviders(adapterList, config.Sources)
+	if err != nil {
+		return SearchResult{}, err
+	}
 	config = normalizeSearchConfig(config)
 	cacheKey := BuildCacheKey(config)
 
@@ -70,6 +74,7 @@ func SearchJobs(
 
 		runCtx := lease.Context()
 		config.RunID = lease.RunID()
+		config.CollectionDeadline = lease.CollectionDeadline(config.CollectionTimeout)
 		jobs, _, err := ScrapeAllSources(runCtx, config, adapterList, rdb)
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("pipeline.SearchJobs: scrape: %w", err)

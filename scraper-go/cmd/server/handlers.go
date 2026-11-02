@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -70,6 +71,10 @@ func handleScrape(
 			"public_endpoint",
 		)
 		if err != nil {
+			if errors.Is(err, pipeline.ErrInvalidProviderSelection) {
+				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", err.Error())
+				return
+			}
 			if mapRunLockError(w, err) {
 				return
 			}

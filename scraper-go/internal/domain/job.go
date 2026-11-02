@@ -1,6 +1,15 @@
 package domain
 
-import "time"
+import (
+	"context"
+	"time"
+)
+
+// QueryCursor checkpoints only queries admitted for an HTTP attempt.
+type QueryCursor interface {
+	Load(context.Context, string, int) (int, error)
+	Advance(context.Context, string, int, int) error
+}
 
 type Job struct {
 	CatalogChange    string    `json:"-"`
@@ -34,19 +43,24 @@ type Classification struct {
 }
 
 type ScrapeRequest struct {
-	Keywords              []string `json:"keywords"`
-	SearchLocation        string   `json:"searchLocation"`
-	SearchGeoID           string   `json:"searchGeoId"`
-	SearchLanguage        string   `json:"searchLanguage"`
-	JobTypes              string   `json:"jobTypes"`
-	TimeFilter            string   `json:"timeFilter"`
-	RemoteOnly            bool     `json:"remoteOnly"`
-	Sources               []string `json:"sources"`
-	ResultsPerPage        int      `json:"resultsPerPage"`
-	MaxPagesPerKeyword    int      `json:"maxPagesPerKeyword"`
-	WaitBetweenSearchesMs int      `json:"waitBetweenSearchesMs"`
-	PageTimeoutMs         int      `json:"pageTimeoutMs"`
-	MaxConcurrency        int      `json:"maxConcurrency"`
+	GupyWindow            bool        `json:"-"`
+	QueryCursor           QueryCursor `json:"-"`
+	FullKeywordCoverage   bool        `json:"-"`
+	WindowID              string      `json:"-"`
+	RunID                 string      `json:"-"`
+	Keywords              []string    `json:"keywords"`
+	SearchLocation        string      `json:"searchLocation"`
+	SearchGeoID           string      `json:"searchGeoId"`
+	SearchLanguage        string      `json:"searchLanguage"`
+	JobTypes              string      `json:"jobTypes"`
+	TimeFilter            string      `json:"timeFilter"`
+	RemoteOnly            bool        `json:"remoteOnly"`
+	Sources               []string    `json:"sources"`
+	ResultsPerPage        int         `json:"resultsPerPage"`
+	MaxPagesPerKeyword    int         `json:"maxPagesPerKeyword"`
+	WaitBetweenSearchesMs int         `json:"waitBetweenSearchesMs"`
+	PageTimeoutMs         int         `json:"pageTimeoutMs"`
+	MaxConcurrency        int         `json:"maxConcurrency"`
 }
 
 type ScrapeResponse struct {

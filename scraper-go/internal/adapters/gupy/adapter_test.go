@@ -230,7 +230,7 @@ func TestGupySearchHandlesNonOKStatus(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for non-OK response")
 	}
-	if !strings.Contains(err.Error(), "status inesperado 429") {
+	if !strings.Contains(err.Error(), "rate limit (429)") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

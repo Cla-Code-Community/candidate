@@ -211,7 +211,9 @@ describe("ScrapersService", () => {
       ok: true,
       message: "started",
     });
-    await expect(service.triggerScraper("lever")).rejects.toThrow(
+    await expect(service.triggerScraper("lever")).resolves.toEqual({ ok: true, message: "started" });
+    expect(scraperClient.triggerScrape).toHaveBeenLastCalledWith(["lever"]);
+    await expect(service.triggerScraper("invalid")).rejects.toThrow(
       "scraper desconhecido",
     );
   });
