@@ -130,6 +130,10 @@ func (a *GreenhouseAdapter) SourceName() string {
 	return fmt.Sprintf("Green House:%s", a.companyName)
 }
 
+func (a *GreenhouseAdapter) SourceID() string {
+	return strings.TrimSpace(a.boardToken)
+}
+
 func (a *GreenhouseAdapter) Capabilities() ports.SourceCapabilities {
 	return ports.SourceCapabilities{
 		Provider: ports.ProviderGreenhouse,

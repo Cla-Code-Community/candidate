@@ -25,6 +25,9 @@ type ProviderWindow struct {
 	End      int              `json:"-"`
 	ID       string           `json:"id"`
 	Timezone string           `json:"timezone"`
+	// Only the PAV-178 preset enables fixed groups. Custom and UTC schedules
+	// retain their existing batching behavior, even if they use the same IDs.
+	GreenhouseFixedGroup bool `json:"-"`
 }
 
 func (w ProviderWindow) WindowID() string {
@@ -63,7 +66,8 @@ func ParseProviderWindows(value string) ([]ProviderWindow, error) {
 // Custom syntax: [window-id@]provider=HH:MM-HH:MM. The preset is opt-in;
 // neither an empty configuration nor this parser enables the scheduler.
 func ParseProviderWindowsInTimezone(value, timezone string) ([]ProviderWindow, error) {
-	if strings.TrimSpace(value) == ProviderSchedulePreset {
+	preset := strings.TrimSpace(value) == ProviderSchedulePreset
+	if preset {
 		if timezone != "" && timezone != ProviderScheduleTimezone {
 			return nil, fmt.Errorf("%s: preset requires %s", ProviderScheduleTimezoneEnv, ProviderScheduleTimezone)
 		}
@@ -128,7 +132,7 @@ func ParseProviderWindowsInTimezone(value, timezone string) ([]ProviderWindow, e
 		if e1 != nil || e2 != nil || start >= end || start >= 1440 {
 			return nil, fmt.Errorf("%s: invalid bounds %q", ProviderWindowsEnv, entry)
 		}
-		windows = append(windows, ProviderWindow{Provider: provider, Start: start, End: end, ID: id, Timezone: timezone})
+		windows = append(windows, ProviderWindow{Provider: provider, Start: start, End: end, ID: id, Timezone: timezone, GreenhouseFixedGroup: preset && provider == ports.ProviderGreenhouse})
 	}
 	ids := make(map[string]bool)
 	for _, w := range windows {

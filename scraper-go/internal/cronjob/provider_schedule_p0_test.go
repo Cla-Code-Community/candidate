@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/config"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/runlock"
 	"github.com/stretchr/testify/require"
@@ -90,6 +91,13 @@ func TestProviderScheduleDispatches21OccurrencesWithoutRepeatingAfterRestart(t *
 	for _, w := range windows {
 		if calls[w.Provider] == nil {
 			calls[w.Provider] = &atomic.Int32{}
+			if w.Provider == ports.ProviderGreenhouse {
+				s.adapterList = append(s.adapterList, fixedGroupTestRegistry(t, func(context.Context, string) ([]domain.Job, error) {
+					calls[ports.ProviderGreenhouse].Add(1)
+					return nil, nil
+				})...)
+				continue
+			}
 			s.adapterList = append(s.adapterList, dispatchSource{provider: w.Provider, name: string(w.Provider), calls: calls[w.Provider]})
 		}
 	}
@@ -103,6 +111,7 @@ func TestProviderScheduleDispatches21OccurrencesWithoutRepeatingAfterRestart(t *
 	for _, w := range windows {
 		expected[w.Provider]++
 	}
+	expected[ports.ProviderGreenhouse] = 3339
 	for provider, count := range expected {
 		require.Equal(t, count, calls[provider].Load(), provider)
 	}

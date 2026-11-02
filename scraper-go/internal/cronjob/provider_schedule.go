@@ -108,7 +108,7 @@ func (s *Scheduler) dispatchProviderWindow(ctx context.Context, now time.Time) e
 		defer s.active.Done()
 		fields := []any{"provider", w.Provider, "window_id", w.WindowID(), "local_date", start.Format("2006-01-02"), "timezone", w.Location().String(), "window_end", end, "run_id", lease.RunID()}
 		slog.Info("provider window started", fields...)
-		err = s.runSelectedWithLease(lease, []string{string(w.Provider)}, min(s.cfg.ScrapeTimeout, remaining))
+		err = s.runSelectedWindowWithLease(lease, []string{string(w.Provider)}, min(s.cfg.ScrapeTimeout, remaining), &w)
 		slog.Info("provider window finished", append(fields, "errorType", metrics.ErrorType(err))...)
 		return err
 	}

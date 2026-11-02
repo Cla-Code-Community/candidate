@@ -249,6 +249,10 @@ func (s *Scheduler) runWithLease(lease *runlock.Lease) (runErr error) {
 }
 
 func (s *Scheduler) runSelectedWithLease(lease *runlock.Lease, sources []string, timeout time.Duration) (runErr error) {
+	return s.runSelectedWindowWithLease(lease, sources, timeout, nil)
+}
+
+func (s *Scheduler) runSelectedWindowWithLease(lease *runlock.Lease, sources []string, timeout time.Duration, window *config.ProviderWindow) (runErr error) {
 	var stats pipeline.ProcessStats
 	defer func() {
 		s.recordResult(lease.RunID(), stats, runErr, sources)
@@ -299,8 +303,18 @@ func (s *Scheduler) runSelectedWithLease(lease *runlock.Lease, sources []string,
 	config := s.searchConfig(kws, lease.RunID())
 	config.Sources = sources
 	config.CollectionTimeout = timeout
-	adapters, checkpoint, err := s.providerBatch(scrapeCtx, sources)
+	var adapters []ports.JobSource
+	var checkpoint func(*runlock.Lease) error
+	if window != nil && window.GreenhouseFixedGroup {
+		if len(sources) != 1 || sources[0] != string(ports.ProviderGreenhouse) || window.Provider != ports.ProviderGreenhouse {
+			return fmt.Errorf("fixed greenhouse group requires exclusive greenhouse selection")
+		}
+		adapters, err = s.greenhouseFixedBatch(scrapeCtx, lease, window.WindowID())
+	} else {
+		adapters, checkpoint, err = s.providerBatch(scrapeCtx, sources)
+	}
 	if err != nil {
+		slog.Error("cronjob: adapter selection failed", "run_id", lease.RunID(), "sources", sources, "error", err)
 		return err
 	}
 	slog.Info("scraper execução iniciada",
