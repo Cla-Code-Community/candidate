@@ -27,6 +27,14 @@ const (
 
 type adzunaStatusError struct {
 	statusCode int
+	retryAfter time.Time
+}
+
+func (e adzunaStatusError) Unwrap() error {
+	if e.statusCode == http.StatusTooManyRequests {
+		return &ports.RateLimitError{Provider: ports.ProviderAdzuna, NotBefore: e.retryAfter}
+	}
+	return nil
 }
 
 func (e adzunaStatusError) Error() string {
@@ -111,6 +119,9 @@ func (a *AdzunaAdapter) Search(ctx context.Context, keyword string, req domain.S
 }
 
 func (a *AdzunaAdapter) SearchBatch(ctx context.Context, keywords []string, req domain.ScrapeRequest) ([]domain.Job, error) {
+	if req.FullKeywordCoverage {
+		return adapterutil.SearchAllKeywords(ctx, keywords, req, ports.ProviderAdzuna, a.searchKeyword)
+	}
 	slot := a.nextKeywordSlot(keywords, adzunaKeywordSlotSize())
 	if len(slot) == 0 {
 		return nil, nil
@@ -201,10 +212,13 @@ func (a *AdzunaAdapter) searchKeyword(ctx context.Context, keyword string, req d
 		endpoint := a.buildURL(keyword, req, page)
 
 		pageCtx, cancel := context.WithTimeout(ctx, pageTimeout)
-		jobs, err := a.fetchPageWithRetry(pageCtx, endpoint, keyword)
+		jobs, err := a.fetchPageWithRetry(pageCtx, endpoint, keyword, req.FullKeywordCoverage)
 		cancel()
 
 		if err != nil {
+			if req.FullKeywordCoverage {
+				return allJobs, fmt.Errorf("adzuna erro na página %d: %w", page, err)
+			}
 			if len(allJobs) > 0 && shouldKeepAdzunaPartialResults(err) {
 				return allJobs, nil
 			}
@@ -221,6 +235,9 @@ func (a *AdzunaAdapter) searchKeyword(ctx context.Context, keyword string, req d
 		allJobs = append(allJobs, jobs...)
 
 		if err := adapterutil.Wait(ctx, waitDuration); err != nil {
+			if req.FullKeywordCoverage {
+				return allJobs, err
+			}
 			return nil, err
 		}
 	}
@@ -228,7 +245,7 @@ func (a *AdzunaAdapter) searchKeyword(ctx context.Context, keyword string, req d
 	return allJobs, nil
 }
 
-func (a *AdzunaAdapter) fetchPageWithRetry(ctx context.Context, endpoint, keyword string) ([]domain.Job, error) {
+func (a *AdzunaAdapter) fetchPageWithRetry(ctx context.Context, endpoint, keyword string, fullCoverage bool) ([]domain.Job, error) {
 	var lastErr error
 
 	for attempt := 0; attempt < 3; attempt++ {
@@ -238,6 +255,12 @@ func (a *AdzunaAdapter) fetchPageWithRetry(ctx context.Context, endpoint, keywor
 		}
 
 		lastErr = err
+		if fullCoverage {
+			var limit *ports.RateLimitError
+			if errors.As(err, &limit) {
+				return nil, err
+			}
+		}
 		if !isTransientAdzunaError(err) {
 			return nil, err
 		}
@@ -298,7 +321,15 @@ func (a *AdzunaAdapter) fetchPage(ctx context.Context, endpoint, keyword string)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, adzunaStatusError{statusCode: resp.StatusCode}
+		var at time.Time
+		if resp.StatusCode == http.StatusTooManyRequests {
+			var ok bool
+			at, ok = adapterutil.ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+			if !ok {
+				at = time.Now().Add(90 * time.Second)
+			}
+		}
+		return nil, adzunaStatusError{statusCode: resp.StatusCode, retryAfter: at}
 	}
 
 	var data adzunaResponse

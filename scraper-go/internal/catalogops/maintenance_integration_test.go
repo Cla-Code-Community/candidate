@@ -14,11 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-func integration(t *testing.T) (*Maintenance, *redis.Client) {
+func integration(t testing.TB) (*Maintenance, *redis.Client) {
 	t.Helper()
 	dsn := os.Getenv("PAV125_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -36,7 +37,9 @@ func integration(t *testing.T) (*Maintenance, *redis.Client) {
 	_, e = db.Exec(string(migration))
 	require.NoError(t, e)
 	t.Cleanup(func() { db.Close(); root.Exec(`DROP SCHEMA ` + schema + ` CASCADE`); root.Close() })
-	mr := miniredis.RunT(t)
+	mr, e := miniredis.Run()
+	require.NoError(t, e)
+	t.Cleanup(mr.Close)
 	r := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { r.Close() })
 	store := catalog.New(db, catalog.DefaultLifetime)
@@ -293,4 +296,248 @@ func TestReadOnlyCatalogStreamCountAndLimit(t *testing.T) {
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
 	require.Error(t, m.Store.StreamActive(canceled, 0, func(int64) error { return nil }, func(domain.Job) error { return nil }))
+}
+
+func TestCatalogContentOutcomesAndRefreshRecovery(t *testing.T) {
+	m, r := integration(t)
+	ctx := context.Background()
+	first := m.Store.Now()
+	j := sample("outcomes", "backend")
+	j.Company = "Company"
+	j.Location = "São Paulo"
+	j.Sources = []string{"test"}
+	j.Keywords = []string{"sql"}
+	j.Description = strings.Repeat("description ", 400)
+	created, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	require.Equal(t, 1, created.Inserted)
+	require.True(t, created.ContentChangeDetectionAvailable)
+	old := created.Persisted[0]
+	require.Equal(t, "job_created", old.CatalogChange)
+	_, e = m.Index.Apply(ctx, created.Persisted, m.keys)
+	require.NoError(t, e)
+	require.NoError(t, m.Store.MarkIndexed(ctx, created.Persisted))
+	// Column-target trigger proves refresh never assigns payload, even an equal value.
+	_, e = m.Store.DB.Exec(`CREATE FUNCTION forbid_payload() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'payload assigned'; END; $$ LANGUAGE plpgsql; CREATE TRIGGER forbid_payload BEFORE UPDATE OF payload ON job_catalog FOR EACH ROW EXECUTE FUNCTION forbid_payload();`)
+	require.NoError(t, e)
+	m.Store.Now = func() time.Time { return first.Add(time.Hour) }
+	refreshed, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	require.Equal(t, 1, refreshed.Refreshed)
+	require.Zero(t, refreshed.RealUpdated)
+	require.Equal(t, "job_refreshed", refreshed.Persisted[0].CatalogChange)
+	require.Greater(t, refreshed.Persisted[0].CatalogRevision, old.CatalogRevision)
+	var revision, indexed int64
+	var last, expiry time.Time
+	require.NoError(t, m.Store.DB.QueryRow(`SELECT revision,indexed_revision,last_seen_at,expires_at FROM job_catalog WHERE id=$1`, old.ID).Scan(&revision, &indexed, &last, &expiry))
+	require.Less(t, indexed, revision)
+	require.WithinDuration(t, m.Store.Now(), last, time.Microsecond)
+	require.WithinDuration(t, m.Store.Now().Add(catalog.DefaultLifetime), expiry, time.Microsecond)
+	// Stale acknowledgement cannot clear a newer durable refresh.
+	require.NoError(t, m.Store.MarkIndexed(ctx, created.Persisted))
+	require.NoError(t, m.Store.DB.QueryRow(`SELECT indexed_revision FROM job_catalog WHERE id=$1`, old.ID).Scan(&indexed))
+	require.Less(t, indexed, revision)
+	// Simulated crash: absent projection must rebuild via full fallback on reconcile.
+	require.NoError(t, r.FlushDB(ctx).Err())
+	report, e := m.Reconcile(ctx, true)
+	require.NoError(t, e)
+	require.Positive(t, report.Active)
+	require.NoError(t, m.Store.DB.QueryRow(`SELECT indexed_revision FROM job_catalog WHERE id=$1`, old.ID).Scan(&indexed))
+	require.Equal(t, revision, indexed)
+	require.Positive(t, r.TTL(ctx, jobindex.Prefix(r.Get(ctx, jobindex.ActiveKey).Val())+"job:"+old.ID).Val())
+	_, e = m.Store.DB.Exec(`DROP TRIGGER forbid_payload ON job_catalog`)
+	require.NoError(t, e)
+	// Each relevant effective field change advances revision and requests full apply.
+	updates := []func(*domain.Job){func(j *domain.Job) { j.Description = "changed" }, func(j *domain.Job) { j.Location = "SAO PAULO" }, func(j *domain.Job) { j.Classification = &domain.Classification{PrimaryFamily: "data", InScope: true} }, func(j *domain.Job) { j.Salary = "100" }, func(j *domain.Job) { j.URL = "https://example.test/changed" }}
+	for _, mutate := range updates {
+		mutate(&j)
+		result, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+		require.NoError(t, e)
+		require.Equal(t, 1, result.RealUpdated)
+		require.Equal(t, old.ID, result.Persisted[0].ID)
+		require.Greater(t, result.Persisted[0].CatalogRevision, revision)
+		revision = result.Persisted[0].CatalogRevision
+	}
+	// Current merge intentionally retains stored Title/Company for the same identity.
+	j.Title = strings.ToUpper(j.Title)
+	result, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	require.Equal(t, 1, result.Refreshed)
+	// A normalized title change changes stable identity and is a CREATE, not UPDATE.
+	newIdentity := j
+	newIdentity.Title = "Different job"
+	result, e = m.Store.SaveBatch(ctx, []domain.Job{newIdentity})
+	require.NoError(t, e)
+	require.Equal(t, 1, result.Inserted)
+	_, e = m.Store.Deactivate(ctx, []string{old.ID})
+	require.NoError(t, e)
+	result, e = m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	require.Equal(t, 1, result.Reactivated)
+	require.Zero(t, result.Refreshed)
+	require.Equal(t, "job_reactivated", result.Persisted[0].CatalogChange)
+	// Unknown JSON fields are conservatively rewritten, never classified as refresh.
+	_, e = m.Store.DB.Exec(`UPDATE job_catalog SET payload=payload || '{"unknownFutureField":true}'::jsonb WHERE id=$1`, old.ID)
+	require.NoError(t, e)
+	result, e = m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	require.Equal(t, 1, result.RealUpdated)
+}
+
+func TestCatalogConcurrentRefreshAndUpdate(t *testing.T) {
+	m, _ := integration(t)
+	ctx := context.Background()
+	j := sample("concurrent", "backend")
+	j.Sources = []string{"test"}
+	j.Keywords = []string{"sql"}
+	j.Company = "company"
+	j.Description = "initial"
+	initial, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	run := func(inputs []domain.Job) []jobstore.SaveResult {
+		results := make([]jobstore.SaveResult, len(inputs))
+		errors := make([]error, len(inputs))
+		var wg sync.WaitGroup
+		start := make(chan struct{})
+		for i := range inputs {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				<-start
+				results[i], errors[i] = m.Store.SaveBatch(ctx, []domain.Job{inputs[i]})
+			}(i)
+		}
+		close(start)
+		wg.Wait()
+		for _, e := range errors {
+			require.NoError(t, e)
+		}
+		return results
+	}
+	results := run([]domain.Job{j, j})
+	require.Equal(t, 2, results[0].Refreshed+results[1].Refreshed)
+	require.NotEqual(t, results[0].Persisted[0].CatalogRevision, results[1].Persisted[0].CatalogRevision)
+	update := j
+	update.Description = "changed"
+	// A sparse refresh does not overwrite concurrent nonempty update content.
+	refresh := j
+	refresh.Description = ""
+	results = run([]domain.Job{refresh, update})
+	require.Equal(t, 1, results[0].Refreshed+results[1].Refreshed)
+	require.Equal(t, 1, results[0].RealUpdated+results[1].RealUpdated)
+	stored, e := m.Store.GetByIDs(ctx, []string{initial.Persisted[0].ID})
+	require.NoError(t, e)
+	require.Equal(t, "changed", stored[0].Description)
+}
+
+func TestCatalogRefreshCommitFailureDoesNotPublish(t *testing.T) {
+	m, _ := integration(t)
+	ctx := context.Background()
+	j := sample("refresh-commit", "backend")
+	j.Sources = []string{"test"}
+	j.Keywords = []string{"sql"}
+	initial, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	_, e = m.Store.DB.Exec(`CREATE FUNCTION fail_refresh_commit() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'forced refresh commit failure'; END; $$ LANGUAGE plpgsql; CREATE CONSTRAINT TRIGGER fail_refresh_commit AFTER UPDATE ON job_catalog DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_refresh_commit();`)
+	require.NoError(t, e)
+	result, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.ErrorContains(t, e, "catalog commit")
+	require.Empty(t, result.Persisted)
+	require.Zero(t, result.Refreshed)
+	var revision int64
+	require.NoError(t, m.Store.DB.QueryRow(`SELECT revision FROM job_catalog WHERE id=$1`, initial.Persisted[0].ID).Scan(&revision))
+	require.Equal(t, initial.Persisted[0].CatalogRevision, revision)
+}
+
+func TestCatalogOrderedMergeAndMixedBatchRollback(t *testing.T) {
+	m, _ := integration(t)
+	ctx := context.Background()
+	j := sample("ordered", "backend")
+	j.Sources = []string{"a", "b"}
+	j.Source = "a, b"
+	j.Keywords = []string{"first", "second"}
+	j.Keyword = "first"
+	initial, e := m.Store.SaveBatch(ctx, []domain.Job{j})
+	require.NoError(t, e)
+	incoming := j
+	incoming.Sources = []string{"b", "a"}
+	incoming.Keywords = []string{"second", "first"}
+	result, e := m.Store.SaveBatch(ctx, []domain.Job{incoming})
+	require.NoError(t, e)
+	require.Equal(t, 1, result.Refreshed)
+	require.Equal(t, j.Sources, result.Persisted[0].Sources)
+	require.Equal(t, j.Keywords, result.Persisted[0].Keywords)
+	require.Equal(t, "first", result.Persisted[0].Keyword)
+	incoming.Sources = []string{"c"}
+	incoming.Keywords = []string{"third"}
+	result, e = m.Store.SaveBatch(ctx, []domain.Job{incoming})
+	require.NoError(t, e)
+	require.Equal(t, 1, result.RealUpdated)
+	require.Equal(t, []string{"a", "b", "c"}, result.Persisted[0].Sources)
+	require.Equal(t, "a, b, c", result.Persisted[0].Source)
+	require.Equal(t, "first", result.Persisted[0].Keyword)
+	lastRevision := result.Persisted[0].CatalogRevision
+	_, e = m.Store.DB.Exec(`ALTER TABLE job_catalog ADD CONSTRAINT reject_batch CHECK (payload->>'title' <> 'fail')`)
+	require.NoError(t, e)
+	bad := sample("bad-mixed", "backend")
+	bad.Title = "fail"
+	result, e = m.Store.SaveBatch(ctx, []domain.Job{incoming, bad})
+	require.Error(t, e)
+	require.Empty(t, result.Persisted)
+	require.Zero(t, result.Refreshed)
+	var revision int64
+	require.NoError(t, m.Store.DB.QueryRow(`SELECT revision FROM job_catalog WHERE id=$1`, initial.Persisted[0].ID).Scan(&revision))
+	require.Equal(t, lastRevision, revision)
+	// Expiration itself, without explicit deactivation, also requires reactivation.
+	m.Store.Now = func() time.Time { return time.Now().Add(2 * catalog.DefaultLifetime) }
+	result, e = m.Store.SaveBatch(ctx, []domain.Job{incoming})
+	require.NoError(t, e)
+	require.Equal(t, 1, result.Reactivated)
+}
+
+func BenchmarkCatalogSaveBatch(b *testing.B) {
+	for _, size := range []int{4096, 16384} {
+		for _, scenario := range []string{"unchanged", "mixed", "updates", "creates"} {
+			b.Run(fmt.Sprintf("%s/%dB", scenario, size), func(b *testing.B) {
+				m, _ := integration(b)
+				ctx := context.Background()
+				base := make([]domain.Job, 100)
+				for i := range base {
+					base[i] = sample(fmt.Sprint(i), "backend")
+					base[i].Company = "benchmark"
+					base[i].Description = strings.Repeat("Backend SQL Go product requirements. ", size/36+1)[:size]
+					base[i].Sources = []string{"test"}
+					base[i].Keywords = []string{"sql"}
+				}
+				_, e := m.Store.SaveBatch(ctx, base)
+				require.NoError(b, e)
+				b.ReportAllocs()
+				b.ResetTimer()
+				for n := 0; n < b.N; n++ {
+					jobs := append([]domain.Job(nil), base...)
+					for i := range jobs {
+						switch scenario {
+						case "mixed":
+							if i < 10 {
+								jobs[i].Description += fmt.Sprint(n)
+							}
+						case "updates":
+							jobs[i].Description += fmt.Sprint(n)
+						case "creates":
+							jobs[i].Company = fmt.Sprintf("new-%d", n)
+						}
+					}
+					result, e := m.Store.SaveBatch(ctx, jobs)
+					if e != nil {
+						b.Fatal(e)
+					}
+					if len(result.Persisted) != 100 {
+						b.Fatal("incomplete batch")
+					}
+				}
+				b.StopTimer()
+				b.ReportMetric(100, "jobs/batch")
+			})
+		}
+	}
 }

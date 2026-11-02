@@ -252,7 +252,7 @@ func TestLoadRuntimeConfigRejectsInvalidRunLockDurations(t *testing.T) {
 }
 
 func TestDockerComposeUsesUnsetOnlyDefaultsForRunLock(t *testing.T) {
-	composePath, ok := findMonorepoFile(t, "docker-compose.yml")
+	composePath, ok := findMonorepoFile(t, "docker/docker-compose.app.yml")
 	if !ok {
 		t.Skip("docker-compose.yml not available outside the monorepo checkout")
 	}
@@ -261,6 +261,8 @@ func TestDockerComposeUsesUnsetOnlyDefaultsForRunLock(t *testing.T) {
 	require.NoError(t, err)
 
 	compose := string(content)
+	assert.Contains(t, compose, "SCRAPER_SCRAPE_TIMEOUT=${SCRAPER_SCRAPE_TIMEOUT-50m}")
+	assert.Contains(t, compose, "SCRAPER_GREENHOUSE_BATCH_SIZE=${SCRAPER_GREENHOUSE_BATCH_SIZE-1000}")
 	assert.Contains(t, compose, "SCRAPER_MAX_CONCURRENCY=${SCRAPER_MAX_CONCURRENCY-12}")
 	assert.Contains(t, compose, "SCRAPER_PROVIDER_MAX_CONCURRENCY=${SCRAPER_PROVIDER_MAX_CONCURRENCY-2}")
 	assert.Contains(t, compose, "SCRAPER_PROVIDER_CONCURRENCY_OVERRIDES=${SCRAPER_PROVIDER_CONCURRENCY_OVERRIDES-}")

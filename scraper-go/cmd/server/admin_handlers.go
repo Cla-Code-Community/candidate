@@ -8,6 +8,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
+	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/cronjob"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/pipeline"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/runlock"
 )
 
@@ -23,9 +25,39 @@ import (
 // retorna 409 se já houver uma execução em andamento.
 func handleTriggerScrape(scheduler *cronjob.Scheduler, executionCtx context.Context) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Sources []string `json:"sources"`
+		}
+		if r.Body != nil {
+			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&request); err != nil && !errors.Is(err, io.EOF) {
+				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", "invalid request body")
+				return
+			}
+			var trailing any
+			if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", "unexpected trailing request data")
+				return
+			}
+		}
 		// A execução manual precisa sobreviver ao fim da request HTTP; se usarmos
 		// r.Context(), o scraper nasce com contexto cancelado assim que respondemos.
-		if err := scheduler.RunNow(executionCtx); err != nil {
+		if err := scheduler.RunProvidersNow(executionCtx, request.Sources); err != nil {
+			if writeGlobalPauseError(w, err) {
+				return
+			}
+			var limit *ports.RateLimitError
+			if errors.As(err, &limit) {
+				seconds := max(1, int((time.Until(limit.NotBefore)+time.Second-1)/time.Second))
+				w.Header().Set("Retry-After", strconv.Itoa(seconds))
+				writeScraperError(w, http.StatusTooManyRequests, "PROVIDER_RATE_LIMITED", err.Error())
+				return
+			}
+			if errors.Is(err, pipeline.ErrInvalidProviderSelection) {
+				writeScraperError(w, http.StatusBadRequest, "INVALID_PROVIDER_SELECTION", err.Error())
+				return
+			}
 			if errors.Is(err, cronjob.ErrAlreadyRunning) {
 				writeScraperError(
 					w,
@@ -72,6 +104,9 @@ func writeScraperError(w http.ResponseWriter, status int, code, message string) 
 }
 
 func mapRunLockError(w http.ResponseWriter, err error) bool {
+	if writeGlobalPauseError(w, err) {
+		return true
+	}
 	switch {
 	case errors.Is(err, runlock.ErrAlreadyHeld):
 		writeScraperError(
@@ -102,6 +137,16 @@ func mapRunLockError(w http.ResponseWriter, err error) bool {
 	}
 }
 
+func writeGlobalPauseError(w http.ResponseWriter, err error) bool {
+	var pause *runlock.CooldownError
+	if !errors.As(err, &pause) {
+		return false
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(max(1, int((time.Until(pause.NextAllowedAt)+time.Second-1)/time.Second))))
+	writeScraperError(w, http.StatusConflict, "SCRAPER_ALREADY_RUNNING", pause.Error())
+	return true
+}
+
 // handleScraperStatus retorna o estado atual do scheduler via GET /admin/scrape/status
 func handleScraperStatus(scheduler *cronjob.Scheduler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -114,10 +159,12 @@ func handleScraperStatus(scheduler *cronjob.Scheduler) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"name":          "go-scraper",
-			"running":       running,
-			"lastRunAt":     lastRunAtValue,
-			"jobsCollected": jobsCollected,
+			"name":            "go-scraper",
+			"running":         running,
+			"lastRunAt":       lastRunAtValue,
+			"jobsCollected":   jobsCollected,
+			"lastRun":         scheduler.LastRun(),
+			"providerWindows": scheduler.ProviderWindows(),
 		})
 	}
 }

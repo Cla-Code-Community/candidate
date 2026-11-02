@@ -105,35 +105,97 @@ func (m *Manager) Active(ctx context.Context) (string, error) {
 	}
 	return v, e
 }
+
+// ApplyStats describes one attempt. Confirmed is false after an ambiguous
+// communication failure: the server may have applied writes without a reply.
+type ApplyStats struct {
+	Received       int
+	Changed        int
+	FullApplied    int
+	Removed        int
+	Skipped        int
+	Confirmed      bool
+	PayloadBytes   int
+	KeysTotal      int
+	KeysMin        int
+	KeysMax        int
+	IndexKeys      time.Duration
+	BuildMetadata  time.Duration
+	Serialization  time.Duration
+	RedisRoundTrip time.Duration
+	Total          time.Duration
+	FailureStage   string
+}
+
 func (m *Manager) Apply(ctx context.Context, jobs []domain.Job, keys func(domain.Job) []string) (int, error) {
+	result, err := m.ApplyDetailed(ctx, jobs, keys)
+	return result.Changed, err
+}
+
+// ApplyDetailed adds observation only; Apply retains its existing contract.
+func (m *Manager) ApplyDetailed(ctx context.Context, jobs []domain.Job, keys func(domain.Job) []string) (result ApplyStats, returnErr error) {
 	started := time.Now()
+	result.Received = len(jobs)
+	defer func() {
+		result.Total = time.Since(started)
+		metrics.ObserveIndex(started, len(jobs), result.Changed, returnErr)
+	}()
 	version, err := m.Active(ctx)
 	if err != nil {
-		metrics.ObserveIndex(started, len(jobs), 0, err)
-		return 0, err
+		result.FailureStage = "active_lookup"
+		return result, err
 	}
-	return m.ApplyVersion(ctx, version, jobs, keys, false)
+	returnErr = m.applyVersion(ctx, version, jobs, keys, false, &result)
+	return result, returnErr
 }
-func (m *Manager) ApplyVersion(ctx context.Context, version string, jobs []domain.Job, keys func(domain.Job) []string, draft bool) (changed int, returnErr error) {
+
+func (m *Manager) ApplyVersion(ctx context.Context, version string, jobs []domain.Job, keys func(domain.Job) []string, draft bool) (int, error) {
 	started := time.Now()
-	defer func() { metrics.ObserveIndex(started, len(jobs), changed, returnErr) }()
+	result := ApplyStats{Received: len(jobs)}
+	err := m.applyVersion(ctx, version, jobs, keys, draft, &result)
+	metrics.ObserveIndex(started, len(jobs), result.Changed, err)
+	return result.Changed, err
+}
+
+func (m *Manager) applyVersion(ctx context.Context, version string, jobs []domain.Job, keys func(domain.Job) []string, draft bool, stats *ApplyStats) (returnErr error) {
+	stats.FailureStage = "validation"
 	if len(jobs) > 2500 {
-		return 0, fmt.Errorf("index batch exceeds 2500")
+		return fmt.Errorf("index batch exceeds 2500")
 	}
 	if len(jobs) == 0 {
-		return 0, nil
+		stats.Confirmed = true
+		stats.FailureStage = ""
+		return nil
 	}
 	now := m.Now().Unix()
 	plans := make([]Plan, 0, len(jobs))
 	seen := map[string]bool{}
+	buildAttempted := false
+	defer func() {
+		if buildAttempted {
+			var buildErr error
+			if stats.FailureStage == "build_metadata" {
+				buildErr = returnErr
+			}
+			metrics.ObserveStage("index_keys", stats.IndexKeys, nil)
+			metrics.ObserveStage("build_metadata", stats.BuildMetadata, buildErr)
+		}
+	}()
 	for _, j := range jobs {
 		if seen[j.ID] {
-			return 0, fmt.Errorf("duplicate ID in index batch")
+			return fmt.Errorf("duplicate ID in index batch")
 		}
 		seen[j.ID] = true
-		p, e := Build(j, keys(j))
+		buildAttempted = true
+		keyStarted := time.Now()
+		indexKeys := keys(j)
+		stats.IndexKeys += time.Since(keyStarted)
+		stats.FailureStage = "build_metadata"
+		buildStarted := time.Now()
+		p, e := Build(j, indexKeys)
 		if e != nil {
-			return 0, e
+			stats.BuildMetadata += time.Since(buildStarted)
+			return e
 		}
 		if p.Expires <= now {
 			p.Keys = []string{}
@@ -142,26 +204,60 @@ func (m *Manager) ApplyVersion(ctx context.Context, version string, jobs []domai
 		meta := p
 		meta.Document = ""
 		encoded, e := json.Marshal(meta)
+		stats.BuildMetadata += time.Since(buildStarted)
 		if e != nil {
-			return 0, e
+			return e
 		}
 		p.Metadata = string(encoded)
 		plans = append(plans, p)
+		stats.KeysTotal += len(p.Keys)
+		if len(plans) == 1 || len(p.Keys) < stats.KeysMin {
+			stats.KeysMin = len(p.Keys)
+		}
+		if len(p.Keys) > stats.KeysMax {
+			stats.KeysMax = len(p.Keys)
+		}
+		stats.FailureStage = "validation"
 	}
+	stats.FailureStage = "serialization"
+	serializationStarted := time.Now()
 	raw, err := json.Marshal(plans)
+	stats.Serialization = time.Since(serializationStarted)
+	metrics.ObserveStage("serialization", stats.Serialization, err)
 	if err != nil {
-		return 0, err
+		return err
 	}
+	stats.PayloadBytes = len(raw)
+	metrics.IndexPayloadBytes.WithLabelValues().Observe(float64(len(raw)))
+	keyHistogram := metrics.IndexKeysPerJob.WithLabelValues()
+	for _, p := range plans {
+		keyHistogram.Observe(float64(len(p.Keys)))
+	}
+	stats.FailureStage = "redis_script_round_trip"
 	scriptStarted := time.Now()
-	result, err := applyScript.Run(ctx, m.RDB, []string{ActiveKey, GenerationKey}, version, Prefix(version), string(raw), now, draft).Int()
+	result, err := applyScript.Run(ctx, m.RDB, []string{ActiveKey, GenerationKey}, version, Prefix(version), string(raw), now, draft).Int64Slice()
+	stats.RedisRoundTrip = time.Since(scriptStarted)
+	metrics.ObserveStage("redis_script_round_trip", stats.RedisRoundTrip, err)
 	if err != nil {
-		return 0, fmt.Errorf("atomic index batch: %w", err)
+		return fmt.Errorf("atomic index batch: %w", err)
 	}
-
-	if !draft && result > 0 {
-		metrics.CacheInvalidationDuration.WithLabelValues("invalidate").Observe(time.Since(scriptStarted).Seconds())
+	stats.Changed = int(result[0])
+	stats.FullApplied = int(result[1])
+	stats.Removed = int(result[2])
+	stats.Skipped = int(result[3])
+	stats.Confirmed = true
+	stats.FailureStage = ""
+	mode := "live"
+	if draft {
+		mode = "draft"
 	}
-	return result, nil
+	metrics.IndexApplicationJobs.WithLabelValues("full_applied", mode).Add(float64(stats.FullApplied))
+	metrics.IndexApplicationJobs.WithLabelValues("removed", mode).Add(float64(stats.Removed))
+	metrics.IndexApplicationJobs.WithLabelValues("skipped", mode).Add(float64(stats.Skipped))
+	if !draft && stats.Changed > 0 {
+		metrics.CacheInvalidationDuration.WithLabelValues("invalidate").Observe(stats.RedisRoundTrip.Seconds())
+	}
+	return nil
 }
 
 // Preflight validates every key type before any mutation: Redis Lua errors do
@@ -200,7 +296,7 @@ for i,p in ipairs(plans) do
  for _,k in ipairs(p.keys) do typed(prefix..k,'set');if not draft then typed('scraper:jobs:'..k,'set') end end
  if not draft then typed('scraper:job:'..p.id,'string');typed('scraper:jobs:index-membership:'..p.id,'string');typed('scraper:job:'..p.id..':idx','set') end
 end
-local changed=0;local invalidations={}
+local changed=0;local fullApplied=0;local removed=0;local invalidations={}
 for i,p in ipairs(plans) do
  if tonumber(old[i].revision)<tonumber(p.revision) or (tonumber(old[i].revision)==tonumber(p.revision) and p.expiresAt<=now and (#old[i].keys>0 or redis.call('SISMEMBER',prefix..'index',p.id)==1)) then
   for _,k in ipairs(old[i].keys) do
@@ -208,6 +304,7 @@ for i,p in ipairs(plans) do
    if not draft then redis.call('SREM','scraper:jobs:'..k,p.id) end
   end
   local alive=p.expiresAt>now
+  if alive then fullApplied=fullApplied+1 else removed=removed+1 end
   if alive then
    for _,k in ipairs(p.keys) do
     redis.call('SADD',prefix..k,p.id);redis.call('SADD',prefix..'keys',prefix..k)
@@ -245,5 +342,5 @@ for i,p in ipairs(plans) do
  end
 end
 if not draft and changed>0 then redis.call('SET',KEYS[1],version);redis.call('INCR',KEYS[2]);if telemetryOk then for reason,_ in pairs(invalidations) do redis.call('HINCRBY','scraper:observability:maintenance-metrics','cache:'..reason,1) end end;local old=redis.call('GET','scraper:jobs:taxonomy-version');local tax=plans[1].taxonomyVersion;if telemetryOk and old and old~=tax then redis.call('HINCRBY','scraper:observability:maintenance-metrics','cache:taxonomy_changed',1) end;redis.call('SET','scraper:jobs:taxonomy-version',tax) end
-return changed
+return {changed,fullApplied,removed,#plans-changed}
 `)

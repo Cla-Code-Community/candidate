@@ -56,6 +56,13 @@ type JobSource interface {
 	Search(ctx context.Context, keyword string, req domain.ScrapeRequest) ([]domain.Job, error)
 }
 
+// StableJobSource identifies a board independently of its display name.
+// Providers with fixed scheduling groups must implement this optional contract.
+type StableJobSource interface {
+	JobSource
+	SourceID() string
+}
+
 type CapabilityJobSource interface {
 	JobSource
 	Capabilities() SourceCapabilities

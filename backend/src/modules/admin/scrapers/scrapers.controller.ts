@@ -3,8 +3,11 @@ import type { AuditService } from "../audit/audit.service";
 import {
   ScraperAlreadyRunningError,
   ScraperRunLockUnavailableError,
+  ScraperInvalidSelectionError,
+  ScraperRateLimitedError,
 } from "./scraperClient";
 import { ScrapersService } from "./scrapers.service";
+import { TriggerScrapeRequestSchema } from "./scrapers.types";
 
 export class ScrapersController {
   constructor(
@@ -13,13 +16,20 @@ export class ScrapersController {
   ) {}
 
   async trigger(req: Request, res: Response): Promise<void> {
+    const selection = TriggerScrapeRequestSchema.safeParse(req.body ?? {});
+    if (!selection.success) { res.status(400).json({ ok: false, code: "INVALID_PROVIDER_SELECTION" }); return; }
     try {
-      const result = await this.scrapersService.triggerScrape();
+      const result = await this.scrapersService.triggerScrape(selection.data.sources);
 
       this.auditService.fromRequest(req, "scrapers.trigger");
 
       res.status(202).json(result);
     } catch (error) {
+      if (error instanceof ScraperRateLimitedError) {
+        if (error.retryAfter) res.setHeader("Retry-After", error.retryAfter);
+        res.status(429).json({ ok: false, code: error.code, message: error.message }); return;
+      }
+      if (error instanceof ScraperInvalidSelectionError) { res.status(400).json({ ok: false, code: error.code, message: error.message }); return; }
       if (error instanceof ScraperAlreadyRunningError) {
         res.status(409).json({
           ok: false,
@@ -52,6 +62,11 @@ export class ScrapersController {
 
       res.status(202).json({ ...result, scraper: scraperName });
     } catch (error) {
+      if (error instanceof ScraperRateLimitedError) {
+        if (error.retryAfter) res.setHeader("Retry-After", error.retryAfter);
+        res.status(429).json({ ok: false, code: error.code, message: error.message }); return;
+      }
+      if (error instanceof ScraperInvalidSelectionError) { res.status(400).json({ ok: false, code: error.code, message: error.message }); return; }
       if (error instanceof ScraperAlreadyRunningError) {
         res.status(409).json({
           ok: false,

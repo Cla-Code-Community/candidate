@@ -20,8 +20,12 @@ type persistBatchFn func(ctx context.Context, jobs []domain.Job) (jobstore.SaveR
 type indexBatchFn func(ctx context.Context, jobs []domain.Job) error
 
 type processConfig struct {
+	CollectionTimeout       time.Duration
+	CollectionDeadline      time.Time
+	DrainTimeout            time.Duration
 	RunID                   string
 	Keywords                []string
+	indexKeywords           *preparedIndexKeywords
 	ClassificationBatchSize int
 	PersistBatchSize        int
 	IndexBatchSize          int
@@ -33,17 +37,23 @@ type processConfig struct {
 }
 
 type ProcessStats struct {
-	Received   int
-	Valid      int
-	Invalid    int
-	Duplicates int
-	Classified int
-	Approved   int
-	Rejected   int
-	Inserted   int
-	Updated    int
-	Indexed    int
-	Failed     int
+	CollectionFailed                int
+	CollectionError                 error
+	Received                        int
+	Valid                           int
+	Invalid                         int
+	Duplicates                      int
+	Classified                      int
+	Approved                        int
+	Rejected                        int
+	Inserted                        int
+	Updated                         int
+	RealUpdated                     int
+	Refreshed                       int
+	Reactivated                     int
+	ContentChangeDetectionAvailable bool
+	Indexed                         int // Successful input jobs, including idempotent skips; retained for compatibility.
+	Failed                          int
 }
 
 func (s ProcessStats) Saved() int {
@@ -76,6 +86,10 @@ func processIncomingJobs(
 		cfg.IndexSession = newIndexSession(cfg.RunID)
 	}
 
+	if cfg.Index == nil && cfg.RDB != nil && cfg.Store.Durable() {
+		cfg.indexKeywords = prepareIndexKeywords(cfg.Keywords)
+	}
+
 	// seen holds only the current classification window. flushed maps identity
 	// keys to persisted IDs so cross-batch duplicates can merge with the
 	// document already written in this run.
@@ -84,16 +98,16 @@ func processIncomingJobs(
 	persistedByID := make(map[string]domain.Job)
 	pending := make([]*domain.Job, 0, cfg.ClassificationBatchSize)
 	indexBuf := make([]domain.Job, 0, cfg.IndexBatchSize)
-	var persistenceDepth, indexDepth, persistenceCapacity, indexCapacity atomic.Int64
+	var persistenceDepth, indexDepth, persistenceCapacity, indexCapacity, indexInFlight atomic.Int64
 	persistenceCapacity.Store(int64(cfg.ClassificationBatchSize))
 	indexCapacity.Store(int64(cap(indexBuf)))
 	metrics.BindQueue("persistence", func() metrics.Queue {
 		return metrics.Queue{Depth: int(persistenceDepth.Load()), Capacity: int(persistenceCapacity.Load())}
 	})
 	metrics.BindQueue("indexing", func() metrics.Queue {
-		return metrics.Queue{Depth: int(indexDepth.Load()), Capacity: int(indexCapacity.Load())}
+		return metrics.Queue{Depth: int(indexDepth.Load()), Capacity: int(indexCapacity.Load()), InFlight: int(indexInFlight.Load())}
 	})
-	defer func() { persistenceDepth.Store(0); indexDepth.Store(0) }()
+	defer func() { persistenceDepth.Store(0); indexDepth.Store(0); indexInFlight.Store(0) }()
 	approved := make([]domain.Job, 0)
 	metrics.BeginRunProcessing(cfg.RunID, cfg.Persist != nil || cfg.Store != nil)
 	stats := ProcessStats{}
@@ -124,7 +138,10 @@ func processIncomingJobs(
 			indexBuf = append([]domain.Job(nil), indexBuf[n:]...)
 			indexDepth.Store(int64(len(indexBuf)))
 			indexCapacity.Store(int64(cap(indexBuf)))
-			if err := indexPersistedChunk(ctx, cfg, batchNo, chunk, &stats); err != nil {
+			indexInFlight.Store(int64(len(chunk)))
+			err := indexPersistedChunk(ctx, cfg, batchNo, chunk, &stats)
+			indexInFlight.Store(0)
+			if err != nil {
 				return err
 			}
 		}
@@ -315,9 +332,11 @@ func processIncomingJobs(
 				"approved", stats.Approved,
 				"rejected", stats.Rejected,
 				"inserted", stats.Inserted,
-				"updated", stats.Updated,
+				"existing_upsert", stats.Updated,
+				"created", stats.Inserted, "real_updated", stats.RealUpdated, "refreshed", stats.Refreshed, "reactivated", stats.Reactivated,
+				"content_change_detection_available", stats.ContentChangeDetectionAvailable,
 				"saved", stats.Saved(),
-				"indexed", stats.Indexed,
+				"index_completed_inputs", stats.Indexed,
 				"failed", stats.Failed,
 			)
 			return approved, stats, nil
@@ -412,6 +431,7 @@ func processStageBatch(
 	metrics.Stage("classification")
 	defer metrics.AddProgress("batchesCompleted", 1)
 	metrics.RunClassificationReceived(cfg.RunID, len(jobs))
+	validationStarted := time.Now()
 	valid := make([]domain.Job, 0, len(jobs))
 	invalid := 0
 	for _, job := range jobs {
@@ -427,6 +447,8 @@ func processStageBatch(
 		valid = append(valid, job)
 	}
 
+	validationDuration := time.Since(validationStarted)
+	classificationStarted := time.Now()
 	approved := make([]domain.Job, 0, len(valid))
 	rejected := 0
 	for _, job := range valid {
@@ -443,16 +465,23 @@ func processStageBatch(
 		stats.Approved++
 	}
 
+	classificationDuration := time.Since(classificationStarted)
+	var persistenceDuration time.Duration
 	persisted := approved
+	before := *stats
+	batchDetection := false
 	batchInserted := 0
 	batchUpdated := 0
 	var persistErr error
 	if cfg.Persist != nil || cfg.Store != nil {
 		var written []domain.Job
+		persistenceStarted := time.Now()
 		written, batchInserted, batchUpdated, persistErr = persistJobs(ctx, cfg, batchNo, approved, stats)
+		persistenceDuration = time.Since(persistenceStarted)
 		stats.Inserted += batchInserted
 		stats.Updated += batchUpdated
 		persisted = written
+		batchDetection = len(written) > 0 && stats.ContentChangeDetectionAvailable
 	} else {
 		for i := range persisted {
 			if persisted[i].ID == "" {
@@ -473,7 +502,13 @@ func processStageBatch(
 		"approved", len(approved),
 		"rejected", rejected,
 		"inserted", batchInserted,
-		"updated", batchUpdated,
+		"existing_upsert", batchUpdated,
+		"created", batchInserted, "real_updated", stats.RealUpdated-before.RealUpdated,
+		"refreshed", stats.Refreshed-before.Refreshed, "reactivated", stats.Reactivated-before.Reactivated,
+		"content_change_detection_available", batchDetection,
+		"validation_duration", validationDuration,
+		"classification_duration", classificationDuration,
+		"persistence_duration", persistenceDuration,
 		"duration", time.Since(started).Round(time.Millisecond),
 	)
 	return persisted, persistErr
@@ -516,6 +551,20 @@ func persistJobs(
 			)
 			return written, inserted, updated, err
 		}
+		if cfg.Persist == nil && cfg.Store.Durable() {
+			legacyExisting := result.Updated
+			if result.ContentChangeDetectionAvailable {
+				legacyExisting = 0
+			}
+			metrics.ObserveCommittedJobs(result.Inserted, legacyExisting)
+		}
+		if result.ContentChangeDetectionAvailable {
+			stats.ContentChangeDetectionAvailable = true
+			stats.RealUpdated += result.RealUpdated
+			stats.Refreshed += result.Refreshed
+			stats.Reactivated += result.Reactivated
+			metrics.ObserveCommittedContent(result.RealUpdated, result.Refreshed, result.Reactivated)
+		}
 		inserted += result.Inserted
 		updated += result.Updated
 		for _, j := range result.Persisted {
@@ -546,18 +595,82 @@ func indexPersistedChunk(
 
 	var err error
 	commands := 0
+	indexPath := "callback"
+	var observed jobindex.ApplyStats
+	var indexKeysDuration, buildDuration, serializationDuration, redisDuration, markDuration time.Duration
+	attempts := 0
+	priorUnconfirmed := false
+	checkpointStatus := "not_attempted"
+	defer func() {
+		elapsed := time.Since(started)
+		attrs := []any{"run_id", cfg.RunID, "stage", "index", "batch", batchNo, "index_path", indexPath,
+			"received", len(jobs), "duration", elapsed.Round(time.Millisecond), "status", metrics.BatchStatus(err),
+			"checkpoint_status", checkpointStatus, "mark_indexed_duration", markDuration,
+			"content_change_detection_available", stats.ContentChangeDetectionAvailable, "refresh_projection_available", false}
+		if indexPath == "durable" {
+			refreshFallback := 0
+			for _, job := range jobs {
+				if job.CatalogChange == "job_refreshed" {
+					refreshFallback++
+				}
+			}
+			attrs = append(attrs, "projection_mode", "full", "refresh_projection", 0,
+				"refresh_fallback_full", refreshFallback, "refresh_fallback_reason", "light_refresh_not_implemented",
+				"result_confirmed", observed.Confirmed, "full_applied", observed.FullApplied,
+				"removed", observed.Removed, "skipped", observed.Skipped, "attempts", attempts, "retries", max(0, attempts-1),
+				"prior_attempt_unconfirmed", priorUnconfirmed, "failure_stage", observed.FailureStage,
+				"index_keys_duration", indexKeysDuration,
+				"build_metadata_duration", buildDuration, "serialization_duration", serializationDuration,
+				"redis_script_round_trip_duration", redisDuration, "batch_bytes", observed.PayloadBytes,
+				"keys_total", observed.KeysTotal, "keys_min", observed.KeysMin, "keys_max", observed.KeysMax)
+		} else if indexPath == "legacy" {
+			attrs = append(attrs, "legacy_commands", commands)
+		}
+		if err != nil {
+			slog.Error("scraper stage batch", append(attrs, "error", err)...)
+		} else {
+			slog.Info("scraper stage batch", attrs...)
+		}
+	}()
 	metrics.Stage("indexing")
 	if cfg.Index != nil {
 		err = cfg.Index(ctx, jobs)
 	} else if cfg.Store.Durable() {
+		indexPath = "durable"
+		prepared := cfg.indexKeywords
+		if prepared == nil {
+			prepared = prepareIndexKeywords(cfg.Keywords)
+		}
+		var previousErr error
 		err = jobstore.RetryTransient(ctx, func() error {
-			_, e := jobindex.New(cfg.RDB).Apply(ctx, jobs, func(job domain.Job) []string { return invertedIndexKeys(job, cfg.Keywords) })
+			if previousErr != nil {
+				metrics.IndexRetries.WithLabelValues(metrics.ErrorType(previousErr)).Inc()
+			}
+			attempts++
+			var e error
+			observed, e = jobindex.New(cfg.RDB).ApplyDetailed(ctx, jobs, prepared.keys)
+			indexKeysDuration += observed.IndexKeys
+			buildDuration += observed.BuildMetadata
+			serializationDuration += observed.Serialization
+			redisDuration += observed.RedisRoundTrip
+			if e != nil && observed.FailureStage == "redis_script_round_trip" {
+				priorUnconfirmed = true
+			}
+			previousErr = e
 			return e
 		})
 		if err == nil {
+			markStarted := time.Now()
 			err = cfg.Store.MarkIndexed(ctx, jobs)
+			markDuration = time.Since(markStarted)
+			metrics.ObserveStage("mark_indexed", markDuration, err)
+			checkpointStatus = metrics.BatchStatus(err)
+			if err != nil {
+				observed.FailureStage = "mark_indexed"
+			}
 		}
 	} else {
+		indexPath = "legacy"
 		commands, err = indexJobsInValkeyBatched(ctx, cfg.RDB, jobs, cfg.Keywords, cfg.IndexBatchSize, cfg.IndexSession)
 	}
 	if err != nil {
@@ -581,6 +694,7 @@ func indexPersistedChunk(
 			)
 			return err
 		}
+		err = nil
 		slog.Warn("scraper index reconciled after failure",
 			"run_id", cfg.RunID,
 			"stage", "index_reconcile",
@@ -592,14 +706,7 @@ func indexPersistedChunk(
 		metrics.JobResult(j.Source, "indexed", 1)
 	}
 	stats.Indexed += len(jobs)
-	slog.Info("scraper stage batch",
-		"run_id", cfg.RunID,
-		"stage", "index",
-		"batch", batchNo,
-		"indexed", len(jobs),
-		"commands", commands,
-		"duration", time.Since(started).Round(time.Millisecond),
-	)
+
 	return nil
 }
 

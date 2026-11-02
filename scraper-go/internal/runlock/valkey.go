@@ -9,9 +9,21 @@ import (
 )
 
 const (
-	LockKey  = "scraper:run:lock"
-	StateKey = "scraper:run:state"
+	LockKey        = "scraper:run:lock"
+	StateKey       = "scraper:run:state"
+	NextAllowedKey = "scraper:run:next_allowed_at"
 )
+
+var acquireScript = redis.NewScript(`
+if redis.call('EXISTS',KEYS[1]) == 1 then return {0,0} end
+local clock = redis.call('TIME')
+local now = tonumber(clock[1])*1000 + math.floor(tonumber(clock[2])/1000)
+local allowed = tonumber(redis.call('GET',KEYS[2]) or '0')
+if allowed > now then return {-1,allowed} end
+redis.call('SET',KEYS[1],ARGV[1],'PX',ARGV[2])
+if tonumber(ARGV[3]) > 0 then redis.call('SET',KEYS[2],now+tonumber(ARGV[2])+tonumber(ARGV[3])) end
+return {1,0}
+`)
 
 var writeStateScript = redis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[1] then
@@ -32,6 +44,11 @@ if redis.call("GET", KEYS[1]) ~= ARGV[1] then
   return 0
 end
 redis.call("PEXPIRE", KEYS[1], ARGV[6])
+if tonumber(ARGV[7]) > 0 then
+  local clock = redis.call('TIME')
+  local now = tonumber(clock[1])*1000 + math.floor(tonumber(clock[2])/1000)
+  redis.call('SET',KEYS[3],now+tonumber(ARGV[6])+tonumber(ARGV[7]))
+end
 if redis.call("HGET", KEYS[2], "runId") ~= ARGV[2] then
   redis.call("DEL", KEYS[2])
 end
@@ -47,6 +64,11 @@ return 1
 var releaseScript = redis.NewScript(`
 if redis.call("GET", KEYS[1]) ~= ARGV[1] then
   return 0
+end
+if tonumber(ARGV[3]) > 0 then
+  local clock = redis.call('TIME')
+  local now = tonumber(clock[1])*1000 + math.floor(tonumber(clock[2])/1000)
+  redis.call('SET',KEYS[3],now+tonumber(ARGV[3]))
 end
 redis.call("DEL", KEYS[1])
 if redis.call("HGET", KEYS[2], "runId") == ARGV[2] then
@@ -64,21 +86,28 @@ type Store interface {
 
 type ValkeyStore struct {
 	client *redis.Client
+	pause  time.Duration
 }
 
-func NewValkeyStore(client *redis.Client) *ValkeyStore {
-	return &ValkeyStore{client: client}
+// Production always uses the five-minute default. An explicit override supports
+// isolated legacy test fixtures; there is no runtime/env option to disable it.
+func NewValkeyStore(client *redis.Client, testPause ...time.Duration) *ValkeyStore {
+	pause := MinimumInterval
+	if len(testPause) > 0 {
+		pause = testPause[0]
+	}
+	return &ValkeyStore{client: client, pause: pause}
 }
 
 func (s *ValkeyStore) TryAcquire(ctx context.Context, token string, ttl time.Duration) (bool, error) {
-	result, err := s.client.Do(ctx, acquireCommand(token, ttl)...).Text()
-	if err == redis.Nil {
-		return false, nil
-	}
+	result, err := acquireScript.Run(ctx, s.client, []string{LockKey, NextAllowedKey}, token, ttl.Milliseconds(), s.pause.Milliseconds()).Int64Slice()
 	if err != nil {
 		return false, err
 	}
-	return result == "OK", nil
+	if result[0] == -1 {
+		return false, &CooldownError{NextAllowedAt: time.UnixMilli(result[1])}
+	}
+	return result[0] == 1, nil
 }
 
 func acquireCommand(token string, ttl time.Duration) []any {
@@ -114,13 +143,14 @@ func (s *ValkeyStore) Renew(
 	result, err := renewScript.Run(
 		ctx,
 		s.client,
-		[]string{LockKey, StateKey},
+		[]string{LockKey, StateKey, NextAllowedKey},
 		token,
 		state.RunID,
 		state.Source,
 		state.StartedAt.UTC().Format(time.RFC3339Nano),
 		state.LockExpiresAt.UTC().Format(time.RFC3339Nano),
 		strconv.FormatInt(ttl.Milliseconds(), 10),
+		s.pause.Milliseconds(),
 	).Int64()
 	return result == 1, err
 }
@@ -129,9 +159,10 @@ func (s *ValkeyStore) Release(ctx context.Context, token, runID string) (bool, e
 	result, err := releaseScript.Run(
 		ctx,
 		s.client,
-		[]string{LockKey, StateKey},
+		[]string{LockKey, StateKey, NextAllowedKey},
 		token,
 		runID,
+		s.pause.Milliseconds(),
 	).Int64()
 	return result == 1, err
 }

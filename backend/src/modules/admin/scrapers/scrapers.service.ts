@@ -1,6 +1,8 @@
 import {
   ScraperAlreadyRunningError,
   ScraperRunLockUnavailableError,
+  ScraperInvalidSelectionError,
+  ScraperRateLimitedError,
   scraperClient,
 } from "./scraperClient";
 import type {
@@ -11,15 +13,16 @@ import type {
   ScraperStatus,
   TriggerScrapeResult,
 } from "./scrapers.types";
+import { TriggerScrapeRequestSchema } from "./scrapers.types";
 
 export class ScrapersService {
-  async triggerScrape(): Promise<TriggerScrapeResult> {
+  async triggerScrape(sources?: string[]): Promise<TriggerScrapeResult> {
     try {
-      return await scraperClient.triggerScrape();
+      return await scraperClient.triggerScrape(sources);
     } catch (error) {
       if (
         error instanceof ScraperAlreadyRunningError ||
-        error instanceof ScraperRunLockUnavailableError
+        error instanceof ScraperRunLockUnavailableError || error instanceof ScraperInvalidSelectionError || error instanceof ScraperRateLimitedError
       ) {
         // repropaga para o controller decidir o status HTTP (409)
         throw error;
@@ -31,7 +34,9 @@ export class ScrapersService {
   async triggerScraper(name: string): Promise<TriggerScrapeResult> {
     const normalized = name.trim().toLowerCase();
     if (normalized !== "go-scraper") {
-      throw new Error(`scraper desconhecido: ${name}`);
+      const selection = TriggerScrapeRequestSchema.safeParse({ sources: [normalized] });
+      if (!selection.success) throw new Error(`scraper desconhecido: ${name}`);
+      return this.triggerScrape(selection.data.sources);
     }
 
     return this.triggerScrape();

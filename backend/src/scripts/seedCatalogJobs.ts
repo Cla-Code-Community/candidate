@@ -1,4 +1,5 @@
 import type { ProfessionalFamily } from "../modules/jobs/types/professionalTaxonomy";
+import { assertLocalSeedAllowed } from "./seedPolicy";
 import { createClient } from "redis";
 
 export type SeedTechnologyExperience = {
@@ -391,6 +392,7 @@ async function connectSeedCache(url: string) {
 }
 
 export async function seedCatalogJobs(): Promise<void> {
+  assertLocalSeedAllowed();
   const url = process.env.VALKEY_URL;
 
   if (!url) {

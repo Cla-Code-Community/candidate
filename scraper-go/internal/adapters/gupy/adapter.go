@@ -105,7 +105,7 @@ func (a *GupyAdapter) Search(ctx context.Context, keyword string, req domain.Scr
 	return a.SearchBatch(ctx, []string{keyword}, req)
 }
 
-func (a *GupyAdapter) SearchBatch(ctx context.Context, keywords []string, req domain.ScrapeRequest) ([]domain.Job, error) {
+func (a *GupyAdapter) SearchBatch(ctx context.Context, keywords []string, req domain.ScrapeRequest) (jobs []domain.Job, runErr error) {
 	queryKeywords := gupyExpandedQueries(keywords, req)
 	if len(queryKeywords) == 0 {
 		return nil, nil
@@ -116,7 +116,40 @@ func (a *GupyAdapter) SearchBatch(ctx context.Context, keywords []string, req do
 		queries = append(queries, query)
 	}
 	sort.Strings(queries)
-	queries = a.nextQuerySlot(queries, gupyQueryLimit())
+	allQueries := queries
+	var budget *runBudget
+	var manifest string
+	offset := 0
+	if req.GupyWindow {
+		if req.QueryCursor == nil {
+			return nil, fmt.Errorf("gupy automatic window requires persistent cursor")
+		}
+		queryLimit, err := positiveEnv("GUPY_AUTO_QUERY_LIMIT", 120)
+		if err != nil {
+			return nil, err
+		}
+		maxPages, err := positiveEnv("GUPY_AUTO_MAX_PAGES", 5)
+		if err != nil {
+			return nil, err
+		}
+		attempts, err := positiveEnv("GUPY_AUTO_MAX_HTTP_ATTEMPTS", 600)
+		if err != nil {
+			return nil, err
+		}
+		manifest = queryManifest(allQueries)
+		offset, err = req.QueryCursor.Load(ctx, manifest, len(allQueries))
+		if err != nil {
+			return nil, err
+		}
+		queries = make([]string, 0, min(queryLimit, len(allQueries)))
+		for i := 0; i < min(queryLimit, len(allQueries)); i++ {
+			queries = append(queries, allQueries[(offset+i)%len(allQueries)])
+		}
+		budget = &runBudget{initial: attempts, remaining: attempts, maxPages: maxPages}
+		ctx = context.WithValue(ctx, budgetKey{}, budget)
+	} else {
+		queries = a.nextQuerySlot(queries, gupyQueryLimit())
+	}
 
 	type collectedJob struct {
 		raw      gupyJob
@@ -125,20 +158,33 @@ func (a *GupyAdapter) SearchBatch(ctx context.Context, keywords []string, req do
 
 	collected := make(map[string]collectedJob)
 	order := make([]string, 0)
-	for _, query := range queries {
+	started, completed, failed := 0, 0, 0
+	defer func() {
+		jobs = make([]domain.Job, 0, len(order))
+		for _, key := range order {
+			entry := collected[key]
+			kw := adapterutil.UniqueTrimmedStrings(entry.keywords)
+			if len(kw) > 0 {
+				jobs = append(jobs, gupyToJob(entry.raw, kw))
+			}
+		}
+		slog.Info("gupy query coverage", "run_id", req.RunID, "window_id", req.WindowID, "planned", len(queries), "started", started, "completed", completed, "failed", failed, "not_executed", len(queries)-started, "partial", runErr != nil)
+		if budget != nil {
+			slog.Info("gupy HTTP budget", "run_id", req.RunID, "window_id", req.WindowID, "attempts", budget.initial-budget.remaining, "attempt_limit", budget.initial, "max_pages_per_query", budget.maxPages)
+		}
+	}()
+	for i, query := range queries {
 		if cause := context.Cause(ctx); cause != nil {
-			return nil, cause
+			return nil, errors.Join(runErr, cause)
+		}
+		if budget != nil {
+			budget.started = false
+			index := (offset + i) % len(allQueries)
+			budget.onStart = func(c context.Context) error { return req.QueryCursor.Advance(c, manifest, len(allQueries), index) }
 		}
 		rawJobs, err := a.fetchAll(ctx, query, req)
-		if err != nil {
-			if cause := context.Cause(ctx); cause != nil {
-				return nil, cause
-			}
-			slog.Warn("gupy: query ignorada por erro",
-				"query", query,
-				"error", err,
-			)
-			continue
+		if budget == nil || budget.started {
+			started++
 		}
 
 		for _, raw := range rawJobs {
@@ -169,19 +215,22 @@ func (a *GupyAdapter) SearchBatch(ctx context.Context, keywords []string, req do
 			current.keywords = adapterutil.UniqueTrimmedStrings(append(current.keywords, queryKeywords[query]...))
 			collected[key] = current
 		}
-	}
-
-	jobs := make([]domain.Job, 0, len(order))
-	for _, key := range order {
-		collectedJob := collected[key]
-		keywords := adapterutil.UniqueTrimmedStrings(collectedJob.keywords)
-		if len(keywords) == 0 {
-			continue
+		if err != nil {
+			if budget == nil || budget.started {
+				failed++
+			}
+			runErr = errors.Join(runErr, err)
+			var limit *ports.RateLimitError
+			var checkpoint cursorError
+			if errors.As(err, &limit) || errors.As(err, &checkpoint) || errors.Is(err, errHTTPBudget) || context.Cause(ctx) != nil {
+				return nil, runErr
+			}
+			slog.Warn("gupy query partial", "query", query, "error", err)
+		} else {
+			completed++
 		}
-		jobs = append(jobs, gupyToJob(collectedJob.raw, keywords))
 	}
-
-	return jobs, nil
+	return nil, runErr
 }
 
 func gupyQueryLimit() int {
@@ -235,20 +284,37 @@ func (a *GupyAdapter) fetchAll(ctx context.Context, keyword string, req domain.S
 	}
 
 	all := make([]gupyJob, 0, limit)
+	seen := map[string]bool{}
+	pages := 0
+	budget, _ := ctx.Value(budgetKey{}).(*runBudget)
 	for offset := 0; offset <= maxOffset; offset += limit {
 		if cause := context.Cause(ctx); cause != nil {
-			return nil, cause
+			return all, cause
+		}
+		if budget != nil && pages >= budget.maxPages {
+			return all, errPageBudget
 		}
 		page, err := a.fetchPageWithRetry(ctx, keyword, offset, limit, req)
 		if err != nil {
 			if gupyIsFullSweepEnd(err, keyword, offset) {
 				break
 			}
-			return nil, err
+			return all, err
+		}
+		pages++
+		if len(page) > 0 {
+			fingerprint := pageFingerprint(page)
+			if fingerprint != "" && seen[fingerprint] {
+				break
+			}
+			seen[fingerprint] = true
 		}
 		all = append(all, page...)
 		if len(page) < limit {
 			break
+		}
+		if budget != nil && offset+limit > maxOffset {
+			return all, errPageBudget
 		}
 	}
 
@@ -332,12 +398,24 @@ func (a *GupyAdapter) fetchPage(ctx context.Context, keyword string, offset, lim
 	httpReq.Header.Set("Accept", "application/json")
 	httpReq.Header.Set("User-Agent", "JobsScraper/1.0")
 
+	if budget, _ := ctx.Value(budgetKey{}).(*runBudget); budget != nil {
+		if err := budget.reserve(ctx); err != nil {
+			return nil, err
+		}
+	}
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("gupy: http do: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		at, ok := adapterutil.ParseRetryAfter(resp.Header.Get("Retry-After"), time.Now())
+		if !ok {
+			at = time.Now().Add(time.Minute)
+		}
+		return nil, &ports.RateLimitError{Provider: ports.ProviderGupy, NotBefore: at}
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, &gupyHTTPError{statusCode: resp.StatusCode, keyword: keyword, offset: offset}
 	}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/stretchr/testify/require"
 	"os"
 	"testing"
@@ -67,4 +68,41 @@ func TestSourceCountsFullActiveCatalog(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, counts)
 	require.NotNil(t, counts)
+}
+
+func TestContentEqualityPreservesPersistedSemantics(t *testing.T) {
+	base := domain.Job{ID: "id", Title: "title", Company: "company", Location: "location", URL: "url", Sources: []string{"a", "b"}, Keywords: []string{"first", "second"}, Classification: &domain.Classification{PrimaryFamily: "backend", RelatedFamilies: []string{"platform", "data"}, Technologies: []string{"go", "sql"}, Reasons: []string{"one", "two"}, InScope: true, Confidence: .8}}
+	other := base
+	other.CatalogRevision = 100
+	other.CatalogChange = "job_refreshed"
+	other.CatalogExpiresAt = time.Now()
+	require.True(t, sameContent(base, other))
+	changes := map[string]func(*domain.Job){
+		"title": func(j *domain.Job) { j.Title = "other" }, "company": func(j *domain.Job) { j.Company = "other" },
+		"description": func(j *domain.Job) { j.Description = "other" }, "location": func(j *domain.Job) { j.Location = "other" },
+		"url": func(j *domain.Job) { j.URL = "other" }, "salary": func(j *domain.Job) { j.Salary = "other" },
+		"modality": func(j *domain.Job) { j.Modality = "remote" }, "posted": func(j *domain.Job) { j.PostedAt = "date" },
+		"source": func(j *domain.Job) { j.Source = "other" }, "keyword": func(j *domain.Job) { j.Keyword = "second" },
+		"sources_order": func(j *domain.Job) { j.Sources = []string{"b", "a"} }, "keywords_order": func(j *domain.Job) { j.Keywords = []string{"second", "first"} },
+		"family":             func(j *domain.Job) { j.Classification.PrimaryFamily = "data" },
+		"related_order":      func(j *domain.Job) { j.Classification.RelatedFamilies = []string{"data", "platform"} },
+		"technologies_order": func(j *domain.Job) { j.Classification.Technologies = []string{"sql", "go"} },
+		"reasons_order":      func(j *domain.Job) { j.Classification.Reasons = []string{"two", "one"} },
+		"seniority":          func(j *domain.Job) { j.Classification.Seniority = "senior" },
+		"scope":              func(j *domain.Job) { j.Classification.InScope = false }, "confidence": func(j *domain.Job) { j.Classification.Confidence = .9 },
+	}
+	for name, mutate := range changes {
+		t.Run(name, func(t *testing.T) {
+			changed := base
+			c := *base.Classification
+			changed.Classification = &c
+			mutate(&changed)
+			require.False(t, sameContent(base, changed))
+		})
+	}
+	a := domain.Job{Classification: &domain.Classification{}}
+	b := domain.Job{Classification: &domain.Classification{Reasons: []string{}, Technologies: []string{}, RelatedFamilies: []string{}}}
+	require.True(t, sameContent(a, b))
+	b.Sources = []string{}
+	require.False(t, sameContent(a, b))
 }

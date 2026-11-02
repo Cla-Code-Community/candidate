@@ -56,8 +56,9 @@ func Classify(job domain.Job) (classification domain.Classification) {
 	}, " "))
 
 	title := normalizeText(job.Title)
-	scores, exclusions := scoreFamilies(text, title)
-	titleScores, _ := scoreFamilies(title, title)
+	bodyMatches, titleMatches := newMatchedText(text), newMatchedText(title)
+	scores, exclusions := scoreFamilyMatches(bodyMatches, titleMatches)
+	titleScores, _ := scoreFamilyMatches(titleMatches, titleMatches)
 	// Title-supported technical candidates survive conflicting description evidence.
 	for _, ts := range titleScores {
 		if ts.evidence == "" {
@@ -80,10 +81,10 @@ func Classify(job domain.Job) (classification domain.Classification) {
 			scores = append(scores, ts)
 		}
 	}
-	technologies := detectTechnologies(text)
-	seniority := detectSeniority(text)
+	technologies := detectTechnologyMatches(bodyMatches)
+	seniority := detectSeniorityMatches(bodyMatches)
 
-	if blocked, reason := blockedOpeningReason(job); blocked {
+	if blocked, reason := blockedOpeningReasonMatched(titleMatches); blocked {
 		return domain.Classification{
 			PrimaryFamily: "other",
 			Technologies:  technologies,
@@ -150,39 +151,43 @@ func Classify(job domain.Job) (classification domain.Classification) {
 	}
 }
 
+var nonConcreteTerms = []string{
+	"banco de talentos",
+	"talent pool",
+	"cadastro reserva",
+}
+var administrativeTerms = []string{
+	"assistente central de reservas",
+	"central de reservas",
+	"assistente de negocios",
+	"central de relacionamento",
+	"assistente contabil",
+	"assistente financeiro",
+	"assistente de autorizacao",
+	"motorista",
+	"motorista de van",
+	"atendente",
+	"analista qualidade",
+	"analista de qualidade",
+}
+
 func blockedOpeningReason(job domain.Job) (bool, string) {
-	title := normalizeText(job.Title)
-	if title == "" {
+	return blockedOpeningReasonMatched(newMatchedText(normalizeText(job.Title)))
+}
+
+func blockedOpeningReasonMatched(title *matchedText) (bool, string) {
+	if title.text == "" {
 		return false, ""
 	}
 
-	nonConcreteTerms := []string{
-		"banco de talentos",
-		"talent pool",
-		"cadastro reserva",
-	}
 	for _, term := range nonConcreteTerms {
-		if containsTokenOrPhrase(title, term) {
+		if title.contains(term, false) {
 			return true, "vaga nao concreta: " + term
 		}
 	}
 
-	administrativeTerms := []string{
-		"assistente central de reservas",
-		"central de reservas",
-		"assistente de negocios",
-		"central de relacionamento",
-		"assistente contabil",
-		"assistente financeiro",
-		"assistente de autorizacao",
-		"motorista",
-		"motorista de van",
-		"atendente",
-		"analista qualidade",
-		"analista de qualidade",
-	}
 	for _, term := range administrativeTerms {
-		if containsTokenOrPhrase(title, term) {
+		if title.contains(term, false) {
 			return true, "vaga administrativa: " + term
 		}
 	}
@@ -368,6 +373,10 @@ func topCountLabels(values map[string]int, limit int) []string {
 }
 
 func scoreFamilies(text, title string) ([]familyScore, []string) {
+	return scoreFamilyMatches(newMatchedText(text), newMatchedText(title))
+}
+
+func scoreFamilyMatches(text, title *matchedText) ([]familyScore, []string) {
 	scores := make([]familyScore, 0, len(familyRules))
 	var exclusions []string
 
@@ -379,8 +388,8 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 			strongText = title
 			blocked := false
 			for _, term := range rule.NegativeTerms {
-				if containsWholePhrase(title, term) {
-					if hasTitleFamilyContext(title, rule.Family) {
+				if title.contains(term, true) {
+					if hasTitleFamilyContextMatched(title, rule.Family) {
 						exclusions = append(exclusions, "exclusao "+rule.Family+": "+term)
 					}
 					blocked = true
@@ -395,9 +404,9 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 		for _, term := range rule.StrongTerms {
 			var matches bool
 			if rule.TitleRequired {
-				matches = containsWholePhrase(strongText, term)
+				matches = strongText.contains(term, true)
 			} else {
-				matches = containsTokenOrPhrase(strongText, term)
+				matches = strongText.contains(term, false)
 			}
 			if matches {
 				score += 4
@@ -412,7 +421,7 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 		}
 		if !rule.TitleRequired {
 			for _, term := range rule.StrongTerms {
-				if containsTokenOrPhrase(title, term) {
+				if title.contains(term, false) {
 					evidence = term
 					priority = titlePriorityTechnical
 					break
@@ -427,7 +436,7 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 		}
 		complementary := 0
 		for _, term := range rule.TechnologyTerms {
-			if containsTokenOrPhrase(text, term) {
+			if text.contains(term, false) {
 				complementary++
 			}
 		}
@@ -437,7 +446,7 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 		score += complementary
 		if !rule.TitleRequired {
 			for _, term := range rule.NegativeTerms {
-				if containsTokenOrPhrase(text, term) {
+				if text.contains(term, false) {
 					score -= 3
 				}
 			}
@@ -454,22 +463,30 @@ func scoreFamilies(text, title string) ([]familyScore, []string) {
 // Both ends of multi-word titles must be whole words: product != production,
 // product manager != product management, and designer != designership.
 func containsWholePhrase(text, term string) bool {
-	return strings.Contains(" "+text+" ", " "+normalizeText(term)+" ")
+	return containsNormalized(text, normalizedFixedTerm(term), true)
 }
 
 func hasTitleFamilyContext(title, family string) bool {
+	return hasTitleFamilyContextMatched(newMatchedText(title), family)
+}
+
+func hasTitleFamilyContextMatched(title *matchedText, family string) bool {
 	if family == "product" {
-		return containsAny(title, "product", "produto", "produtos", "production", "producao")
+		return title.any(productContextTerms...)
 	}
-	return containsAny(title, "designer", "design", "ux", "ui")
+	return title.any(designContextTerms...)
 }
 
 func detectTechnologies(text string) []string {
+	return detectTechnologyMatches(newMatchedText(text))
+}
+
+func detectTechnologyMatches(text *matchedText) []string {
 	technologies := make([]string, 0)
 
 	for technology, aliases := range technologyAliases {
 		for _, alias := range aliases {
-			if containsTokenOrPhrase(text, alias) {
+			if text.contains(alias, false) {
 				technologies = append(technologies, technology)
 				break
 			}
@@ -482,13 +499,17 @@ func detectTechnologies(text string) []string {
 }
 
 func detectSeniority(text string) string {
-	if containsAny(text, "estagio", "estagiario", "intern", "internship", "trainee") {
+	return detectSeniorityMatches(newMatchedText(text))
+}
+
+func detectSeniorityMatches(text *matchedText) string {
+	if text.any(internTerms...) {
 		return "estagio"
 	}
-	if containsAny(text, "senior", "sr", "especialista", "lead", "principal", "staff") {
+	if text.any(seniorTerms...) {
 		return "senior"
 	}
-	if containsAny(text, "junior", "jr", "entry level", "assistente") {
+	if text.any(juniorTerms...) {
 		return "junior"
 	}
 	return "pleno"

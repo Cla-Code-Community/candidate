@@ -1,4 +1,5 @@
 import * as argon2 from "argon2";
+import { assertLocalSeedAllowed } from "./seedPolicy";
 import "dotenv/config";
 import { and, eq } from "drizzle-orm";
 import { db, pool } from "../db/client";
@@ -237,6 +238,7 @@ async function upsertApplicationEvent(
 
 
 async function main() {
+  assertLocalSeedAllowed();
   console.log("Iniciando seed de desenvolvimento local...");
 
   const devUserSpec = SEED_USERS.find((spec) => spec.role === "user")!;

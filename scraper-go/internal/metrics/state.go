@@ -15,6 +15,7 @@ import (
 )
 
 type Execution struct {
+	Partial             bool       `json:"partial"`
 	RunID               *string    `json:"runId"`
 	Status              string     `json:"status"`
 	Source              *string    `json:"source"`
@@ -41,6 +42,7 @@ type Lock struct {
 type Queue struct {
 	Depth    int `json:"depth"`
 	Capacity int `json:"capacity"`
+	InFlight int `json:"inFlight"`
 }
 type RejectedTitle struct {
 	Title      string `json:"title"`
@@ -142,11 +144,17 @@ func init() {
 		promauto.NewGaugeFunc(prometheus.GaugeOpts{Name: item.name, Help: item.name}, item.get)
 	}
 	for _, q := range queueNames {
-		for _, kind := range []string{"depth", "capacity"} {
+		for _, kind := range []string{"depth", "capacity", "in_flight"} {
+			if q != "indexing" && kind != "depth" && kind != "capacity" {
+				continue
+			}
 			promauto.NewGaugeFunc(prometheus.GaugeOpts{Name: "candidate_scraper_queue_" + kind, Help: "Actual bounded queue " + kind, ConstLabels: prometheus.Labels{"queue": q}}, func() float64 {
 				v := Current().Queues[q]
 				if kind == "capacity" {
 					return float64(v.Capacity)
+				}
+				if kind == "in_flight" {
+					return float64(v.InFlight)
 				}
 				return float64(v.Depth)
 			})
@@ -182,6 +190,7 @@ func StartRun(source string, started time.Time, runID ...string) {
 		state.execution.RunID = &id
 	}
 	state.execution.FinishedAt = nil
+	state.execution.Partial = false
 	state.classification = nil
 	state.persistence = nil
 	state.providers = nil
@@ -221,6 +230,7 @@ func FinishRun(err error, runID ...string) {
 	state.execution.FinishedAt = &now
 	state.execution.LastDurationSeconds = duration
 	state.execution.LastStatus = &status
+	state.execution.Partial = err != nil && state.persistence != nil && (state.persistence.Inserted+state.persistence.Updated) > 0
 	if err == nil {
 		state.execution.Status = "completed"
 	} else {

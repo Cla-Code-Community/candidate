@@ -3,6 +3,7 @@ package themuse
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -125,11 +126,8 @@ type theMuseDetailResponse struct {
 
 func (a *TheMuseAdapter) Search(ctx context.Context, keyword string, req domain.ScrapeRequest) ([]domain.Job, error) {
 	feed, err := a.fetchFeed(ctx, req)
-	if err != nil {
+	if err != nil && len(feed) == 0 {
 		return nil, err
-	}
-	if cause := context.Cause(ctx); cause != nil {
-		return nil, cause
 	}
 
 	matches := make([]domain.Job, 0)
@@ -142,7 +140,7 @@ func (a *TheMuseAdapter) Search(ctx context.Context, keyword string, req domain.
 		matches = append(matches, job)
 	}
 
-	return matches, nil
+	return matches, errors.Join(err, context.Cause(ctx))
 }
 
 func (a *TheMuseAdapter) SearchCatalog(
@@ -151,15 +149,12 @@ func (a *TheMuseAdapter) SearchCatalog(
 	req domain.ScrapeRequest,
 ) ([]domain.Job, error) {
 	feed, err := a.fetchFeed(ctx, req)
-	if err != nil {
+	if err != nil && len(feed) == 0 {
 		return nil, err
 	}
 
 	jobs := make([]domain.Job, 0, len(feed))
 	for _, job := range feed {
-		if cause := context.Cause(ctx); cause != nil {
-			return nil, cause
-		}
 
 		matchedKeywords := make([]string, 0, len(keywords))
 		for _, keyword := range keywords {
@@ -176,7 +171,7 @@ func (a *TheMuseAdapter) SearchCatalog(
 		job.Keywords = matchedKeywords
 		jobs = append(jobs, job)
 	}
-	return jobs, nil
+	return jobs, errors.Join(err, context.Cause(ctx))
 }
 
 func (a *TheMuseAdapter) fetchFeed(ctx context.Context, req domain.ScrapeRequest) ([]domain.Job, error) {
@@ -225,7 +220,7 @@ func (a *TheMuseAdapter) fetchFeed(ctx context.Context, req domain.ScrapeRequest
 		cancel()
 
 		if err != nil {
-			return nil, err
+			return allJobs, err
 		}
 
 		if len(jobs) == 0 {
@@ -240,14 +235,14 @@ func (a *TheMuseAdapter) fetchFeed(ctx context.Context, req domain.ScrapeRequest
 
 		if page < maxPages {
 			if err := adapterutil.Wait(ctx, waitBetween); err != nil {
-				return nil, err
+				return allJobs, err
 			}
 		}
 	}
 
 	allJobs = a.enrichJobs(ctx, allJobs)
 	if cause := context.Cause(ctx); cause != nil {
-		return nil, cause
+		return allJobs, cause
 	}
 
 	a.mu.Lock()

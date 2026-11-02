@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -34,6 +35,10 @@ type adapterTask struct {
 }
 
 func Run(ctx context.Context, adapterList []ports.JobSource, req domain.ScrapeRequest) ([]domain.Job, error) {
+	adapterList, err := selectProviders(adapterList, req.Sources)
+	if err != nil {
+		return nil, err
+	}
 	jobs, _, err := runWithConcurrency(ctx, adapterList, req, 2, nil, defaultProcessConfig())
 	return jobs, err
 }
@@ -47,6 +52,35 @@ func runWithConcurrency(
 	processCfg processConfig,
 ) ([]domain.Job, ProcessStats, error) {
 	pipelineStart := time.Now()
+	req.RunID = processCfg.RunID
+	if req.RunID == "" {
+		req.RunID = pipelineStart.Format(time.RFC3339Nano)
+	}
+	// Collection expiry must not cancel already returned jobs. Both contexts
+	// still inherit shutdown and lock loss; draining has a hard upper bound.
+	processingCtx := ctx
+	collectionCtx := ctx
+	if !processCfg.CollectionDeadline.IsZero() {
+		drain := processCfg.DrainTimeout
+		if drain <= 0 {
+			drain = 30 * time.Second
+		}
+		var cancelProcessing, cancelCollection context.CancelFunc
+		processingCtx, cancelProcessing = context.WithDeadline(ctx, processCfg.CollectionDeadline.Add(drain))
+		defer cancelProcessing()
+		collectionCtx, cancelCollection = context.WithDeadline(processingCtx, processCfg.CollectionDeadline)
+		defer cancelCollection()
+	} else if processCfg.CollectionTimeout > 0 {
+		drain := processCfg.DrainTimeout
+		if drain <= 0 {
+			drain = 30 * time.Second
+		}
+		var cancelProcessing, cancelCollection context.CancelFunc
+		processingCtx, cancelProcessing = context.WithTimeout(ctx, processCfg.CollectionTimeout+drain)
+		defer cancelProcessing()
+		collectionCtx, cancelCollection = context.WithTimeout(processingCtx, processCfg.CollectionTimeout)
+		defer cancelCollection()
+	}
 
 	maxConcurrency := req.MaxConcurrency
 	if maxConcurrency <= 0 {
@@ -79,12 +113,12 @@ func runWithConcurrency(
 	tasksWg.Add(1 + maxConcurrency)
 	go func() {
 		defer tasksWg.Done()
-		produceTasks(ctx, tasks, adapterList, req.Keywords, runStats)
+		produceTasks(collectionCtx, tasks, adapterList, req.Keywords, runStats)
 	}()
 	for range maxConcurrency {
 		go func() {
 			defer tasksWg.Done()
-			runWorker(ctx, tasks, results, budget, runStats, req, processCfg.RunID)
+			runWorker(collectionCtx, processingCtx, tasks, results, budget, runStats, req, processCfg.RunID)
 		}()
 	}
 
@@ -103,7 +137,7 @@ func runWithConcurrency(
 	processWg.Add(1)
 	go func() {
 		defer processWg.Done()
-		processed, processStats, processErr = processIncomingJobs(ctx, incoming, processCfg)
+		processed, processStats, processErr = processIncomingJobs(processingCtx, incoming, processCfg)
 	}()
 
 	var closeIncoming sync.Once
@@ -112,28 +146,40 @@ func runWithConcurrency(
 	}
 	defer closeIncomingFn()
 
+	var incomingSendWait time.Duration
+	collectionFailed := 0
+	var collectionError error
+	defer func() { metrics.ChannelSendWait.WithLabelValues("incoming").Observe(incomingSendWait.Seconds()) }()
 	for r := range results {
 		if r.err != nil {
-			continue
+			collectionFailed++
+			collectionError = errors.Join(collectionError, r.err)
 		}
 		for _, job := range r.jobs {
-			if context.Cause(ctx) != nil {
+			if context.Cause(processingCtx) != nil {
 				break
 			}
+			sendStarted := time.Now()
 			select {
-			case <-ctx.Done():
+			case <-processingCtx.Done():
 			case incoming <- job:
 			}
+			incomingSendWait += time.Since(sendStarted)
 		}
 	}
 	closeIncomingFn()
 	processWg.Wait()
+	processStats.CollectionFailed = collectionFailed
+	processStats.CollectionError = collectionError
 	gatherWg.Wait()
 	logProviderRunStats(runStats)
 	if processErr != nil {
 		return processed, processStats, processErr
 	}
 	if cause := context.Cause(ctx); cause != nil {
+		return processed, processStats, cause
+	}
+	if cause := context.Cause(collectionCtx); cause != nil {
 		return processed, processStats, cause
 	}
 
@@ -165,6 +211,8 @@ func produceTasks(
 	runStats *providerRunStats,
 ) {
 	defer close(queue)
+	var taskSendWait time.Duration
+	defer func() { metrics.ChannelSendWait.WithLabelValues("collection").Observe(taskSendWait.Seconds()) }()
 
 	providerIndexes := make(map[ports.ProviderID]int)
 	cursors := make([]providerTaskCursor, 0, len(adapterList))
@@ -197,13 +245,16 @@ func produceTasks(
 				return
 			}
 			metrics.Waiting(string(task.provider), 1)
+			sendStarted := time.Now()
 			select {
 			case queue <- task:
 				runStats.recordProduced(task)
 			case <-ctx.Done():
 				metrics.Waiting(string(task.provider), -1)
+				taskSendWait += time.Since(sendStarted)
 				return
 			}
+			taskSendWait += time.Since(sendStarted)
 		}
 		if !produced {
 			return
@@ -298,6 +349,7 @@ func validateSources(adapterList []ports.JobSource) error {
 
 func runWorker(
 	ctx context.Context,
+	processingCtx context.Context,
 	tasks <-chan adapterTask,
 	results chan<- result,
 	budget *concurrencyBudget,
@@ -320,13 +372,14 @@ func runWorker(
 			if context.Cause(ctx) != nil {
 				return
 			}
-			runScheduledTask(ctx, task, results, budget, runStats, req, runID)
+			runScheduledTask(ctx, processingCtx, task, results, budget, runStats, req, runID)
 		}
 	}
 }
 
 func runScheduledTask(
 	ctx context.Context,
+	processingCtx context.Context,
 	task adapterTask,
 	results chan<- result,
 	budget *concurrencyBudget,
@@ -361,10 +414,12 @@ func runScheduledTask(
 		metrics.JobsFoundTotal.WithLabelValues(source).Add(float64(len(jobs)))
 	}
 
+	sendStarted := time.Now()
 	select {
 	case results <- result{jobs: jobs, err: err}:
-	case <-ctx.Done():
+	case <-processingCtx.Done():
 	}
+	metrics.ChannelSendWait.WithLabelValues("results").Observe(time.Since(sendStarted).Seconds())
 }
 
 func logProviderRunStats(runStats *providerRunStats) {
@@ -463,10 +518,14 @@ func indexedClassificationFamily(family string) bool {
 }
 
 func structuredIndexKeys(job domain.Job) []string {
+	return structuredIndexKeysFromText(job, searchableJobText(job))
+}
+
+func structuredIndexKeysFromText(job domain.Job, text string) []string {
 	values := map[string]string{
-		"level":    inferLevel(job),
-		"model":    inferWorkModel(job),
-		"contract": inferContract(job),
+		"level":    inferLevelFromText(text),
+		"model":    inferWorkModelFromText(text),
+		"contract": inferContractFromText(text),
 	}
 
 	for key, value := range inferLocation(job.Location) {
@@ -525,49 +584,6 @@ func searchableJobText(job domain.Job) string {
 	}, " "))
 }
 
-func keywordSubTerms(keyword string) []string {
-	terms := strings.Fields(normalizeIndexValue(keyword))
-	if len(terms) >= 2 && terms[0] == "node" && terms[1] == "js" {
-		terms = append(terms, "nodejs")
-	}
-	return uniqueStrings(terms)
-}
-
-func keywordIndexAliases(keyword string) []string {
-	sanitized := strings.Join(strings.Fields(strings.ReplaceAll(strings.ToLower(keyword), "/", " ")), " ")
-	normalized := normalizeIndexValue(keyword)
-
-	aliases := []string{sanitized, normalized}
-	if strings.Contains(normalized, "node js") {
-		aliases = append(aliases, strings.ReplaceAll(normalized, "node js", "nodejs"), "nodejs", "node")
-	}
-
-	return uniqueStrings(aliases)
-}
-
-func keywordMatches(searchText, keyword string) bool {
-	terms := strings.Fields(normalizeIndexValue(keyword))
-	if len(terms) == 0 {
-		return false
-	}
-
-	for i := 0; i < len(terms); i++ {
-		term := terms[i]
-		if term == "node" && i+1 < len(terms) && terms[i+1] == "js" {
-			if !containsTokenOrPhrase(searchText, "node js") && !containsTokenOrPhrase(searchText, "nodejs") {
-				return false
-			}
-			i++
-			continue
-		}
-		if !containsTokenOrPhrase(searchText, term) {
-			return false
-		}
-	}
-
-	return true
-}
-
 func uniqueStrings(values []string) []string {
 	seen := make(map[string]struct{}, len(values))
 	result := make([]string, 0, len(values))
@@ -586,8 +602,10 @@ func uniqueStrings(values []string) []string {
 }
 
 func inferLevel(job domain.Job) string {
-	text := searchableJobText(job)
+	return inferLevelFromText(searchableJobText(job))
+}
 
+func inferLevelFromText(text string) string {
 	if containsAny(text, "estagio", "intern", "trainee") {
 		return "estagio"
 	}
@@ -602,8 +620,10 @@ func inferLevel(job domain.Job) string {
 }
 
 func inferWorkModel(job domain.Job) string {
-	text := searchableJobText(job)
+	return inferWorkModelFromText(searchableJobText(job))
+}
 
+func inferWorkModelFromText(text string) string {
 	if containsAny(text, "hibrido", "hybrid") {
 		return "hibrido"
 	}
@@ -633,8 +653,10 @@ func inferWorkModel(job domain.Job) string {
 }
 
 func inferContract(job domain.Job) string {
-	text := searchableJobText(job)
+	return inferContractFromText(searchableJobText(job))
+}
 
+func inferContractFromText(text string) string {
 	if containsAny(text, "cooperado", "cooperativa") {
 		return "cooperado"
 	}
@@ -796,5 +818,18 @@ func containsTokenOrPhrase(text string, needle string) bool {
 		return strings.Contains(text, needle)
 	}
 
-	return strings.Contains(" "+text+" ", " "+needle+" ")
+	// Check the same literal-space boundaries without copying the haystack.
+	for offset := 0; offset <= len(text)-len(needle); {
+		relative := strings.Index(text[offset:], needle)
+		if relative < 0 {
+			return false
+		}
+		start := offset + relative
+		end := start + len(needle)
+		if (start == 0 || text[start-1] == ' ') && (end == len(text) || text[end] == ' ') {
+			return true
+		}
+		offset = start + 1
+	}
+	return false
 }
