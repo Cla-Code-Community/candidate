@@ -23,7 +23,8 @@ const dashboardApiMock = vi.hoisted(() => ({
   deleteDashboardApplicationNote: vi.fn(),
 }));
 
-vi.mock("@/features/jobs/api/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/api/dashboardJobsApi", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/features/jobs/api/dashboardJobsApi")>(),
   getDashboardSavedJobEvents: dashboardApiMock.getDashboardSavedJobEvents,
   getDashboardApplicationNotes: dashboardApiMock.getDashboardApplicationNotes,
   createDashboardApplicationNote: dashboardApiMock.createDashboardApplicationNote,
@@ -146,7 +147,7 @@ describe("new_dashboard job components", () => {
     expect(entries[1]).toHaveTextContent(
       /candidatura enviada para em entrevista/i,
     );
-    expect(entries[0]).toHaveTextContent("source: dashboard");
+    expect(entries[0]).toHaveTextContent("Fonte: dashboard");
 
     view.rerender(
       <JobDetailModal
@@ -208,7 +209,8 @@ describe("new_dashboard job components", () => {
     const setFilterLevel = vi.fn();
     const setContinentFilter = vi.fn();
     const setCountryFilter = vi.fn();
-    const setMatchSort = vi.fn();
+    const setStateFilter = vi.fn();
+    const setCityFilter = vi.fn();
     const setSelectedFamilies = vi.fn();
 
     render(
@@ -223,8 +225,10 @@ describe("new_dashboard job components", () => {
         setContinentFilter={setContinentFilter}
         countryFilter={"Todos" as CountryFilter}
         setCountryFilter={setCountryFilter}
-        matchSort="default"
-        setMatchSort={setMatchSort}
+        stateFilter=""
+        setStateFilter={setStateFilter}
+        cityFilter=""
+        setCityFilter={setCityFilter}
         selectedFamilies={[]}
         setSelectedFamilies={setSelectedFamilies}
         familyOptions={[{ id: "dev", label: "Desenvolvimento" }]}
@@ -234,18 +238,18 @@ describe("new_dashboard job components", () => {
     const searchInput = screen.getByPlaceholderText(
       /buscar por cargo, empresa ou keywords/i,
     );
-    const filterGrid = searchInput.closest("label")?.parentElement;
-
     expect(searchInput).toHaveAttribute("maxlength", "100");
-    expect(filterGrid).toHaveClass(
-      "grid-cols-1",
-      "sm:grid-cols-2",
-      "xl:grid-cols-3",
-      "2xl:grid-cols-[minmax(280px,1fr)_220px_repeat(5,minmax(0,180px))]",
-    );
-    screen.getAllByRole("combobox").forEach((select) => {
-      expect(select).toHaveClass("w-full", "min-w-0");
-    });
+    const professionalFilters = within(screen.getByRole("group", { name: "Filtros profissionais" }));
+    const locationFilters = within(screen.getByRole("group", { name: "Localização" }));
+    expect(professionalFilters.getByRole("textbox", { name: "Buscar vagas" })).toBe(searchInput);
+    expect(professionalFilters.getByRole("combobox", { name: "Modalidade" })).toBeInTheDocument();
+    expect(professionalFilters.getByRole("combobox", { name: "Senioridade" })).toBeInTheDocument();
+    expect(locationFilters.getByRole("combobox", { name: "Continente" })).toBeInTheDocument();
+    expect(locationFilters.getByRole("combobox", { name: "País" })).toBeInTheDocument();
+    expect(locationFilters.getByRole("textbox", { name: "Estado / Região" })).toBeInTheDocument();
+    expect(locationFilters.getByRole("textbox", { name: "Cidade" })).toBeInTheDocument();
+    expect(locationFilters.queryByRole("combobox", { name: "Ordenação" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Ordenação" })).not.toBeInTheDocument();
 
     fireEvent.change(searchInput, {
       target: { value: "react" },
@@ -255,21 +259,20 @@ describe("new_dashboard job components", () => {
     );
     fireEvent.click(screen.getByText("Desenvolvimento"));
 
-    fireEvent.change(screen.getAllByRole("combobox")[0], {
+    fireEvent.change(screen.getByRole("combobox", { name: "Senioridade" }), {
       target: { value: "Sênior" },
     });
-    fireEvent.change(screen.getAllByRole("combobox")[1], {
+    fireEvent.change(screen.getByRole("combobox", { name: "Modalidade" }), {
       target: { value: "Remoto" },
     });
-    fireEvent.change(screen.getAllByRole("combobox")[2], {
+    fireEvent.change(screen.getByRole("combobox", { name: "Continente" }), {
       target: { value: "Europa" },
     });
-    fireEvent.change(screen.getAllByRole("combobox")[3], {
+    fireEvent.change(screen.getByRole("combobox", { name: "País" }), {
       target: { value: "Portugal" },
     });
-    fireEvent.change(screen.getAllByRole("combobox")[4], {
-      target: { value: "desc" },
-    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Estado / Região" }), { target: { value: "SC" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cidade" }), { target: { value: "Joinville" } });
 
     expect(setSearchQuery).toHaveBeenCalledWith("react");
     expect(setSelectedFamilies).toHaveBeenCalledWith(["dev"]);
@@ -277,7 +280,79 @@ describe("new_dashboard job components", () => {
     expect(setFilterType).toHaveBeenCalledWith("Remoto");
     expect(setContinentFilter).toHaveBeenCalledWith("Europa");
     expect(setCountryFilter).toHaveBeenCalledWith("Portugal");
-    expect(setMatchSort).toHaveBeenCalledWith("desc");
+    expect(setStateFilter).toHaveBeenCalledWith("SC");
+    expect(setCityFilter).toHaveBeenCalledWith("Joinville");
+  });
+
+  it("mantém seleção múltipla, tags removíveis, limpeza e fechamento do dropdown", () => {
+    function FiltersHarness() {
+      const [selectedFamilies, setSelectedFamilies] = useState<string[]>([]);
+      return (
+        <JobFilter
+          searchQuery=""
+          setSearchQuery={() => {}}
+          filterType="Todos"
+          setFilterType={() => {}}
+          filterLevel="Todos"
+          setFilterLevel={() => {}}
+          continentFilter="Todos"
+          setContinentFilter={() => {}}
+          countryFilter="Todos"
+          setCountryFilter={() => {}}
+          stateFilter=""
+          setStateFilter={() => {}}
+          cityFilter=""
+          setCityFilter={() => {}}
+          selectedFamilies={selectedFamilies}
+          setSelectedFamilies={setSelectedFamilies}
+          familyOptions={[
+            { id: "backend", label: "Backend" },
+            { id: "frontend", label: "Frontend" },
+          ]}
+        />
+      );
+    }
+    render(<FiltersHarness />);
+    const trigger = screen.getByRole("button", {
+      name: "Filtrar por área profissional",
+    });
+    fireEvent.click(trigger);
+    const dropdown = screen.getByRole("group", {
+      name: "Áreas profissionais disponíveis",
+    });
+    expect(trigger).toHaveAttribute("aria-controls", dropdown.id);
+    fireEvent.click(within(dropdown).getByRole("checkbox", { name: "Backend" }));
+    fireEvent.click(within(dropdown).getByRole("checkbox", { name: "Frontend" }));
+    expect(trigger).toHaveTextContent("2 áreas selecionadas");
+    expect(
+      within(dropdown)
+        .getAllByRole("checkbox")
+        .filter((checkbox) => (checkbox as HTMLInputElement).checked),
+    ).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Remover área Backend" }));
+    expect(
+      within(dropdown).getByRole("checkbox", { name: "Backend" }),
+    ).not.toBeChecked();
+    expect(
+      within(dropdown).getByRole("checkbox", { name: "Frontend" }),
+    ).toBeChecked();
+    fireEvent.click(within(dropdown).getByRole("button", { name: "Limpar" }));
+    expect(
+      within(dropdown)
+        .getAllByRole("checkbox")
+        .every((checkbox) => !(checkbox as HTMLInputElement).checked),
+    ).toBe(true);
+    expect(
+      screen.queryByRole("button", { name: /Remover área/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.keyDown(dropdown, { key: "Escape" });
+    expect(
+      screen.queryByRole("group", { name: "Áreas profissionais disponíveis" }),
+    ).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    fireEvent.mouseDown(document.body);
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
   it("renderiza a tabela vazia e paginação local e remota", () => {
@@ -299,7 +374,7 @@ describe("new_dashboard job components", () => {
 
     expect(screen.getByText(/exibindo 1-10 de 12 vagas/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("columnheader", { name: "Cargo / empresa" }),
+      screen.getByRole("columnheader", { name: "Cargo / empresa / área" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("columnheader", { name: /publicada em/i }),
@@ -351,6 +426,63 @@ describe("new_dashboard job components", () => {
     expect(onStatusChange).toHaveBeenCalledWith(baseJob.id, "saved");
   });
 
+  it("apresenta área, tecnologias e localização sem fabricar dados ausentes", () => {
+    const job: Job = { ...baseJob, rawPayload: { classification: { primaryFamily: "backend", technologies: ["Go", "PostgreSQL"] } } };
+    const view = render(<table><tbody><JobRow job={job} onOpen={() => {}} onStatusChange={() => {}} /></tbody></table>);
+    expect(screen.getByText("Backend")).toBeInTheDocument();
+    expect(screen.getByText("Go")).toBeInTheDocument();
+    expect(screen.getByText("PostgreSQL")).toBeInTheDocument();
+    expect(screen.getByText(baseJob.location)).toBeInTheDocument();
+    expect(screen.getByText("88%")).toHaveClass("bg-primary/10", "border-primary/25");
+    expect(screen.queryByText("América do Sul")).not.toBeInTheDocument();
+    view.rerender(<table><tbody><JobRow job={{ ...baseJob, tags: ["Geral"], rawPayload: undefined }} onOpen={() => {}} onStatusChange={() => {}} /></tbody></table>);
+    expect(screen.queryByLabelText("Tecnologias e palavras-chave")).not.toBeInTheDocument();
+    expect(screen.queryByText("Backend")).not.toBeInTheDocument();
+    expect(screen.getByText(baseJob.location)).toBeInTheDocument();
+  });
+
+  it("ordena Match antes da paginação local e trata valores nulos como zero", () => {
+    const jobs = Array.from({ length: 12 }, (_, index) => ({ ...baseJob, id: `match-${index}`, jobTitle: `Match ${index}`, matchScore: index === 11 ? 100 : index }));
+    jobs[0].matchScore = null as unknown as number;
+    jobs[1].matchScore = undefined as unknown as number;
+    render(<JobTable jobs={jobs} onOpenJob={() => {}} onStatusChange={() => {}} />);
+    const titles = () => screen.getAllByRole("row").slice(1).map(row => within(row).getAllByRole("cell")[0].querySelector("button")?.textContent);
+    expect(titles()[0]).toBe("Match 0ACME");
+    const trigger = screen.getByRole("button", { name: "Ordenar por match" });
+    fireEvent.click(trigger);
+    expect(screen.getByRole("columnheader", { name: "Match" })).toHaveAttribute("aria-sort", "descending");
+    expect(titles()[0]).toBe("Match 11ACME");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("columnheader", { name: "Match" })).toHaveAttribute("aria-sort", "ascending");
+    expect(titles().slice(0, 3)).toEqual(["Match 0ACME", "Match 1ACME", "Match 2ACME"]);
+  });
+
+  it("delega Match à API sem reordenar a página recebida e mantém o estado na paginação", () => {
+    const directions: string[] = [];
+    const onPageChange = vi.fn();
+    function RemoteTable() {
+      const [matchSort, setMatchSort] = useState<"default" | "asc" | "desc">("default");
+      return <JobTable jobs={[{ ...baseJob, id: "low", jobTitle: "Menor", matchScore: 10 }, { ...baseJob, id: "high", jobTitle: "Maior", matchScore: 90 }]} matchSort={matchSort} onMatchSortChange={value => { directions.push(value); setMatchSort(value); }} pagination={{ total: 100, page: 2, limit: 2, totalPages: 50 }} onPageChange={onPageChange} onOpenJob={() => {}} onStatusChange={() => {}} />;
+    }
+    render(<RemoteTable />);
+    const trigger = screen.getByRole("button", { name: "Ordenar por match" });
+    expect(screen.getByRole("columnheader", { name: "Match" })).toHaveAttribute("aria-sort", "none");
+    fireEvent.click(trigger);
+    expect(directions).toEqual(["desc"]);
+    expect(screen.getAllByRole("row")[1]).toHaveTextContent("Menor");
+    fireEvent.click(screen.getByRole("button", { name: "Próxima página" }));
+    expect(onPageChange).toHaveBeenCalledWith(3);
+    expect(screen.getByRole("columnheader", { name: "Match" })).toHaveAttribute("aria-sort", "descending");
+    fireEvent.click(trigger);
+    expect(directions).toEqual(["desc", "asc"]);
+    expect(screen.getByRole("columnheader", { name: "Match" })).toHaveAttribute("aria-sort", "ascending");
+  });
+
+  it("desabilita Match paginado quando não há callback de ordenação global", () => {
+    render(<JobTable jobs={[baseJob]} pagination={{ total: 20, page: 1, limit: 10, totalPages: 2 }} onOpenJob={() => {}} onStatusChange={() => {}} />);
+    expect(screen.getByRole("button", { name: "Ordenar por match" })).toBeDisabled();
+  });
+
   it("ordena a tabela por fonte, nível e data de publicação", () => {
     const jobs: Job[] = [
       {
@@ -390,9 +522,11 @@ describe("new_dashboard job components", () => {
       screen
         .getAllByRole("row")
         .slice(1)
-        .map((row) => within(row).getAllByRole("cell")[0].textContent);
+        .map((row) => within(row).getAllByRole("cell")[0].querySelector("button")?.textContent);
 
     fireEvent.click(screen.getByRole("button", { name: /ordenar por fonte/i }));
+    expect(screen.getByRole("button", { name: /ordenar por fonte/i })).toHaveClass("text-primary");
+    expect(screen.getByRole("button", { name: /ordenar por nível/i })).not.toHaveClass("text-primary");
     expect(visibleTitles()).toEqual([
       "Vaga AdzunaACME",
       "Vaga GreenhouseACME",
@@ -403,6 +537,8 @@ describe("new_dashboard job components", () => {
     ).toHaveAttribute("aria-sort", "ascending");
 
     fireEvent.click(screen.getByRole("button", { name: /ordenar por nível/i }));
+    expect(screen.getByRole("button", { name: /ordenar por nível/i })).toHaveClass("text-primary");
+    expect(screen.getByRole("button", { name: /ordenar por fonte/i })).not.toHaveClass("text-primary");
     expect(visibleTitles()).toEqual([
       "Vaga AdzunaACME",
       "Vaga GreenhouseACME",
@@ -642,6 +778,8 @@ describe("new_dashboard job components", () => {
         useState<ContinentFilter>("Todos");
       const [countryFilter, setCountryFilter] =
         useState<CountryFilter>("Todos");
+      const [stateFilter, setStateFilter] = useState("");
+      const [cityFilter, setCityFilter] = useState("");
       const [matchSort, setMatchSort] = useState<"default" | "desc" | "asc">(
         "default",
       );
@@ -674,6 +812,10 @@ describe("new_dashboard job components", () => {
           setContinentFilter={setContinentFilter}
           countryFilter={countryFilter}
           setCountryFilter={setCountryFilter}
+          stateFilter={stateFilter}
+          setStateFilter={setStateFilter}
+          cityFilter={cityFilter}
+          setCityFilter={setCityFilter}
           matchSort={matchSort}
           setMatchSort={setMatchSort}
           selectedFamilies={[]}
@@ -694,7 +836,7 @@ describe("new_dashboard job components", () => {
     expect(screen.getByText("Remote React")).toBeInTheDocument();
     expect(screen.getByText("Onsite Java")).toBeInTheDocument();
 
-    fireEvent.change(screen.getAllByRole("combobox")[1], {
+    fireEvent.change(screen.getByRole("combobox", { name: "Modalidade" }), {
       target: { value: "Remoto" },
     });
     expect(screen.getByText("Remote React")).toBeInTheDocument();

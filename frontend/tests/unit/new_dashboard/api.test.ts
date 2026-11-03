@@ -17,6 +17,7 @@ import {
   getDashboardSavedJobEvents,
   getDashboardSavedJobs,
   searchDashboardJobs,
+  buildFilterParams,
   toRecommendedJob,
   updateDashboardSavedJob,
 } from "@/features/jobs/api/dashboardJobsApi";
@@ -36,6 +37,16 @@ import {
 } from "@/features/profile/api/userDashboardApi";
 
 describe("new_dashboard api adapters", () => {
+  it("normaliza Estado/Cidade e omite campos vazios no contrato existente", () => {
+    expect(buildFilterParams({ matchSort: "asc" })).toEqual({ matchSort: "asc" });
+    expect(buildFilterParams({ matchSort: "desc" })).toEqual({ matchSort: "desc" });
+    expect(buildFilterParams({ state: " SC ", city: " Joinville " })).toEqual({
+      state: "SC",
+      city: "Joinville",
+    });
+    expect(buildFilterParams({ state: " ", city: "" })).toEqual({});
+  });
+
   beforeEach(() => {
     apiMock.get.mockReset();
     apiMock.post.mockReset();
@@ -78,6 +89,8 @@ describe("new_dashboard api adapters", () => {
         level: "Pleno",
         continent: "América do Sul",
         country: "Brasil",
+        state: "SC",
+        city: "Joinville",
         matchSort: "desc",
       },
       3,
@@ -91,6 +104,8 @@ describe("new_dashboard api adapters", () => {
         level: "Pleno",
         continent: "América do Sul",
         country: "Brasil",
+        state: "SC",
+        city: "Joinville",
         matchSort: "desc",
         page: 3,
         limit: 25,

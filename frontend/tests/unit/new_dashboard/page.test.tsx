@@ -94,7 +94,9 @@ vi.mock("@/features/jobs/components/JobTab", () => ({
         set-continent
       </button>
       <button onClick={() => props.setCountryFilter("Brasil")}>set-country</button>
-      <button onClick={() => props.setMatchSort("best")}>set-sort</button>
+      <input aria-label="Estado / Região" value={props.stateFilter} onChange={(event) => props.setStateFilter(event.target.value)} />
+      <input aria-label="Cidade" value={props.cityFilter} onChange={(event) => props.setCityFilter(event.target.value)} />
+      <button onClick={() => props.setMatchSort(props.matchSort === "desc" ? "asc" : "desc")}>set-sort</button>
       <button onClick={() => props.onSearchJobs()}>jobtab-search</button>
       <button onClick={() => props.onPageChange(2)}>jobtab-page</button>
       <button onClick={() => props.onPageSizeChange(20)}>jobtab-size</button>
@@ -863,6 +865,104 @@ describe("NewDashboardPage - useEffect de busca automática - bordas", () => {
 });
 
 describe("NewDashboardPage - buildRecommendationSearch com todos os filtros", () => {
+  it("alterna Match DESC/ASC preservando filtros, URL e paginação remota", async () => {
+    vi.useFakeTimers();
+    mockPathname = "/vagas";
+    render(<NewDashboardPage />);
+    fireEvent.click(screen.getByText("set-search"));
+    fireEvent.click(screen.getByText("set-country"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Estado / Região" }), { target: { value: "SC" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cidade" }), { target: { value: "Joinville" } });
+    fireEvent.click(screen.getByText("set-sort"));
+    await act(async () => { vi.advanceTimersByTime(500); });
+    const filters = { country: "Brasil", state: "SC", city: "Joinville", matchSort: "desc" };
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(["react"], expect.objectContaining(filters), 1);
+    expect((mockSetSearchParams.mock.lastCall?.[0] as URLSearchParams).get("matchSort")).toBe("desc");
+    await act(async () => { fireEvent.click(screen.getByText("jobtab-page")); });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(["react"], expect.objectContaining(filters), 2, 10);
+    fireEvent.click(screen.getByText("set-sort"));
+    await act(async () => { vi.advanceTimersByTime(500); });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(["react"], expect.objectContaining({ ...filters, matchSort: "asc" }), 1);
+    expect((mockSetSearchParams.mock.lastCall?.[0] as URLSearchParams).get("matchSort")).toBe("asc");
+  });
+
+  it("envia Estado e Cidade com debounce, preserva na paginação e remove ao limpar", async () => {
+    vi.useFakeTimers();
+    mockPathname = "/vagas";
+    render(<NewDashboardPage />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Estado / Região" }), {
+      target: { value: " SC " },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cidade" }), {
+      target: { value: " Joinville " },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(499);
+    });
+    expect(mockRefreshRecommendations).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      1,
+    );
+    const url = mockSetSearchParams.mock.lastCall?.[0] as URLSearchParams;
+    expect(url.get("state")).toBe("SC");
+    expect(url.get("city")).toBe("Joinville");
+    await act(async () => {
+      fireEvent.click(screen.getByText("jobtab-page"));
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      2,
+      10,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("jobtab-size"));
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      1,
+      20,
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Estado / Região" }), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cidade" }), {
+      target: { value: "" },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    const filters = mockRefreshRecommendations.mock.lastCall?.[1];
+    expect(filters).not.toHaveProperty("state");
+    expect(filters).not.toHaveProperty("city");
+  });
+
+  it("restaura os filtros regionais da URL", async () => {
+    mockPathname = "/vagas";
+    mockSearchParamsValue = new URLSearchParams("state=SC&city=Joinville");
+    render(<NewDashboardPage />);
+    expect(screen.getByRole("textbox", { name: "Estado / Região" })).toHaveValue(
+      "SC",
+    );
+    expect(screen.getByRole("textbox", { name: "Cidade" })).toHaveValue(
+      "Joinville",
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("jobtab-search"));
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      1,
+    );
+  });
+
   it("aplica todos os filtros na busca", async () => {
     mockPathname = "/vagas";
     render(<NewDashboardPage />);
@@ -881,7 +981,7 @@ describe("NewDashboardPage - buildRecommendationSearch com todos os filtros", ()
         continent: "América",
         country: "Brasil",
         location: "Brasil",
-        matchSort: "best",
+        matchSort: "desc",
       }),
       1,
     );

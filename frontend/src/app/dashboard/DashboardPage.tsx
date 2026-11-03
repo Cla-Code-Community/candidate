@@ -165,6 +165,17 @@ export default function NewDashboardPage() {
   const [matchSort, setMatchSort] = useState<MatchSort>(
     () => (searchParams.get("matchSort") as MatchSort) || "default",
   );
+  const [stateFilter, setStateFilter] = useState(
+    () => searchParams.get("state") || "",
+  );
+  const [cityFilter, setCityFilter] = useState(
+    () => searchParams.get("city") || "",
+  );
+  // Preserva a carga inicial da URL sem recarregar o hook a cada tecla.
+  const [initialRegionalFilters] = useState(() => ({
+    state: stateFilter.trim(),
+    city: cityFilter.trim(),
+  }));
   const [familyOptions, setFamilyOptions] = useState<JobFamilyOption[]>(
     FALLBACK_JOB_FAMILIES,
   );
@@ -228,6 +239,10 @@ export default function NewDashboardPage() {
     } else {
       nextParams.delete("matchSort");
     }
+    if (stateFilter.trim()) nextParams.set("state", stateFilter.trim());
+    else nextParams.delete("state");
+    if (cityFilter.trim()) nextParams.set("city", cityFilter.trim());
+    else nextParams.delete("city");
 
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
@@ -239,6 +254,8 @@ export default function NewDashboardPage() {
     countryFilter,
     matchSort,
     searchParams,
+    stateFilter,
+    cityFilter,
     setSearchParams,
   ]);
 
@@ -281,6 +298,12 @@ export default function NewDashboardPage() {
           keywords: [],
           filters: {
             ...modelFilterToApiFilter(preferredModelFilter),
+            ...(initialRegionalFilters.state
+              ? { state: initialRegionalFilters.state }
+              : {}),
+            ...(initialRegionalFilters.city
+              ? { city: initialRegionalFilters.city }
+              : {}),
             ...(selectedFamilies.length > 0
               ? {
                 family: selectedFamilies.join(","),
@@ -289,7 +312,12 @@ export default function NewDashboardPage() {
               : {}),
           },
         },
-    [isLoadingUserData, preferredModelFilter, selectedFamilies],
+    [
+      isLoadingUserData,
+      preferredModelFilter,
+      selectedFamilies,
+      initialRegionalFilters,
+    ],
   );
   const {
     trackedJobs,
@@ -407,6 +435,14 @@ export default function NewDashboardPage() {
     setHasUserChangedJobFilters(true);
     setMatchSort(value);
   }, []);
+  const handleStateFilterChange = useCallback((value: string) => {
+    setHasUserChangedJobFilters(true);
+    setStateFilter(value);
+  }, []);
+  const handleCityFilterChange = useCallback((value: string) => {
+    setHasUserChangedJobFilters(true);
+    setCityFilter(value);
+  }, []);
 
   const handleSelectedFamiliesChange = useCallback((value: string[]) => {
     setHasUserChangedJobFilters(true);
@@ -497,6 +533,8 @@ export default function NewDashboardPage() {
         ? { country: countryFilter, location: countryFilter }
         : {}),
       ...(matchSort !== "default" ? { matchSort } : {}),
+      ...(stateFilter.trim() ? { state: stateFilter.trim() } : {}),
+      ...(cityFilter.trim() ? { city: cityFilter.trim() } : {}),
       ...(selectedFamilies.length > 0
         ? {
           family: selectedFamilies.join(","),
@@ -523,6 +561,8 @@ export default function NewDashboardPage() {
     countryFilter,
     continentFilter,
     filterLevel,
+    stateFilter,
+    cityFilter,
     filterType,
     matchSort,
     selectedFamilies,
@@ -563,6 +603,8 @@ export default function NewDashboardPage() {
     matchSort,
     selectedFamilies,
     section,
+    stateFilter,
+    cityFilter,
   ]);
 
   const handleRecommendationPageSizeChange = async (limit: number) => {
@@ -600,6 +642,10 @@ export default function NewDashboardPage() {
             setContinentFilter={handleContinentFilterChange}
             countryFilter={countryFilter}
             setCountryFilter={handleCountryFilterChange}
+            stateFilter={stateFilter}
+            setStateFilter={handleStateFilterChange}
+            cityFilter={cityFilter}
+            setCityFilter={handleCityFilterChange}
             matchSort={matchSort}
             setMatchSort={handleMatchSortChange}
             selectedFamilies={selectedFamilies}
