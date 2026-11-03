@@ -1,5 +1,5 @@
 import { ExternalLink } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { jobStatusClasses, jobStatuses } from "../constants";
 import {
   getDashboardSavedJobEvents,
@@ -9,6 +9,8 @@ import type { Job, JobStatus, JobTimelineEvent } from "../domain/job";
 import { Modal } from "@/shared/ui/Modal";
 import { ApplicationNotesSection } from "@/features/applications/components/ApplicationNotesSection";
 import { FormattedJobDescription } from "@/features/jobs/components/FormattedJobDescription";
+import { JobLocation } from "./JobLocation";
+import { jobDetailLabel, formatJobPublicationDate, formatCompatibilityReason } from "../utils/jobDetailPresentation";
 
 interface JobDetailModalProps {
   job: Job;
@@ -18,22 +20,6 @@ interface JobDetailModalProps {
   isTracked?: boolean;
   timelineVersion?: number;
 }
-
-const payloadLabels: Record<string, string> = {
-  id: "ID",
-  title: "Título",
-  company: "Empresa",
-  location: "Local",
-  url: "URL",
-  salary: "Salário",
-  modality: "Modalidade",
-  description: "Descrição",
-  postedAt: "Publicado em",
-  source: "Fonte",
-  sources: "Fontes",
-  keyword: "Keyword",
-  keywords: "Keywords",
-};
 
 /**
  * Campos do payload bruto que já têm representação amigável em outro lugar
@@ -91,7 +77,7 @@ function timelineMetadataText(metadata: Record<string, unknown> | null) {
   if (!metadata) return "";
 
   return Object.entries(metadata)
-    .map(([key, value]) => `${key}: ${payloadValueToText(value)}`)
+    .map(([key, value]) => `${jobDetailLabel(key)}: ${payloadValueToText(value)}`)
     .join(" • ");
 }
 
@@ -102,13 +88,13 @@ function InfoTile({
   valueClassName = "",
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   valueClassName?: string;
 }) {
   return (
     <div className="rounded-md border border-border bg-background p-3">
       <span className="text-xs font-bold uppercase text-muted-foreground">{label}</span>
-      <p className={`mt-1 text-sm font-semibold ${valueClassName}`}>{value}</p>
+      <div className={`mt-1 text-sm font-semibold ${valueClassName}`}>{value}</div>
     </div>
   );
 }
@@ -202,14 +188,14 @@ export function JobDetailModal({
         </div>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <InfoTile label="Local" value={job.location} />
+          <InfoTile label="Local" value={<JobLocation location={job.location} structured={job.rawPayload} />} />
           <InfoTile label="Modalidade" value={job.type} />
           <InfoTile label="Nível" value={classification.seniority ? classification.seniority.charAt(0).toUpperCase() + classification.seniority.slice(1) : job.level} />
           <InfoTile label="Fonte" value={job.source} />
           <InfoTile label="Salário" value={job.salary} />
           <InfoTile
-            label="Match"
-            value={`${job.matchScore}%`}
+            label="Compatibilidade"
+            value={job.matchScore === null ? "Não calculado" : `${job.matchScore}%`}
             valueClassName="text-emerald-600 dark:text-emerald-400"
           />
           {classification.primaryFamily ? (
@@ -261,11 +247,11 @@ export function JobDetailModal({
         {classification.reasons && classification.reasons.length > 0 ? (
           <div className="space-y-2">
             <span className="text-xs font-bold uppercase text-muted-foreground">
-              Justificativas de match
+              Justificativas da compatibilidade
             </span>
             <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
               {classification.reasons.map((reason, idx) => (
-                <li key={idx}>{reason}</li>
+                <li key={idx}>{formatCompatibilityReason(reason)}</li>
               ))}
             </ul>
           </div>
@@ -287,7 +273,8 @@ export function JobDetailModal({
             </span>
             <div className="grid gap-2">
               {payloadEntries.map(([key, value]) => {
-                const text = payloadValueToText(value);
+                const isPublication = key === "postedAt" || key === "publishedAt";
+                const text = isPublication ? formatJobPublicationDate(value) : payloadValueToText(value);
 
                 return (
                   <div
@@ -295,7 +282,7 @@ export function JobDetailModal({
                     className="rounded-md border border-border bg-background p-3"
                   >
                     <span className="block text-xs font-bold uppercase text-muted-foreground">
-                      {payloadLabels[key] ?? key}
+                      {jobDetailLabel(key)}
                     </span>
                     {isExternalUrl(text) ? (
                       <a
@@ -307,7 +294,7 @@ export function JobDetailModal({
                         {text}
                       </a>
                     ) : (
-                      <p className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold">
+                      <p title={isPublication && typeof value === "string" ? value : undefined} className="mt-1 whitespace-pre-wrap break-words text-sm font-semibold">
                         {text}
                       </p>
                     )}

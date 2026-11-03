@@ -357,7 +357,7 @@ describe("useDashboardJobs", () => {
       expect(result.current.isLoadingJobs).toBe(false);
     });
 
-    expect(result.current.trackedJobs).toEqual([trackedJob]);
+    expect(result.current.trackedJobs).toEqual([{ ...trackedJob, matchScore: null }]);
     expect(onError).toHaveBeenCalledWith(
       "Não foi possível carregar suas vagas salvas. Não foi possível atualizar as vagas recomendadas.",
     );

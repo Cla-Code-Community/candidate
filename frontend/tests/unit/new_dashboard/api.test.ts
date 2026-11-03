@@ -17,6 +17,7 @@ import {
   getDashboardSavedJobEvents,
   getDashboardSavedJobs,
   searchDashboardJobs,
+  buildFilterParams,
   toRecommendedJob,
   updateDashboardSavedJob,
 } from "@/features/jobs/api/dashboardJobsApi";
@@ -36,6 +37,38 @@ import {
 } from "@/features/profile/api/userDashboardApi";
 
 describe("new_dashboard api adapters", () => {
+  it.each(["desc", "asc"] as const)("envia cinco áreas com Match %s e preserva a página e scores da API", async (matchSort) => {
+    const family = "backend,fullstack,frontend,devops,software";
+    apiMock.get.mockResolvedValue({ data: {
+      total: 100, page: 2, limit: 4, totalPages: 25,
+      jobs: (matchSort === "desc" ? [66, 45, 45, 20, 0, null] : [null, 0, 20, 45, 45, 66]).map((matchScore, index) => ({
+        title: `Vaga ${index}`, url: `https://example.com/${index}`,
+        matchScore, matchSource: "backend_profile",
+      })),
+    } });
+    const result = await searchDashboardJobs([], { family, familyMode: "primary", model: "remoto", matchSort }, 2, 4);
+    expect(apiMock.get).toHaveBeenLastCalledWith("/jobs/search", {
+      params: { family, familyMode: "primary", model: "remoto", matchSort, page: 2, limit: 4 },
+    });
+    expect(result.jobs.map((job) => job.matchScore)).toEqual(matchSort === "desc" ? [66, 45, 45, 20, 0, null] : [null, 0, 20, 45, 45, 66]);
+    expect(result.pagination).toMatchObject({ total: 100, page: 2, limit: 4 });
+    apiMock.get.mockResolvedValue({ data: { jobs: [] } });
+    await searchDashboardJobs([], { matchSort });
+    expect(apiMock.get).toHaveBeenLastCalledWith("/jobs/search", {
+      params: { matchSort, page: 1, limit: 50 },
+    });
+  });
+
+  it("normaliza Estado/Cidade e omite campos vazios no contrato existente", () => {
+    expect(buildFilterParams({ matchSort: "asc" })).toEqual({ matchSort: "asc" });
+    expect(buildFilterParams({ matchSort: "desc" })).toEqual({ matchSort: "desc" });
+    expect(buildFilterParams({ state: " SC ", city: " Joinville " })).toEqual({
+      state: "SC",
+      city: "Joinville",
+    });
+    expect(buildFilterParams({ state: " ", city: "" })).toEqual({});
+  });
+
   beforeEach(() => {
     apiMock.get.mockReset();
     apiMock.post.mockReset();
@@ -78,6 +111,8 @@ describe("new_dashboard api adapters", () => {
         level: "Pleno",
         continent: "América do Sul",
         country: "Brasil",
+        state: "SC",
+        city: "Joinville",
         matchSort: "desc",
       },
       3,
@@ -91,6 +126,8 @@ describe("new_dashboard api adapters", () => {
         level: "Pleno",
         continent: "América do Sul",
         country: "Brasil",
+        state: "SC",
+        city: "Joinville",
         matchSort: "desc",
         page: 3,
         limit: 25,

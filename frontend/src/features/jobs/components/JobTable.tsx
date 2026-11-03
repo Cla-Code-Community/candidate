@@ -6,10 +6,10 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { Job, JobStatus } from "../domain/job";
+import type { Job, JobStatus, MatchSort } from "../domain/job";
 import { JobRow } from "./JobRow";
 
-type SortColumn = "source" | "level" | "posted";
+type SortColumn = "source" | "level" | "posted" | "match";
 type SortDirection = "asc" | "desc";
 
 const levelOrder: Record<Job["level"], number> = {
@@ -53,6 +53,16 @@ function compareJobs(
   column: SortColumn,
   direction: SortDirection,
 ) {
+  if (column === "match") {
+    const score = (job: Job) =>
+      typeof job.matchScore === "number" && Number.isFinite(job.matchScore)
+        ? job.matchScore
+        : 0;
+    return direction === "desc"
+      ? score(second) - score(first)
+      : score(first) - score(second);
+  }
+
   if (column === "source") {
     return compareNullableValues(
       first.source.trim() || null,
@@ -82,6 +92,8 @@ function compareJobs(
 
 interface JobTableProps {
   jobs: Job[];
+  matchSort?: MatchSort;
+  onMatchSortChange?: (value: MatchSort) => void;
   onOpenJob: (job: Job) => void;
   onStatusChange: (jobId: string, status: JobStatus) => void;
   pagination?: {
@@ -96,6 +108,8 @@ interface JobTableProps {
 
 export function JobTable({
   jobs,
+  matchSort = "default",
+  onMatchSortChange,
   onOpenJob,
   onStatusChange,
   pagination,
@@ -108,9 +122,22 @@ export function JobTable({
     column: SortColumn;
     direction: SortDirection;
   } | null>(null);
+  const activeSort = useMemo(
+    () =>
+      sort ??
+      (matchSort !== "default"
+        ? { column: "match" as const, direction: matchSort }
+        : null),
+    [sort, matchSort],
+  );
 
   const sortedJobs = useMemo(() => {
-    if (!sort) return jobs;
+    // Com paginação remota, Match é ordenado pela API sobre todos os resultados.
+    if (
+      !activeSort ||
+      (activeSort.column === "match" && (onMatchSortChange || pagination))
+    )
+      return jobs;
 
     return jobs
       .map((job, index) => ({ job, index }))
@@ -119,12 +146,12 @@ export function JobTable({
           compareJobs(
             first.job,
             second.job,
-            sort.column,
-            sort.direction,
+            activeSort.column,
+            activeSort.direction,
           ) || first.index - second.index,
       )
       .map(({ job }) => job);
-  }, [jobs, sort]);
+  }, [jobs, activeSort, onMatchSortChange, pagination]);
 
   if (jobs.length === 0) {
     return (
@@ -165,6 +192,16 @@ export function JobTable({
   );
 
   const toggleSort = (column: SortColumn) => {
+    if (column === "match" && onMatchSortChange) {
+      setSort(null);
+      setRequestedPage(1);
+      onMatchSortChange(
+        activeSort?.column === "match" && activeSort.direction === "desc"
+          ? "asc"
+          : "desc",
+      );
+      return;
+    }
     setSort((current) => {
       if (current?.column === column) {
         return {
@@ -175,17 +212,18 @@ export function JobTable({
 
       return {
         column,
-        direction: column === "posted" ? "desc" : "asc",
+        direction: column === "posted" || column === "match" ? "desc" : "asc",
       };
     });
+    if (column === "match") setRequestedPage(1);
   };
 
   const sortIcon = (column: SortColumn) => {
-    if (sort?.column !== column) {
+    if (activeSort?.column !== column) {
       return <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />;
     }
 
-    return sort.direction === "asc" ? (
+    return activeSort.direction === "asc" ? (
       <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
     ) : (
       <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
@@ -193,40 +231,73 @@ export function JobTable({
   };
 
   const ariaSort = (column: SortColumn) => {
-    if (sort?.column !== column) return "none";
-    return sort.direction === "asc" ? "ascending" : "descending";
+    if (activeSort?.column !== column) return "none";
+    return activeSort.direction === "asc" ? "ascending" : "descending";
   };
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-card">
+    <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse text-left">
-          <thead className="border-b border-border bg-muted/45 text-xs text-muted-foreground">
-            <tr>
-              <th className="px-6 py-4 font-bold">Cargo / empresa</th>
+        <table
+          role="table"
+          aria-label="Vagas recomendadas"
+          className="block w-full border-collapse text-left lg:table lg:min-w-[1080px] lg:table-fixed"
+        >
+          <thead
+            role="rowgroup"
+            className="block border-b border-border bg-background/60 text-[10px] uppercase tracking-wide text-muted-foreground lg:table-header-group"
+          >
+            <tr
+              role="row"
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 p-3 lg:table-row lg:p-0"
+            >
               <th
-                className="px-4 py-4 font-bold"
+                role="columnheader"
+                scope="col"
+                className="sr-only font-semibold lg:not-sr-only lg:table-cell lg:w-[34%] lg:px-5 lg:py-3"
+              >
+                Cargo / empresa / área
+              </th>
+              <th
+                role="columnheader"
+                scope="col"
+                className="sr-only font-semibold lg:not-sr-only lg:table-cell lg:w-[18%] lg:px-3 lg:py-3"
+              >
+                Localização regional
+              </th>
+              <th
+                role="columnheader"
+                scope="col"
+                className="font-semibold lg:w-[7%] lg:px-3 lg:py-3"
                 aria-sort={ariaSort("source")}
               >
                 <button
                   type="button"
                   onClick={() => toggleSort("source")}
-                  className="inline-flex items-center gap-1.5 hover:text-foreground"
+                  className={`inline-flex items-center gap-1.5 ${activeSort?.column === "source" ? "text-primary hover:text-primary" : "hover:text-foreground"}`}
                   aria-label="Ordenar por fonte"
                 >
                   Fonte
                   {sortIcon("source")}
                 </button>
               </th>
-              <th className="px-4 py-4 font-bold">Modelo</th>
               <th
-                className="px-4 py-4 font-bold"
+                role="columnheader"
+                scope="col"
+                className="sr-only font-semibold lg:not-sr-only lg:table-cell lg:w-[7%] lg:px-3 lg:py-3"
+              >
+                Modelo
+              </th>
+              <th
+                role="columnheader"
+                scope="col"
+                className="font-semibold lg:w-[6%] lg:px-3 lg:py-3"
                 aria-sort={ariaSort("level")}
               >
                 <button
                   type="button"
                   onClick={() => toggleSort("level")}
-                  className="inline-flex items-center gap-1.5 hover:text-foreground"
+                  className={`inline-flex items-center gap-1.5 ${activeSort?.column === "level" ? "text-primary hover:text-primary" : "hover:text-foreground"}`}
                   aria-label="Ordenar por nível"
                 >
                   Nível
@@ -234,24 +305,48 @@ export function JobTable({
                 </button>
               </th>
               <th
-                className="px-4 py-4 font-bold"
+                role="columnheader"
+                scope="col"
+                className="font-semibold lg:w-[9%] lg:px-3 lg:py-3"
                 aria-sort={ariaSort("posted")}
               >
                 <button
                   type="button"
                   onClick={() => toggleSort("posted")}
-                  className="inline-flex items-center gap-1.5 hover:text-foreground"
+                  className={`inline-flex items-center gap-1.5 ${activeSort?.column === "posted" ? "text-primary hover:text-primary" : "hover:text-foreground"}`}
                   aria-label="Ordenar por data de publicação"
                 >
                   Publicada em
                   {sortIcon("posted")}
                 </button>
               </th>
-              <th className="px-4 py-4 font-bold">Match</th>
-              <th className="px-6 py-4 text-right font-bold">Ações</th>
+              <th
+                role="columnheader"
+                scope="col"
+                className="font-semibold lg:w-[6%] lg:px-3 lg:py-3"
+                aria-sort={ariaSort("match")}
+              >
+                <button
+                  type="button"
+                  onClick={() => toggleSort("match")}
+                  disabled={Boolean(pagination && !onMatchSortChange)}
+                  className={`inline-flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 ${activeSort?.column === "match" ? "text-primary hover:text-primary" : "hover:text-foreground"}`}
+                  aria-label="Ordenar por match"
+                >
+                  Match
+                  {sortIcon("match")}
+                </button>
+              </th>
+              <th
+                role="columnheader"
+                scope="col"
+                className="sr-only text-right font-semibold lg:not-sr-only lg:table-cell lg:w-[13%] lg:px-3 lg:py-3"
+              >
+                Ações
+              </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup" className="block lg:table-row-group">
             {visibleJobs.map((job) => (
               <JobRow
                 key={job.id}
@@ -264,8 +359,8 @@ export function JobTable({
         </table>
       </div>
 
-      <div className="flex min-h-16 flex-col gap-3 border-t border-border px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      <div className="flex min-h-14 flex-col gap-3 border-t border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
           <span>
             Exibindo {firstVisibleItem}-{lastVisibleItem} de {totalItems} vagas
           </span>

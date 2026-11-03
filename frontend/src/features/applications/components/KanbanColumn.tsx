@@ -111,7 +111,7 @@ export function KanbanColumn({
                   {job.posted}
                 </span>
                 <span className="shrink-0 rounded bg-primary px-2 py-1 text-[11px] font-bold text-primary-foreground">
-                  {job.matchScore}% Match
+                  {job.matchScore === null ? "Não calculado" : `${job.matchScore}% Match`}
                 </span>
               </div>
             </article>

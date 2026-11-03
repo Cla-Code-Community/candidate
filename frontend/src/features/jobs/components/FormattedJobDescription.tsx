@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from "react";
+import { normalizeDescriptionText } from "../utils/jobDetailPresentation";
 
 interface FormattedJobDescriptionProps {
   description: string;
@@ -54,7 +55,7 @@ function safeExternalUrl(value: string | null) {
 
 function renderNode(node: Node, key: string): ReactNode {
   if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent;
+    return node.parentElement?.closest("pre, code") ? node.textContent : normalizeDescriptionText(node.textContent ?? "");
   }
 
   if (node.nodeType !== Node.ELEMENT_NODE) {
@@ -134,6 +135,9 @@ export function FormattedJobDescription({
     "text/html",
   );
   const hasMarkup = /<\/?[a-z][\s\S]*>/i.test(decodedDescription);
+  document.querySelectorAll("br + br + br").forEach((element) => {
+    if (!element.closest("pre, code")) element.remove();
+  });
 
   return (
     <div className="max-h-80 overflow-y-auto rounded-md border border-border bg-background p-4 text-sm leading-6 text-muted-foreground [&_a]:font-semibold [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_h1]:mb-3 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:mb-3 [&_h2]:text-lg [&_h2]:font-bold [&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:text-base [&_h3]:font-bold [&_h4]:mb-2 [&_h4]:mt-4 [&_h4]:font-bold [&_hr]:my-4 [&_li]:mb-1 [&_ol]:mb-4 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:mb-3 [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_strong]:font-bold [&_strong]:text-foreground [&_ul]:mb-4 [&_ul]:list-disc [&_ul]:pl-5">
@@ -143,7 +147,7 @@ export function FormattedJobDescription({
         )
       ) : (
         <p className="whitespace-pre-wrap">
-          {document.body.textContent ?? decodedDescription}
+          {normalizeDescriptionText(document.body.textContent ?? decodedDescription).trim()}
         </p>
       )}
     </div>

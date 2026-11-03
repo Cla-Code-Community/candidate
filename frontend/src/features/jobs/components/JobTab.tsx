@@ -29,6 +29,10 @@ interface JobTabProps {
   setContinentFilter: (value: ContinentFilter) => void;
   countryFilter: CountryFilter;
   setCountryFilter: (value: CountryFilter) => void;
+  stateFilter: string;
+  setStateFilter: (value: string) => void;
+  cityFilter: string;
+  setCityFilter: (value: string) => void;
   matchSort: MatchSort;
   setMatchSort: (value: MatchSort) => void;
   selectedFamilies: string[];
@@ -62,6 +66,10 @@ export function JobTab({
   setContinentFilter,
   countryFilter,
   setCountryFilter,
+  stateFilter,
+  setStateFilter,
+  cityFilter,
+  setCityFilter,
   matchSort,
   setMatchSort,
   selectedFamilies,
@@ -86,12 +94,12 @@ export function JobTab({
 
   return (
     <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-6 px-6 py-8 lg:px-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className="text-[22px] font-bold tracking-tight">
+      <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
             Vagas abertas recomendadas
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">
             Encontramos oportunidades ideais com base nas preferências do seu
             perfil.
           </p>
@@ -100,9 +108,9 @@ export function JobTab({
           type="button"
           onClick={() => onSearchJobs()}
           disabled={isSearching}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-60"
+          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-wait disabled:opacity-60"
         >
-          <Search className="h-5 w-5" />
+          <Search aria-hidden="true" className="h-4 w-4" />
           {isSearching ? "Procurando..." : "Buscar vagas"}
         </button>
       </div>
@@ -118,8 +126,10 @@ export function JobTab({
         setContinentFilter={setContinentFilter}
         countryFilter={countryFilter}
         setCountryFilter={setCountryFilter}
-        matchSort={matchSort}
-        setMatchSort={setMatchSort}
+        stateFilter={stateFilter}
+        setStateFilter={setStateFilter}
+        cityFilter={cityFilter}
+        setCityFilter={setCityFilter}
         selectedFamilies={selectedFamilies}
         setSelectedFamilies={setSelectedFamilies}
         familyOptions={familyOptions}
@@ -136,6 +146,8 @@ export function JobTab({
 
       <JobTable
         jobs={jobs}
+        matchSort={matchSort}
+        onMatchSortChange={setMatchSort}
         pagination={pagination}
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}

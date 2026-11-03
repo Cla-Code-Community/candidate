@@ -21,7 +21,7 @@ import {
   FALLBACK_JOB_FAMILIES,
   type JobFamilyOption,
 } from "@/features/jobs/api/dashboardJobsApi";
-import type { CareerChecklist, SearchPreferences, TechnologyExperience, UserProfile } from "@/features/profile/domain/user";
+import type { CareerChecklist, SearchPreferences, UserProfile } from "@/features/profile/domain/user";
 import type { Job, JobModelFilter, JobStatus, MatchSort, NewJob } from "@/features/jobs/domain/job";
 import {
   type ContinentFilter,
@@ -40,109 +40,6 @@ function getSection(pathname: string) {
   if (pathname.startsWith("/perfil")) return "perfil";
   if (pathname.startsWith("/ajuda")) return "ajuda";
   return "home";
-}
-
-function normalizeMatchText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function matchAliases(technology: string) {
-  const normalized = normalizeMatchText(technology);
-  const aliases = new Set([normalized]);
-
-  if (normalized.endsWith(" js")) {
-    aliases.add(normalized.replace(/\s+js$/, "js"));
-  }
-  if (normalized.endsWith("js") && normalized.length > 2) {
-    aliases.add(normalized.replace(/js$/, " js"));
-  }
-
-  return [...aliases].filter(Boolean);
-}
-
-function textMatchesAlias(text: string, alias: string) {
-  if (!alias) return false;
-  if (alias.includes(" ")) return text.includes(alias);
-  return ` ${text} `.includes(` ${alias} `);
-}
-
-function jobMatchText(job: Job) {
-  const rawPayload = job.rawPayload ?? {};
-  const rawValues = Object.values(rawPayload).flatMap((value) =>
-    Array.isArray(value) ? value : [value],
-  );
-
-  return normalizeMatchText(
-    [
-      job.jobTitle,
-      job.company,
-      job.location,
-      job.type,
-      job.level,
-      job.tags.join(" "),
-      ...rawValues.map((value) => (typeof value === "string" ? value : "")),
-    ].join(" "),
-  );
-}
-
-function scoreJobWithTechnologies(
-  job: Job,
-  technologies: TechnologyExperience[],
-): Job {
-  if (job.rawPayload?.matchSource === "backend_profile") return job;
-
-  const normalizedTechnologies = [
-    ...new Set(
-      technologies
-        .filter((technology) => technology.name.trim())
-        .map((technology) => ({
-          name: technology.name.trim(),
-          years: Math.max(0, technology.years),
-        })),
-    ),
-  ];
-  if (normalizedTechnologies.length === 0) return job;
-
-  const text = jobMatchText(job);
-  const matchedTechnologies = normalizedTechnologies.filter((technology) =>
-    matchAliases(technology.name).some((alias) =>
-      textMatchesAlias(text, alias),
-    ),
-  );
-
-  const totalWeight = normalizedTechnologies.reduce(
-    (total, technology) => total + Math.max(1, technology.years),
-    0,
-  );
-  const matchedWeight = matchedTechnologies.reduce(
-    (total, technology) => total + Math.max(1, technology.years),
-    0,
-  );
-  const coverage = matchedWeight / totalWeight;
-  const score =
-    matchedTechnologies.length === 0
-      ? 45
-      : Math.min(
-        99,
-        55 +
-        Math.round(coverage * 35) +
-        Math.min(matchedTechnologies.length * 4, 9),
-      );
-
-  return {
-    ...job,
-    matchScore: score,
-    rawPayload: {
-      ...(job.rawPayload ?? {}),
-      matchedTechnologies: matchedTechnologies.map((item) => item.name),
-    },
-  };
 }
 
 export default function NewDashboardPage() {
@@ -165,6 +62,20 @@ export default function NewDashboardPage() {
   const [matchSort, setMatchSort] = useState<MatchSort>(
     () => (searchParams.get("matchSort") as MatchSort) || "default",
   );
+  const [stateFilter, setStateFilter] = useState(
+    () => searchParams.get("state") || "",
+  );
+  const [cityFilter, setCityFilter] = useState(
+    () => searchParams.get("city") || "",
+  );
+  // Captura os filtros da URL uma vez; alterações posteriores usam a busca
+  // com debounce, sem disparar outra carga inicial sem a ordenação atual.
+  const [initialRecommendationFilters] = useState(() => ({
+    state: stateFilter.trim(),
+    city: cityFilter.trim(),
+    family: (searchParams.get("family") ?? "").split(",").filter(Boolean).join(","),
+    matchSort,
+  }));
   const [familyOptions, setFamilyOptions] = useState<JobFamilyOption[]>(
     FALLBACK_JOB_FAMILIES,
   );
@@ -228,6 +139,10 @@ export default function NewDashboardPage() {
     } else {
       nextParams.delete("matchSort");
     }
+    if (stateFilter.trim()) nextParams.set("state", stateFilter.trim());
+    else nextParams.delete("state");
+    if (cityFilter.trim()) nextParams.set("city", cityFilter.trim());
+    else nextParams.delete("city");
 
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
@@ -239,6 +154,8 @@ export default function NewDashboardPage() {
     countryFilter,
     matchSort,
     searchParams,
+    stateFilter,
+    cityFilter,
     setSearchParams,
   ]);
 
@@ -281,15 +198,28 @@ export default function NewDashboardPage() {
           keywords: [],
           filters: {
             ...modelFilterToApiFilter(preferredModelFilter),
-            ...(selectedFamilies.length > 0
+            ...(initialRecommendationFilters.state
+              ? { state: initialRecommendationFilters.state }
+              : {}),
+            ...(initialRecommendationFilters.city
+              ? { city: initialRecommendationFilters.city }
+              : {}),
+            ...(initialRecommendationFilters.matchSort !== "default"
+              ? { matchSort: initialRecommendationFilters.matchSort }
+              : {}),
+            ...(initialRecommendationFilters.family
               ? {
-                family: selectedFamilies.join(","),
+                family: initialRecommendationFilters.family,
                 familyMode: "primary",
               }
               : {}),
           },
         },
-    [isLoadingUserData, preferredModelFilter, selectedFamilies],
+    [
+      isLoadingUserData,
+      preferredModelFilter,
+      initialRecommendationFilters,
+    ],
   );
   const {
     trackedJobs,
@@ -306,24 +236,11 @@ export default function NewDashboardPage() {
     initialRecommendationSearch,
   });
 
-  const matchedTrackedJobs = useMemo(
-    () =>
-      trackedJobs.map((job) =>
-        scoreJobWithTechnologies(job, userProfile.technologyExperiences),
-      ),
-    [trackedJobs, userProfile.technologyExperiences],
-  );
-  const matchedRecommendedJobs = useMemo(
-    () =>
-      // O backend ja calcula o match com o mesmo perfil; so recalculamos aqui
-      // quando a API nao devolveu score (usuario sem perfil carregado).
-      recommendedJobs.map((job) =>
-        job.matchScore > 0
-          ? job
-          : scoreJobWithTechnologies(job, userProfile.technologyExperiences),
-      ),
-    [recommendedJobs, userProfile.technologyExperiences],
-  );
+  // Vagas salvas também usam apenas a compatibilidade recebida da API.
+  const matchedTrackedJobs = trackedJobs;
+  // A API ordena globalmente por matchScore. Preservamos a mesma métrica
+  // recebida, inclusive zero e ausência, sem calcular um score após paginar.
+  const matchedRecommendedJobs = recommendedJobs;
   // O filtro de modelo e aplicado pelo backend (indice do Valkey + pos-filtro).
   // Refiltrar aqui escondia vagas ja filtradas e quebrava a contagem da pagina.
   const displayedRecommendedJobs = matchedRecommendedJobs;
@@ -406,6 +323,14 @@ export default function NewDashboardPage() {
   const handleMatchSortChange = useCallback((value: MatchSort) => {
     setHasUserChangedJobFilters(true);
     setMatchSort(value);
+  }, []);
+  const handleStateFilterChange = useCallback((value: string) => {
+    setHasUserChangedJobFilters(true);
+    setStateFilter(value);
+  }, []);
+  const handleCityFilterChange = useCallback((value: string) => {
+    setHasUserChangedJobFilters(true);
+    setCityFilter(value);
   }, []);
 
   const handleSelectedFamiliesChange = useCallback((value: string[]) => {
@@ -497,6 +422,8 @@ export default function NewDashboardPage() {
         ? { country: countryFilter, location: countryFilter }
         : {}),
       ...(matchSort !== "default" ? { matchSort } : {}),
+      ...(stateFilter.trim() ? { state: stateFilter.trim() } : {}),
+      ...(cityFilter.trim() ? { city: cityFilter.trim() } : {}),
       ...(selectedFamilies.length > 0
         ? {
           family: selectedFamilies.join(","),
@@ -523,6 +450,8 @@ export default function NewDashboardPage() {
     countryFilter,
     continentFilter,
     filterLevel,
+    stateFilter,
+    cityFilter,
     filterType,
     matchSort,
     selectedFamilies,
@@ -563,6 +492,8 @@ export default function NewDashboardPage() {
     matchSort,
     selectedFamilies,
     section,
+    stateFilter,
+    cityFilter,
   ]);
 
   const handleRecommendationPageSizeChange = async (limit: number) => {
@@ -600,6 +531,10 @@ export default function NewDashboardPage() {
             setContinentFilter={handleContinentFilterChange}
             countryFilter={countryFilter}
             setCountryFilter={handleCountryFilterChange}
+            stateFilter={stateFilter}
+            setStateFilter={handleStateFilterChange}
+            cityFilter={cityFilter}
+            setCityFilter={handleCityFilterChange}
             matchSort={matchSort}
             setMatchSort={handleMatchSortChange}
             selectedFamilies={selectedFamilies}
