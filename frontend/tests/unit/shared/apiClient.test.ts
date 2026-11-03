@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/shared/lib/apiError";
+import { ApiError } from "@/shared/api/apiError";
 
 const axiosMock = vi.hoisted(() => {
   let fulfilledHandler: ((value: unknown) => unknown) | undefined;
@@ -31,7 +31,7 @@ vi.mock("axios", () => ({
   },
 }));
 
-import { api } from "@/shared/lib/apiClient";
+import { api } from "@/shared/api/apiClient";
 
 describe("apiClient", () => {
   beforeEach(() => {

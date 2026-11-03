@@ -1,33 +1,33 @@
-import LandingPage from "@/domains/marketing/presentation/pages/LandingPage";
+import LandingPage from "@/features/marketing/pages/LandingPage";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 
-vi.mock("@/domains/marketing/presentation/components/Navbar", () => ({
+vi.mock("@/features/marketing/components/Navbar", () => ({
   Navbar: () => <div data-testid="navbar" />,
 }));
 
-vi.mock("@/domains/marketing/presentation/components/HeroSection", () => ({
+vi.mock("@/features/marketing/components/HeroSection", () => ({
   HeroSection: () => <div data-testid="hero-section" />,
 }));
 
-vi.mock("@/domains/marketing/presentation/components/FeaturesSection", () => ({
+vi.mock("@/features/marketing/components/FeaturesSection", () => ({
   FeaturesSection: () => <div data-testid="features-section" />,
 }));
 
-vi.mock("@/domains/marketing/presentation/components/TeamSection", () => ({
+vi.mock("@/features/marketing/components/TeamSection", () => ({
   default: () => <div data-testid="team-section" />,
 }));
 
-vi.mock("@/domains/marketing/presentation/components/HowItWorks", () => ({
+vi.mock("@/features/marketing/components/HowItWorks", () => ({
   HowItWorks: () => <div data-testid="how-it-works" />,
 }));
 
-vi.mock("@/domains/marketing/presentation/components/CTASection", () => ({
+vi.mock("@/features/marketing/components/CTASection", () => ({
   CTASection: () => <div data-testid="cta-section" />,
 }));
 
-vi.mock("@/domains/marketing/presentation/components/Footer", () => ({
+vi.mock("@/features/marketing/components/Footer", () => ({
   Footer: () => <div data-testid="footer" />,
 }));
 

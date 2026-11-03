@@ -9,13 +9,13 @@ const mockGetGithubAuthUrl = vi.fn();
 const mockGetLinkedinAuthUrl = vi.fn();
 const mockNavigate = vi.fn();
 
-vi.mock("@/domains/auth/infrastructure/authApi", () => ({
+vi.mock("@/features/auth/api/authApi", () => ({
   getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
   getGithubAuthUrl: (...args: any[]) => mockGetGithubAuthUrl(...args),
   getLinkedinAuthUrl: (...args: any[]) => mockGetLinkedinAuthUrl(...args),
 }));
 
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => ({
     login: (...args: any[]) => mockLogin(...args),
   }),
@@ -36,7 +36,7 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-import RigthSide from "@/domains/auth/presentation/components/LoginFormPanel";
+import RigthSide from "@/features/auth/components/LoginFormPanel";
 
 describe("RigthSide", () => {
   const originalLocation = window.location;

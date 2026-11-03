@@ -1,20 +1,13 @@
-import * as dashboardTypes from "@/domains/new_dashboard/types";
 import {
     JobLevelSchema,
     JobSchema,
     JobStatusSchema,
     JobTypeSchema,
     NewJobSchema,
-} from "@/domains/new_dashboard/types/job";
-import { MentorSchema } from "@/domains/new_dashboard/types/mentor";
-import {
-    CareerChecklistSchema,
-    MessageSchema,
-    NotificationSchema,
-    SearchPreferencesSchema,
-    TechnologyExperienceSchema,
-    UserProfileSchema,
-} from "@/domains/new_dashboard/types/user";
+} from "@/features/jobs/domain/job";
+import { MentorSchema } from "@/features/mentoring/types";
+import { CareerChecklistSchema, SearchPreferencesSchema, TechnologyExperienceSchema, UserProfileSchema } from "@/features/profile/domain/user";
+import { MessageSchema, NotificationSchema } from "@/features/notifications/types";
 import { describe, expect, it } from "vitest";
 
 const validJob = {
@@ -50,21 +43,11 @@ const validMentor = {
 };
 
 describe("new_dashboard runtime types", () => {
-  it("re-exports public schemas from the types barrel", () => {
-    expect(dashboardTypes.JobSchema).toBe(JobSchema);
-    expect(dashboardTypes.JobStatusSchema).toBe(JobStatusSchema);
-    expect(dashboardTypes.JobTypeSchema).toBe(JobTypeSchema);
-    expect(dashboardTypes.JobLevelSchema).toBe(JobLevelSchema);
-    expect(dashboardTypes.NewJobSchema).toBe(NewJobSchema);
-    expect(dashboardTypes.MentorSchema).toBe(MentorSchema);
-    expect(dashboardTypes.UserProfileSchema).toBe(UserProfileSchema);
-    expect(dashboardTypes.SearchPreferencesSchema).toBe(SearchPreferencesSchema);
-    expect(dashboardTypes.TechnologyExperienceSchema).toBe(
-      TechnologyExperienceSchema,
-    );
-    expect(dashboardTypes.CareerChecklistSchema).toBe(CareerChecklistSchema);
-    expect(dashboardTypes.NotificationSchema).toBe(NotificationSchema);
-    expect(dashboardTypes.MessageSchema).toBe(MessageSchema);
+  it("exposes parsers from the canonical feature contracts", () => {
+    for (const schema of [JobSchema, JobStatusSchema, JobTypeSchema, JobLevelSchema, NewJobSchema, MentorSchema, UserProfileSchema, SearchPreferencesSchema, TechnologyExperienceSchema, CareerChecklistSchema, NotificationSchema, MessageSchema]) {
+      expect(schema.parse).toBeTypeOf("function");
+      expect(schema.safeParse).toBeTypeOf("function");
+    }
   });
 
   it("validates jobs, form input, enums, score bounds, and optional payload", () => {

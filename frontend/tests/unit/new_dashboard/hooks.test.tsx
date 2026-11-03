@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/shared/lib/apiError";
+import { ApiError } from "@/shared/api/apiError";
 
 const dashboardApiMock = vi.hoisted(() => ({
   getDashboardSavedJobs: vi.fn(),
@@ -9,16 +9,16 @@ const dashboardApiMock = vi.hoisted(() => ({
   updateDashboardSavedJob: vi.fn(),
 }));
 
-vi.mock("@/domains/new_dashboard/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/api/dashboardJobsApi", () => ({
   getDashboardSavedJobs: dashboardApiMock.getDashboardSavedJobs,
   searchDashboardJobs: dashboardApiMock.searchDashboardJobs,
   createDashboardSavedJob: dashboardApiMock.createDashboardSavedJob,
   updateDashboardSavedJob: dashboardApiMock.updateDashboardSavedJob,
 }));
 
-import { useDashboardJobs } from "@/domains/new_dashboard/hooks/useDashboardJobs";
-import type { User } from "@/domains/auth/domain/auth.types";
-import type { Job } from "@/domains/new_dashboard/types";
+import { useDashboardJobs } from "@/features/jobs/hooks/useDashboardJobs";
+import type { User } from "@/features/auth/domain/auth.types";
+import type { Job } from "@/features/jobs/domain/job";
 
 const user: User = {
   id: "user-1",
@@ -357,7 +357,7 @@ describe("useDashboardJobs", () => {
       expect(result.current.isLoadingJobs).toBe(false);
     });
 
-    expect(result.current.trackedJobs).toEqual([trackedJob]);
+    expect(result.current.trackedJobs).toEqual([{ ...trackedJob, matchScore: null }]);
     expect(onError).toHaveBeenCalledWith(
       "Não foi possível carregar suas vagas salvas. Não foi possível atualizar as vagas recomendadas.",
     );

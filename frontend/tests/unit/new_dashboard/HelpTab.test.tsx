@@ -1,4 +1,4 @@
-import { HelpTab } from "@/domains/new_dashboard/components/help/HelpTab";
+import { HelpTab } from "@/features/help/components/HelpTab";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 

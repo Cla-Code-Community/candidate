@@ -1,12 +1,12 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/domains/new_dashboard/infrastructure/dashboardJobsApi", () => ({
+vi.mock("@/features/jobs/api/dashboardJobsApi", () => ({
   getDashboardSavedJobEvents: vi.fn().mockResolvedValue([]),
 }));
 
-import { JobDetailModal } from "@/domains/new_dashboard/components/jobs/JobDetailModal";
-import type { Job } from "@/domains/new_dashboard/types";
+import { JobDetailModal } from "@/features/jobs/components/JobDetailModal";
+import type { Job } from "@/features/jobs/domain/job";
 
 function job(overrides: Partial<Job> = {}): Job {
   return {
@@ -30,6 +30,21 @@ function job(overrides: Partial<Job> = {}): Job {
 
 const noop = () => {};
 
+it("normaliza locais no modal e apresenta detalhes em português sem alterar o payload", () => {
+  const payload = Object.freeze({ postedAt: "2026-10-28T10:00:00-03:00", matchScore: 69, matchSource: "backend_profile", keyword: "python", matchedTechnologies: ["Python"], matchReasons: ["Original English reason"] });
+  const location = "São Paulo, SP | São Paulo, São Paulo, Brazil | São Paulo, Brazil";
+  const view = render(<JobDetailModal job={job({ location, rawPayload: payload })} onClose={noop} onStatusChange={noop} />);
+  expect(screen.getByText("São Paulo, SP, Brasil")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Consultar/ })).not.toBeInTheDocument();
+  for (const label of ["Compatibilidade", "Índice de compatibilidade", "Origem da compatibilidade", "Palavra-chave", "Tecnologias correspondentes", "Justificativas da compatibilidade"]) expect(screen.getByText(label)).toBeInTheDocument();
+  expect(screen.getByText("28/10/2026 às 10:00")).toHaveAttribute("title", payload.postedAt);
+  expect(payload.keyword).toBe("python");
+  expect(location).toContain("Brazil");
+  view.rerender(<JobDetailModal job={job({ location: "Lisboa, Portugal | Porto, Portugal" })} onClose={noop} onStatusChange={noop} />);
+  fireEvent.click(screen.getByRole("button", { name: /Consultar 1/ }));
+  expect(screen.getByText("Porto, Portugal")).toBeInTheDocument();
+});
+
 describe("JobDetailModal — informações principais (JDM-01, JDM-02)", () => {
   it("mostra local, modalidade, nível, fonte e salário em tiles rotulados", () => {
     render(
@@ -51,7 +66,7 @@ describe("JobDetailModal — informações principais (JDM-01, JDM-02)", () => {
     expect(screen.getByText("LinkedIn")).toBeInTheDocument();
     expect(screen.getByText("Salário")).toBeInTheDocument();
     expect(screen.getByText("A combinar")).toBeInTheDocument();
-    expect(screen.getByText("Match")).toBeInTheDocument();
+    expect(screen.getByText("Compatibilidade")).toBeInTheDocument();
     expect(screen.getByText("88%")).toBeInTheDocument();
   });
 
@@ -124,7 +139,7 @@ describe("JobDetailModal — detalhes adicionais sem duplicar dado (JDM-04, JDM-
 
     expect(screen.getByText("Detalhes adicionais")).toBeInTheDocument();
     expect(screen.getByText("Publicado em")).toBeInTheDocument();
-    expect(screen.getByText("2026-01-10")).toBeInTheDocument();
+    expect(screen.getByText("10/01/2026")).toBeInTheDocument();
     // "Local"/"Modalidade" continuam existindo (como tiles), mas sem um 2º
     // bloco "Local"/"Modalidade" vindo do payload bruto.
     expect(screen.getAllByText("Local")).toHaveLength(1);

@@ -15,7 +15,7 @@ vi.mock("@lottiefiles/dotlottie-react", () => ({
   DotLottieReact: () => <div data-testid="lottie-player" />,
 }));
 
-import NotFound from "@/app/NotFound";
+import NotFound from "@/app/routes/NotFound";
 
 describe("NotFound", () => {
   it("renderiza mensagem e link para voltar ao inicio", () => {

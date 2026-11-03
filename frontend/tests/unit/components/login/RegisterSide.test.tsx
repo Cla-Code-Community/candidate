@@ -41,7 +41,7 @@ function fillRequiredRegisterFieldsWithoutPhone() {
   });
 }
 
-vi.mock("@/domains/auth/infrastructure/authApi", () => ({
+vi.mock("@/features/auth/api/authApi", () => ({
   register: (...args: any[]) => mockRegister(...args),
   getGoogleAuthUrl: (...args: any[]) => mockGetGoogleAuthUrl(...args),
   getGithubAuthUrl: (...args: any[]) => mockGetGithubAuthUrl(...args),
@@ -84,7 +84,7 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
 }));
 
-import RegisterSide from "@/domains/auth/presentation/components/RegisterFormPanel";
+import RegisterSide from "@/features/auth/components/RegisterFormPanel";
 
 describe("RegisterSide", () => {
   const originalLocation = window.location;

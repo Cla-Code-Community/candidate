@@ -50,13 +50,13 @@ Variáveis usadas:
 
 ## Organização
 
-O frontend segue uma estrutura orientada por domínio:
+O frontend segue uma arquitetura Feature-Based, com domínio separado quando necessário:
 
 - `src/app`: composição da aplicação, providers, rotas e layouts autenticados.
-- `src/domains/auth`: login, registro, callback OAuth e estado de sessão.
-- `src/domains/jobs`: busca, filtros, paginação e interface de vagas.
-- `src/domains/marketing`: landing page pública.
-- `src/domains/new_dashboard`: nova estrutura de painel do frontend. É aqui que contribuidores devem procurar a experiência nova de dashboard, com abas de home, vagas, mentoring, perfil e ajuda.
+- `src/features/auth`: login, registro, callback OAuth e estado de sessão.
+- `src/features/jobs`: busca, filtros, paginação e interface de vagas, preservando os contratos distintos dos catálogos.
+- `src/features/marketing`: landing page pública.
+- `src/app/dashboard`: composição, providers, tema e navegação do painel. As funcionalidades de home, vagas, candidaturas, mentoria, perfil, ajuda e notificações estão em `src/features/`.
 - `src/shared`: componentes de UI, assets, hooks e utilitários reutilizáveis.
 
 Veja também [ARCHITECTURE.md](ARCHITECTURE.md).

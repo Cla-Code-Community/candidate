@@ -1,15 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/domains/auth/presentation/components/AuthVisualPanel", () => ({
+vi.mock("@/features/auth/components/AuthVisualPanel", () => ({
   default: () => <div>Left Side Mock</div>,
 }));
 
-vi.mock("@/domains/auth/presentation/components/RegisterFormPanel", () => ({
+vi.mock("@/features/auth/components/RegisterFormPanel", () => ({
   default: () => <div>Register Side Mock</div>,
 }));
 
-import RegisterPage from "@/domains/auth/presentation/pages/RegisterPage";
+import RegisterPage from "@/features/auth/pages/RegisterPage";
 
 describe("RegisterPage", () => {
   it("renderiza os dois lados da tela de cadastro", () => {

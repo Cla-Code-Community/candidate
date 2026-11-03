@@ -1,4 +1,4 @@
-import { cn } from "@/shared/lib/utils";
+import { cn } from "@/shared/utils/utils";
 import { describe, expect, it } from "vitest";
 
 describe("cn", () => {

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { JobsProvider, useJobsContext } from "@/domains/new_dashboard/context/JobsContext";
-import { ToastProvider } from "@/domains/new_dashboard/context/ToastContext";
+import { JobsProvider, useJobsContext } from "@/features/jobs/legacy/application/JobsContext";
+import { ToastProvider } from "@/shared/feedback/ToastContext";
 
 function JobsConsumer() {
   const { jobs, addNewJob, updateJobStatus, updateJobNotes } = useJobsContext();

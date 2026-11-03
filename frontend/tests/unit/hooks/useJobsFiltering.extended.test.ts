@@ -1,7 +1,7 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { useJobsFiltering } from "@/domains/jobs/application/useJobsFiltering";
+import { useJobsFiltering } from "@/features/jobs/hooks/useJobsFiltering";
 
 describe("useJobsFiltering extended", () => {
   it("normaliza acentuação e sinais na busca", () => {

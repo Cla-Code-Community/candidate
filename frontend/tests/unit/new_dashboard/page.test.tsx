@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import NewDashboardPage from "@/domains/new_dashboard/NewDashboardPage";
+import NewDashboardPage from "@/app/dashboard/DashboardPage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /* -------------------------------------------------------------------------- */
 /*                              MOCKS DE MÓDULOS                              */
-/*         ⚠️  caminhos SEMPRE com alias @/domains/new_dashboard/...           */
+/*         ⚠️  caminhos SEMPRE com aliases canônicos de app/ e features/           */
 /*         porque vi.mock resolve relativo ao ARQUIVO DE TESTE.               */
 /* -------------------------------------------------------------------------- */
 
@@ -25,7 +25,7 @@ vi.mock("react-router-dom", async (importOriginal) => {
 });
 
 const mockRefreshUser = vi.fn().mockResolvedValue(undefined);
-vi.mock("@/domains/auth/application/AuthContext", () => ({
+vi.mock("@/features/auth/application/AuthContext", () => ({
   useAuth: () => ({
     user: { id: "u1", name: "Tester" },
     refreshUser: mockRefreshUser,
@@ -33,9 +33,10 @@ vi.mock("@/domains/auth/application/AuthContext", () => ({
 }));
 
 // ---------- Child components (paths com alias!) ----------
-vi.mock("@/domains/new_dashboard/components/dashboard/DashboardTab", () => ({
+vi.mock("@/features/dashboard/components/DashboardTab", () => ({
   DashboardTab: (props: any) => (
     <div data-testid="dashboard-tab">
+      <output data-testid="tracked-scores">{props.jobs.map((job: any) => job.matchScore ?? "Não calculado").join(",")}</output>
       <button onClick={() => props.onOpenJob({ id: "job-1" })}>dash-open</button>
       <button onClick={() => props.onStatusChange("job-1", "applied")}>
         dash-status
@@ -45,11 +46,11 @@ vi.mock("@/domains/new_dashboard/components/dashboard/DashboardTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/help/HelpTab", () => ({
+vi.mock("@/features/help/components/HelpTab", () => ({
   HelpTab: () => <div data-testid="help-tab">Help</div>,
 }));
 
-vi.mock("@/domains/new_dashboard/components/home/HomeTab", () => ({
+vi.mock("@/features/home/components/HomeTab", () => ({
   HomeTab: (props: any) => (
     <div data-testid="home-tab">
       <button onClick={() => props.onCareerChecklistChange([{ id: "c1" }])}>
@@ -60,7 +61,7 @@ vi.mock("@/domains/new_dashboard/components/home/HomeTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/AddJobModal", () => ({
+vi.mock("@/features/applications/components/AddJobModal", () => ({
   AddJobModal: (props: any) => (
     <div data-testid="add-job-modal">
       <button onClick={() => props.onAddJob({ title: "new" })}>add-submit</button>
@@ -69,7 +70,7 @@ vi.mock("@/domains/new_dashboard/components/jobs/AddJobModal", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/JobDetailModal", () => ({
+vi.mock("@/features/jobs/components/JobDetailModal", () => ({
   JobDetailModal: (props: any) => (
     <div data-testid="job-detail-modal">
       <span data-testid="detail-job-id">{props.job.id}</span>
@@ -84,9 +85,10 @@ vi.mock("@/domains/new_dashboard/components/jobs/JobDetailModal", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/jobs/JobTab", () => ({
+vi.mock("@/features/jobs/components/JobTab", () => ({
   JobTab: (props: any) => (
     <div data-testid="job-tab">
+      <output data-testid="recommended-scores">{props.jobs.map((job: any) => (job.matchScore ?? "Não calculado")).join(",")}</output>
       <button onClick={() => props.setSearchQuery("react")}>set-search</button>
       <button onClick={() => props.setFilterType("Remoto")}>set-type</button>
       <button onClick={() => props.setFilterLevel("Junior")}>set-level</button>
@@ -94,7 +96,10 @@ vi.mock("@/domains/new_dashboard/components/jobs/JobTab", () => ({
         set-continent
       </button>
       <button onClick={() => props.setCountryFilter("Brasil")}>set-country</button>
-      <button onClick={() => props.setMatchSort("best")}>set-sort</button>
+      <input aria-label="Estado / Região" value={props.stateFilter} onChange={(event) => props.setStateFilter(event.target.value)} />
+      <input aria-label="Cidade" value={props.cityFilter} onChange={(event) => props.setCityFilter(event.target.value)} />
+      <button onClick={() => props.setMatchSort(props.matchSort === "desc" ? "asc" : "desc")}>set-sort</button>
+      <button onClick={() => props.setSelectedFamilies(["backend", "fullstack", "frontend", "devops", "software"])}>set-families</button>
       <button onClick={() => props.onSearchJobs()}>jobtab-search</button>
       <button onClick={() => props.onPageChange(2)}>jobtab-page</button>
       <button onClick={() => props.onPageSizeChange(20)}>jobtab-size</button>
@@ -106,11 +111,11 @@ vi.mock("@/domains/new_dashboard/components/jobs/JobTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/mentoring/MentoringTab", () => ({
+vi.mock("@/features/mentoring/components/MentoringTab", () => ({
   MentoringTab: () => <div data-testid="mentoring-tab" />,
 }));
 
-vi.mock("@/domains/new_dashboard/components/profile/ProfileTab", () => ({
+vi.mock("@/features/profile/components/ProfileTab", () => ({
   ProfileTab: (props: any) => (
     <div data-testid="profile-tab">
       <button onClick={() => props.onSaveProfile({ name: "x" })}>save-profile</button>
@@ -121,37 +126,37 @@ vi.mock("@/domains/new_dashboard/components/profile/ProfileTab", () => ({
   ),
 }));
 
-vi.mock("@/domains/new_dashboard/components/layout/Header", () => ({
+vi.mock("@/app/dashboard/components/Header", () => ({
   Header: () => <div data-testid="header" />,
 }));
-vi.mock("@/domains/new_dashboard/components/layout/MobileTabBar", () => ({
+vi.mock("@/app/dashboard/components/MobileTabBar", () => ({
   MobileTabBar: () => <div data-testid="mobile-tab-bar" />,
 }));
-vi.mock("@/domains/new_dashboard/components/layout/Sidebar", () => ({
+vi.mock("@/app/dashboard/components/Sidebar", () => ({
   Sidebar: () => <div data-testid="sidebar" />,
 }));
 
-vi.mock("@/domains/new_dashboard/components/shared/Toast", () => ({
+vi.mock("@/shared/ui/Toast", () => ({
   Toast: ({ message }: any) =>
     message ? <div data-testid="toast">{message}</div> : null,
 }));
 
-vi.mock("@/domains/new_dashboard/constants", () => ({
+vi.mock("@/features/jobs/constants", () => ({
   jobStatuses: { applied: "Aplicada", interview: "Entrevista" },
 }));
 
-vi.mock("@/domains/new_dashboard/utils/searchKeywords", () => ({
+vi.mock("@/features/jobs/domain/searchKeywords", () => ({
   parseSearchKeywords: (s: string) =>
     s ? s.split(",").map((x) => x.trim()) : [],
 }));
 
-vi.mock("@/domains/new_dashboard/utils/jobModelFilters", () => ({
+vi.mock("@/features/jobs/domain/jobModelFilters", () => ({
   getModelFilterFromJobTypes: (types: string[]) =>
     types.includes("Remoto") ? "Remoto" : "Todos",
   modelFilterToApiFilter: (f: string) => (f === "Todos" ? {} : { model: f }),
 }));
 
-vi.mock("@/domains/new_dashboard/utils/locationFilters", () => ({}));
+vi.mock("@/features/jobs/domain/locationFilters", () => ({}));
 
 // ---------- Hooks ----------
 const mockSetUserProfile = vi.fn();
@@ -161,7 +166,7 @@ const mockSaveSearchPreferences = vi.fn().mockResolvedValue(undefined);
 
 let mockUserData: any = {};
 
-vi.mock("@/domains/new_dashboard/hooks/useUserDashboardData", () => ({
+vi.mock("@/features/profile/hooks/useUserDashboardData", () => ({
   useUserDashboardData: () => mockUserData,
 }));
 
@@ -174,11 +179,15 @@ const mockChangeJobStatus = vi
   );
 const mockChangeJobNotesLocally = vi.fn();
 const mockSaveJobNotes = vi.fn().mockResolvedValue(undefined);
+const mockUseDashboardJobs = vi.fn();
 
 let mockJobs: any = {};
 
-vi.mock("@/domains/new_dashboard/hooks/useDashboardJobs", () => ({
-  useDashboardJobs: () => mockJobs,
+vi.mock("@/features/jobs/hooks/useDashboardJobs", () => ({
+  useDashboardJobs: (...args: any[]) => {
+    mockUseDashboardJobs(...args);
+    return mockJobs;
+  },
 }));
 
 /* -------------------------------------------------------------------------- */
@@ -283,131 +292,20 @@ describe("NewDashboardPage - jobId via URL", () => {
   });
 });
 
-describe("NewDashboardPage - scoreJobWithTechnologies (via DashboardTab)", () => {
-  const baseJob = (overrides: any = {}) => ({
-    id: "j1",
-    jobTitle: "Frontend Developer",
-    company: "ACME",
-    location: "Brasil",
-    type: "full-time",
-    level: "senior",
-    tags: ["react", "typescript"],
-    rawPayload: {},
-    matchScore: 0,
-    ...overrides,
-  });
-
-  it("mantém score quando rawPayload.matchSource é backend_profile", () => {
-    defaultJobs({
-      trackedJobs: [
-        baseJob({
-          matchScore: 88,
-          rawPayload: { matchSource: "backend_profile" },
-        }),
-      ],
-    });
+describe("NewDashboardPage - compatibilidade autoritativa", () => {
+  it.each([83, 0, null])("preserva score salvo %s sem recalcular com outro perfil", (matchScore) => {
     mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
-  });
-
-  it("retorna job inalterado quando não há tecnologias", () => {
-    defaultJobs({ trackedJobs: [baseJob()] });
-    mockUserData.userProfile.technologyExperiences = [];
-    mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
-  });
-
-  it("ignora tecnologias com nome vazio (branch filter)", () => {
-    defaultJobs({ trackedJobs: [baseJob()] });
-    mockUserData.userProfile.technologyExperiences = [
-      { name: "  ", years: 3 },
-      { name: "React", years: 5 },
-    ];
-    mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
-  });
-
-  it("atribui score 45 quando nenhuma tecnologia casa", () => {
-    defaultJobs({ trackedJobs: [baseJob({ tags: [] })] });
-    mockUserData.userProfile.technologyExperiences = [
-      { name: "cobol", years: 5 },
-    ];
-    mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
-  });
-
-  it("calcula score com tecnologias casadas e cobre aliases js", () => {
-    defaultJobs({
-      trackedJobs: [
-        baseJob({
-          jobTitle: "Vaga Node js",
-          tags: ["Node JS"],
-          rawPayload: { description: "React and Vue" },
-        }),
-      ],
-    });
-    mockUserData.userProfile.technologyExperiences = [
-      { name: "Node js", years: 4 },
-      { name: "react", years: 3 },
-    ];
-    mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
-  });
-
-  it("cobre branch matchAliases com 'js' no final (<- ' js')", () => {
-    defaultJobs({
-      trackedJobs: [baseJob({ jobTitle: "Dev", tags: [] })],
-    });
-    mockUserData.userProfile.technologyExperiences = [
-      { name: "nodejs", years: 2 },
-    ];
-    mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
-  });
-
-  it("cobre textMatchesAlias com aliases contendo espaço", () => {
-    defaultJobs({
-      trackedJobs: [
-        baseJob({
-          jobTitle: "Vaga de node js sênior",
-          tags: [],
-          rawPayload: {},
-        }),
-      ],
-    });
-    mockUserData.userProfile.technologyExperiences = [
-      { name: "node js", years: 3 },
-    ];
-    mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
-  });
-
-  it("cobre rawPayload com arrays e valores não-string", () => {
-    defaultJobs({
-      trackedJobs: [
-        baseJob({
-          rawPayload: {
-            lista: ["react", "vue"],
-            numero: 42,
-            nulo: null,
-            texto: "graphql",
-          },
-        }),
-      ],
-    });
-    mockUserData.userProfile.technologyExperiences = [
-      { name: "react", years: 3 },
-    ];
-    mockPathname = "/dashboard";
-    render(<NewDashboardPage />);
-    expect(screen.getByTestId("dashboard-tab")).toBeInTheDocument();
+    defaultJobs({ trackedJobs: [{ id: "salva", jobTitle: "Backend", tags: [], matchScore }] });
+    mockUserData.userProfile.technologyExperiences = [{ name: "React", years: 5 }];
+    const view = render(<NewDashboardPage />);
+    const expected = matchScore === null ? "Não calculado" : String(matchScore);
+    expect(screen.getByTestId("tracked-scores")).toHaveTextContent(expected);
+    mockUserData.userProfile.technologyExperiences = [{ name: "Cobol", years: 1 }];
+    view.rerender(<NewDashboardPage />);
+    expect(screen.getByTestId("tracked-scores")).toHaveTextContent(expected);
+    defaultJobs({ trackedJobs: [{ id: "salva", jobTitle: "Backend", tags: [], matchScore: 66 }] });
+    view.rerender(<NewDashboardPage />);
+    expect(screen.getByTestId("tracked-scores")).toHaveTextContent("66");
   });
 
   it("não recalcula score em recommendedJobs quando matchScore > 0", () => {
@@ -431,7 +329,7 @@ describe("NewDashboardPage - scoreJobWithTechnologies (via DashboardTab)", () =>
     expect(screen.getByTestId("job-tab")).toBeInTheDocument();
   });
 
-  it("recalcula score em recommendedJobs quando matchScore = 0", () => {
+  it("preserva zero real em recommendedJobs", () => {
     defaultJobs({
       recommendedJobs: [
         {
@@ -863,6 +761,157 @@ describe("NewDashboardPage - useEffect de busca automática - bordas", () => {
 });
 
 describe("NewDashboardPage - buildRecommendationSearch com todos os filtros", () => {
+  it("preserva scores e empates recebidos da API sem recalcular pelo perfil local", () => {
+    mockPathname = "/vagas";
+    mockUserData.userProfile.technologyExperiences = [{ name: "React", years: 5 }];
+    defaultJobs({ recommendedJobs: [45, 94, 45, 0].map((matchScore, index) => ({
+      id: `score-${index}`, jobTitle: "React Developer", company: "ACME",
+      location: "Brasil", type: "Remoto", level: "Pleno", tags: ["React"],
+      matchScore, rawPayload: { matchSource: "backend_profile" },
+    })) });
+    render(<NewDashboardPage />);
+    expect(screen.getByTestId("recommended-scores")).toHaveTextContent("45,94,45,0");
+  });
+
+  it("não inventa score quando falta compatibilidade da API", () => {
+    mockPathname = "/vagas";
+    mockUserData.userProfile.technologyExperiences = [{ name: "Cobol", years: 5 }];
+    defaultJobs({ recommendedJobs: [{
+      id: "sem-score", jobTitle: "Frontend Developer", company: "ACME",
+      location: "Brasil", type: "Remoto", level: "Pleno", tags: ["React"],
+      matchScore: null, rawPayload: {},
+    }] });
+    render(<NewDashboardPage />);
+    expect(screen.getByTestId("recommended-scores")).toHaveTextContent("Não calculado");
+  });
+
+  it.each(["desc", "asc"])("preserva Match %s na carga inicial com cinco áreas da URL", (matchSort) => {
+    mockPathname = "/vagas";
+    const family = "backend,fullstack,frontend,devops,software";
+    mockSearchParamsValue = new URLSearchParams({ family, familyMode: "primary", matchSort });
+    render(<NewDashboardPage />);
+    expect(mockUseDashboardJobs.mock.lastCall?.[1].initialRecommendationSearch.filters).toEqual(
+      expect.objectContaining({ family, familyMode: "primary", matchSort }),
+    );
+  });
+
+  it("troca áreas sem refazer a carga inicial e preserva Match na paginação", async () => {
+    vi.useFakeTimers();
+    mockPathname = "/vagas";
+    mockSearchParamsValue = new URLSearchParams("matchSort=desc");
+    render(<NewDashboardPage />);
+    const initial = mockUseDashboardJobs.mock.lastCall?.[1].initialRecommendationSearch;
+    fireEvent.click(screen.getByText("set-families"));
+    expect(mockUseDashboardJobs.mock.lastCall?.[1].initialRecommendationSearch).toBe(initial);
+    await act(async () => { vi.advanceTimersByTime(500); });
+    const filters = { family: "backend,fullstack,frontend,devops,software", familyMode: "primary", matchSort: "desc" };
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith([], filters, 1);
+    expect((mockSetSearchParams.mock.lastCall?.[0] as URLSearchParams).get("family")).toBe(filters.family);
+    await act(async () => { fireEvent.click(screen.getByText("jobtab-page")); });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith([], filters, 2, 10);
+    fireEvent.click(screen.getByText("set-sort"));
+    await act(async () => { vi.advanceTimersByTime(500); });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith([], { ...filters, matchSort: "asc" }, 1);
+  });
+
+  it("alterna Match DESC/ASC preservando filtros, URL e paginação remota", async () => {
+    vi.useFakeTimers();
+    mockPathname = "/vagas";
+    render(<NewDashboardPage />);
+    fireEvent.click(screen.getByText("set-search"));
+    fireEvent.click(screen.getByText("set-country"));
+    fireEvent.change(screen.getByRole("textbox", { name: "Estado / Região" }), { target: { value: "SC" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cidade" }), { target: { value: "Joinville" } });
+    fireEvent.click(screen.getByText("set-sort"));
+    await act(async () => { vi.advanceTimersByTime(500); });
+    const filters = { country: "Brasil", state: "SC", city: "Joinville", matchSort: "desc" };
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(["react"], expect.objectContaining(filters), 1);
+    expect((mockSetSearchParams.mock.lastCall?.[0] as URLSearchParams).get("matchSort")).toBe("desc");
+    await act(async () => { fireEvent.click(screen.getByText("jobtab-page")); });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(["react"], expect.objectContaining(filters), 2, 10);
+    fireEvent.click(screen.getByText("set-sort"));
+    await act(async () => { vi.advanceTimersByTime(500); });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(["react"], expect.objectContaining({ ...filters, matchSort: "asc" }), 1);
+    expect((mockSetSearchParams.mock.lastCall?.[0] as URLSearchParams).get("matchSort")).toBe("asc");
+  });
+
+  it("envia Estado e Cidade com debounce, preserva na paginação e remove ao limpar", async () => {
+    vi.useFakeTimers();
+    mockPathname = "/vagas";
+    render(<NewDashboardPage />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Estado / Região" }), {
+      target: { value: " SC " },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cidade" }), {
+      target: { value: " Joinville " },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(499);
+    });
+    expect(mockRefreshRecommendations).not.toHaveBeenCalled();
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      1,
+    );
+    const url = mockSetSearchParams.mock.lastCall?.[0] as URLSearchParams;
+    expect(url.get("state")).toBe("SC");
+    expect(url.get("city")).toBe("Joinville");
+    await act(async () => {
+      fireEvent.click(screen.getByText("jobtab-page"));
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      2,
+      10,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("jobtab-size"));
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      1,
+      20,
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Estado / Região" }), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Cidade" }), {
+      target: { value: "" },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+    const filters = mockRefreshRecommendations.mock.lastCall?.[1];
+    expect(filters).not.toHaveProperty("state");
+    expect(filters).not.toHaveProperty("city");
+  });
+
+  it("restaura os filtros regionais da URL", async () => {
+    mockPathname = "/vagas";
+    mockSearchParamsValue = new URLSearchParams("state=SC&city=Joinville");
+    render(<NewDashboardPage />);
+    expect(screen.getByRole("textbox", { name: "Estado / Região" })).toHaveValue(
+      "SC",
+    );
+    expect(screen.getByRole("textbox", { name: "Cidade" })).toHaveValue(
+      "Joinville",
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByText("jobtab-search"));
+    });
+    expect(mockRefreshRecommendations).toHaveBeenLastCalledWith(
+      [],
+      expect.objectContaining({ state: "SC", city: "Joinville" }),
+      1,
+    );
+  });
+
   it("aplica todos os filtros na busca", async () => {
     mockPathname = "/vagas";
     render(<NewDashboardPage />);
@@ -881,7 +930,7 @@ describe("NewDashboardPage - buildRecommendationSearch com todos os filtros", ()
         continent: "América",
         country: "Brasil",
         location: "Brasil",
-        matchSort: "best",
+        matchSort: "desc",
       }),
       1,
     );
