@@ -24,7 +24,7 @@ export const JobSchema = z.object({
   salary: z.string().min(1),
   type: JobTypeSchema,
   level: JobLevelSchema,
-  matchScore: z.number().int().min(0).max(100),
+  matchScore: z.number().int().min(0).max(100).nullable(),
   tags: z.array(z.string()),
   posted: z.string().min(1),
   status: JobStatusSchema,

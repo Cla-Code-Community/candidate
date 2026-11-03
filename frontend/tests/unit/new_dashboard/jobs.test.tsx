@@ -441,6 +441,14 @@ describe("new_dashboard job components", () => {
     expect(screen.getByText(baseJob.location)).toBeInTheDocument();
   });
 
+  it("exibe ausência como Não calculado e preserva zero real", () => {
+    const view = render(<table><tbody><JobRow job={{ ...baseJob, matchScore: null }} onOpen={() => {}} onStatusChange={() => {}} /></tbody></table>);
+    expect(screen.getByText("Não calculado")).toBeInTheDocument();
+    expect(screen.queryByText("45%")).not.toBeInTheDocument();
+    view.rerender(<table><tbody><JobRow job={{ ...baseJob, matchScore: 0 }} onOpen={() => {}} onStatusChange={() => {}} /></tbody></table>);
+    expect(screen.getByText("0%")).toBeInTheDocument();
+  });
+
   it("ordena Match antes da paginação local e trata valores nulos como zero", () => {
     const jobs = Array.from({ length: 12 }, (_, index) => ({ ...baseJob, id: `match-${index}`, jobTitle: `Match ${index}`, matchScore: index === 11 ? 100 : index }));
     jobs[0].matchScore = null as unknown as number;

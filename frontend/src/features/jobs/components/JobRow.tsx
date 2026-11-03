@@ -163,12 +163,14 @@ export function JobRow({ job, onOpen, onStatusChange }: JobRowProps) {
         <span
           className="inline-flex items-center rounded-full border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold leading-4 text-accent"
           title={
-            matched.length > 0
+            job.matchScore === null
+              ? "Compatibilidade não calculada"
+              : matched.length > 0
               ? `Tecnologias em comum: ${matched.join(", ")}`
               : "Sem tecnologias do perfil identificadas no texto da vaga"
           }
         >
-          {job.matchScore}%
+          {job.matchScore === null ? "Não calculado" : `${job.matchScore}%`}
         </span>
       </td>
       <td

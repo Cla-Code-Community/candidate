@@ -51,7 +51,15 @@ function readCachedTrackedJobs(userId: string): Job[] {
     if (!raw) return [];
 
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    // O cache antigo podia conter scores artificiais calculados no cliente.
+    return Array.isArray(parsed)
+      ? parsed.map((job: Job) => ({
+          ...job,
+          matchScore: job.rawPayload?.matchSource === "backend_profile"
+            ? job.matchScore
+            : null,
+        }))
+      : [];
   } catch {
     return [];
   }

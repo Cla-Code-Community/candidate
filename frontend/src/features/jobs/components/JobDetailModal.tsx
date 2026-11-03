@@ -195,7 +195,7 @@ export function JobDetailModal({
           <InfoTile label="Salário" value={job.salary} />
           <InfoTile
             label="Compatibilidade"
-            value={`${job.matchScore}%`}
+            value={job.matchScore === null ? "Não calculado" : `${job.matchScore}%`}
             valueClassName="text-emerald-600 dark:text-emerald-400"
           />
           {classification.primaryFamily ? (

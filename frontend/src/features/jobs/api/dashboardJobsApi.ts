@@ -252,14 +252,6 @@ function inferLevel(title: string): JobLevel {
   return "Pleno";
 }
 
-function stableMatchScore(value: string) {
-  const hash = [...value].reduce(
-    (total, character) => total + character.charCodeAt(0),
-    0,
-  );
-  return 70 + (hash % 26);
-}
-
 function formatPublicationDate(value: string | null | undefined) {
   const rawDate = value?.trim();
   if (!rawDate) return "Não informado";
@@ -329,7 +321,7 @@ export function toRecommendedJob(job: ApiSearchJob, index: number): Job {
     ),
     level: inferLevel(title),
     // Sem perfil o backend nao calcula match; nao inventamos um score aqui.
-    matchScore: typeof job.matchScore === "number" ? job.matchScore : 0,
+    matchScore: typeof job.matchScore === "number" ? job.matchScore : null,
     tags: tags.length > 0 ? tags : ["Geral"],
     posted: formatPublicationDate(job.postedAt),
     status: "saved",
@@ -353,7 +345,8 @@ export function toDashboardSavedJob(job: ApiSavedJob): Job {
     salary: "A combinar",
     type: inferTypeFromText([title, location].join(" ")),
     level: inferLevel(title),
-    matchScore: stableMatchScore(`${title}:${job.company ?? ""}`),
+    // O contrato de vagas salvas ainda não retorna compatibilidade.
+    matchScore: null,
     tags: job.keyword?.trim() ? [job.keyword.trim()] : ["Geral"],
     posted: "Não informado",
     status: job.status,
