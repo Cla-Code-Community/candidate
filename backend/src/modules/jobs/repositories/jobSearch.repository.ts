@@ -1,3 +1,5 @@
+import { performance } from "node:perf_hooks";
+import { logger } from "../../../logger";
 import { searchPageCache } from "../cache/valkeySearchCache.adapter";
 import { openIndexedSearch } from "./valkeyJobSearch.adapter";
 import {
@@ -43,6 +45,18 @@ export class JobSearchRepository {
     enrich?: (jobs: unknown[]) => Promise<unknown[]>,
     priorityKeywords: string[] = [],
   ): Promise<{ jobs: unknown[]; total: number }> {
+    // Opt-in: only aggregate timings/counts; never log filters, IDs or profile data.
+    const diagnostics = process.env.JOB_SEARCH_DIAGNOSTICS === "1";
+    const clock = () => (diagnostics ? performance.now() : 0);
+    const started = clock();
+    let batches = 0;
+    let hydratedDocuments = 0;
+    let matchedDocuments = 0;
+    let returnedDocuments = 0;
+    let hydrationMs = 0;
+    let filterMs = 0;
+    let matchMs = 0;
+    let rankingMs = 0;
     const indexed = await openIndexedSearch(filters, priorityKeywords);
     const ids = indexed
       ? []
@@ -68,11 +82,22 @@ export class JobSearchRepository {
       for (let cursor = 0; cursor < ids.length; cursor += BATCH_SIZE)
         yield await cacheGetJobsByIds(ids.slice(cursor, cursor + BATCH_SIZE));
     }
+    const candidatesMs = clock() - started;
+    let hydrationStarted = clock();
     try {
       for await (const batch of indexed ? indexed.batches() : legacyBatches()) {
+        hydrationMs += clock() - hydrationStarted;
+        batches++;
+        hydratedDocuments += batch.length;
+        const filterStarted = clock();
         const matches = filterJobs(batch, filters);
+        filterMs += clock() - filterStarted;
+        matchedDocuments += matches.length;
         if (filters.matchSort && enrich) {
+          const matchStarted = clock();
           const jobs = await enrich(matches);
+          matchMs += clock() - matchStarted;
+          const rankingStarted = clock();
           const candidates = jobs.map((job, index) => ({
             id: String((job as { id: string }).id),
             rank: total + index,
@@ -83,38 +108,54 @@ export class JobSearchRepository {
             ranked = [...ranked, ...candidates]
               .sort(compare)
               .slice(0, capacity);
+          rankingMs += clock() - rankingStarted;
         } else {
           for (const job of matches) {
             if (total >= offset && page.length < pagination.limit)
               page.push(job);
             total++;
           }
+          hydrationStarted = clock();
           continue;
         }
         total += matches.length;
+        hydrationStarted = clock();
       }
-      if (indexed && filters.matchSort && enrich) {
-        page.push(
-          ...(await indexed.hydrate(
-            await indexed.rankedIds(offset, pagination.limit, total),
-          )),
-        );
+      hydrationMs += clock() - hydrationStarted;
+      let resultJobs = page;
+      if (filters.matchSort && enrich) {
+        let pageIds: string[];
+        if (indexed) {
+          const rankingStarted = clock();
+          pageIds = await indexed.rankedIds(offset, pagination.limit, total);
+          rankingMs += clock() - rankingStarted;
+        } else {
+          pageIds = ranked
+            .slice(offset, offset + pagination.limit)
+            .map((item) => item.id);
+        }
+        const pageHydrationStarted = clock();
+        resultJobs = indexed
+          ? await indexed.hydrate(pageIds)
+          : await cacheGetJobsByIds(pageIds);
+        hydrationMs += clock() - pageHydrationStarted;
+        hydratedDocuments += resultJobs.length;
       }
+      returnedDocuments = resultJobs.length;
+      return { jobs: resultJobs, total };
     } finally {
-      await indexed?.close();
+      try {
+        await indexed?.close();
+      } finally {
+        if (diagnostics) {
+          logger.info({
+            durationMs: clock() - started,
+            candidatesMs, hydrationMs, filterMs, matchMs, rankingMs,
+            batches, hydratedDocuments, matchedDocuments, returnedDocuments, total,
+            indexed: Boolean(indexed), matchSorted: Boolean(filters.matchSort),
+          }, "Diagnóstico agregado da busca de vagas");
+        }
+      }
     }
-    return {
-      jobs:
-        filters.matchSort && enrich
-          ? indexed
-            ? page
-            : await cacheGetJobsByIds(
-                ranked
-                  .slice(offset, offset + pagination.limit)
-                  .map((item) => item.id),
-              )
-          : page,
-      total,
-    };
   }
 }

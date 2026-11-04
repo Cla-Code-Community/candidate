@@ -1,6 +1,9 @@
 vi.mock("../../../../src/modules/jobs/repositories/valkeyJobSearch.adapter", () => ({ openIndexedSearch: vi.fn().mockResolvedValue(null), hasActiveJobIndex: vi.fn().mockResolvedValue(false) }));
 vi.mock("../../../../src/modules/jobs/cache/valkeySearchCache.adapter", () => ({ searchPageCache: {search: async (_f: unknown, _p: unknown, _r: unknown, query: () => Promise<unknown>) => query()} }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../../../../src/logger", () => ({ logger: { info: vi.fn() } }));
+import { logger } from "../../../../src/logger";
+import { openIndexedSearch } from "../../../../src/modules/jobs/repositories/valkeyJobSearch.adapter";
 vi.mock("../../../../src/lib/cache", () => ({
   cacheAbsoluteSMembers: vi.fn(),
   cacheGetJobsByIds: vi.fn(),
@@ -49,6 +52,54 @@ beforeEach(() => {
   seed(jobs);
 });
 describe("persisted family search", () => {
+  it("inclui a hidratação final do ranking no diagnóstico indexado", async () => {
+    const data = [{ id: "a", matchScore: 90 }, { id: "b", matchScore: 80 }];
+    const indexed = {
+      async *batches() { yield data; },
+      rank: vi.fn().mockResolvedValue(undefined),
+      rankedIds: vi.fn().mockResolvedValue(["a"]),
+      hydrate: vi.fn().mockResolvedValue([data[0]]),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    vi.mocked(openIndexedSearch).mockResolvedValueOnce(indexed);
+    vi.stubEnv("JOB_SEARCH_DIAGNOSTICS", "1");
+    try {
+      const result = await repository.search(
+        parseJobSearchQuery({ matchSort: "desc" }),
+        { page: 1, limit: 1 }, async (batch) => batch,
+      );
+      expect(result).toEqual({ total: 2, jobs: [data[0]] });
+      expect(indexed.close).toHaveBeenCalledOnce();
+      expect(indexed.rankedIds).toHaveBeenCalledWith(0, 1, 2);
+      expect(logger.info).toHaveBeenCalledWith(expect.objectContaining({
+        batches: 1, hydratedDocuments: 3, matchedDocuments: 2,
+        returnedDocuments: 1, total: 2, indexed: true, matchSorted: true,
+      }), "Diagnóstico agregado da busca de vagas");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("diagnostica a varredura além da página sem registrar documentos ou filtros", async () => {
+    const data = Array.from({ length: 605 }, (_, i) => ({ id: String(i) }));
+    seed(data);
+    vi.stubEnv("JOB_SEARCH_DIAGNOSTICS", "1");
+    try {
+      const result = await search({}, 1, 50);
+      expect(result.total).toBe(605);
+      expect(result.jobs).toHaveLength(50);
+      expect(logger.info).toHaveBeenCalledWith({
+        durationMs: expect.any(Number), candidatesMs: expect.any(Number),
+        hydrationMs: expect.any(Number), filterMs: expect.any(Number),
+        matchMs: expect.any(Number), rankingMs: expect.any(Number),
+        batches: 4, hydratedDocuments: 605, matchedDocuments: 605,
+        returnedDocuments: 50, total: 605, indexed: false, matchSorted: false,
+      }, "Diagnóstico agregado da busca de vagas");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it.each([
     ["backend", "primary", ["backend"]],
     ["backend", "any", ["backend", "leadership"]],
