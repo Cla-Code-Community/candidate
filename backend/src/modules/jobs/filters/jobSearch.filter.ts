@@ -68,36 +68,33 @@ function inferJobLevel(title: string): string {
   return "pleno";
 }
 
+// Match the separator run that normalizeComparable would turn into one space.
+// Do not use \s: punctuation and Unicode separators must keep matching too.
+const HOME_OFFICE_PATTERN = /home[^\p{L}\p{N}]+office/u;
+
 function inferJobType(job: SearchJob): string {
-  const normalized = normalizeComparable(
-    [job.title, job.location, job.modality, job.description]
-      .filter(Boolean)
-      .join(" "),
-  );
+  // Stems contain only letters: replacing separators cannot create a match.
+  // Keep the full description and hybrid precedence, including conflicting fields.
+  const normalized = [job.title, job.location, job.modality, job.description]
+    .filter(Boolean)
+    .join(" ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 
   if (normalized.includes("hibrid") || normalized.includes("hybrid")) {
     return "hibrido";
   }
   if (
     normalized.includes("remot") ||
-    normalized.includes("home office") ||
+    HOME_OFFICE_PATTERN.test(normalized) ||
     normalized.includes("teletrabalho") ||
     normalized.includes("anywhere") ||
     normalized.includes("worldwide")
   ) {
     return "remoto";
   }
-  if (
-    normalized.includes("presencial") ||
-    normalized.includes("onsite") ||
-    normalized.includes("on site") ||
-    normalized.includes("on-site") ||
-    normalized.includes("in office") ||
-    normalized.includes("escritorio")
-  ) {
-    return "presencial";
-  }
-
+  // All explicit onsite aliases and documents without evidence use this fallback.
   return "presencial";
 }
 
@@ -242,15 +239,10 @@ export function inferJobLocationParts(location: string): JobLocationParts {
   return parts;
 }
 
-function inferLocationCountry(location: string): string {
-  return inferJobLocationParts(location).country;
-}
-
-function matchesLocationFilter(jobLocation: string, location: string): boolean {
+function matchesLocationFilter(jobLocation: string, location: string, inferredCountry: string): boolean {
   if (!location) return true;
 
   const normalizedLocation = normalizeComparable(jobLocation);
-  const inferredCountry = inferLocationCountry(jobLocation);
   if (inferredCountry) return inferredCountry === location;
 
   return normalizedLocation.includes(location);
@@ -307,6 +299,7 @@ export function filterJobs(
   const families = filters.families.map(normalizeComparable);
   const technologies = filters.technology.map(normalizeComparable);
   const companies = filters.company.map(normalizeComparable);
+  const needsLocation = Boolean(location || continent || state || city);
 
   if (
     !level &&
@@ -348,20 +341,20 @@ export function filterJobs(
       !seniority ||
       classifiedSeniority === seniority ||
       inferJobLevel(title) === seniority;
-    const locationParts = inferJobLocationParts(jobLocation);
-    const matchesLocation = matchesLocationFilter(jobLocation, location);
+    const locationParts = needsLocation ? inferJobLocationParts(jobLocation) : undefined;
+    const matchesLocation = matchesLocationFilter(jobLocation, location, locationParts?.country ?? "");
     const matchesContinent = matchesLocationPart(
-      locationParts.continent,
+      locationParts?.continent ?? "",
       jobLocation,
       continent,
     );
     const matchesState = matchesLocationPart(
-      locationParts.state,
+      locationParts?.state ?? "",
       jobLocation,
       state,
     );
     const matchesCity = matchesLocationPart(
-      locationParts.city,
+      locationParts?.city ?? "",
       jobLocation,
       city,
     );
