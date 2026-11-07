@@ -288,6 +288,14 @@ export function filterJobs(
   jobs: unknown[],
   filters: ParsedJobSearchQuery,
 ): unknown[] {
+  return prepareJobFilter(filters)(jobs);
+}
+
+/** Request-local preparation: reuse normalized filters across hydrated batches. */
+export function prepareJobFilter(
+  filters: ParsedJobSearchQuery,
+): (jobs: unknown[]) => unknown[] {
+  const familyMode = filters.familyMode;
   const level = normalizeLevelFilter(filters.level);
   const seniority = normalizeLevelFilter(filters.seniority);
   const location = normalizeComparable(filters.country || filters.location);
@@ -314,10 +322,10 @@ export function filterJobs(
     technologies.length === 0 &&
     companies.length === 0
   ) {
-    return jobs;
+    return (jobs) => jobs;
   }
 
-  return jobs.filter((job) => {
+  return (jobs) => jobs.filter((job) => {
     const candidate = job as SearchJob;
     const title = candidate.title ?? "";
     const jobLocation = candidate.location ?? "";
@@ -325,7 +333,7 @@ export function filterJobs(
     const classification = candidate.classification;
     const classifiedFamilies = [
       classification?.primaryFamily,
-      ...(filters.familyMode === "any" ? classification?.relatedFamilies ?? [] : []),
+      ...(familyMode === "any" ? classification?.relatedFamilies ?? [] : []),
     ]
       .filter(Boolean)
       .map((value) => normalizeComparable(String(value)));

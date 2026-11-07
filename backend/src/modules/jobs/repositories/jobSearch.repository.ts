@@ -8,7 +8,7 @@ import {
   cacheSearchKeywords,
 } from "../../../lib/cache";
 import type { PaginationParams } from "../../../lib/pagination";
-import { filterJobs } from "../filters/jobSearch.filter";
+import { prepareJobFilter } from "../filters/jobSearch.filter";
 import type { ParsedJobSearchQuery } from "../types/jobSearch.types";
 
 const BATCH_SIZE = 200;
@@ -85,12 +85,16 @@ export class JobSearchRepository {
     const candidatesMs = clock() - started;
     let hydrationStarted = clock();
     try {
+      const preparationStarted = clock();
+      const applyFilters = prepareJobFilter(filters);
+      filterMs += clock() - preparationStarted;
+      hydrationStarted = clock();
       for await (const batch of indexed ? indexed.batches() : legacyBatches()) {
         hydrationMs += clock() - hydrationStarted;
         batches++;
         hydratedDocuments += batch.length;
         const filterStarted = clock();
-        const matches = filterJobs(batch, filters);
+        const matches = applyFilters(batch);
         filterMs += clock() - filterStarted;
         matchedDocuments += matches.length;
         if (filters.matchSort && enrich) {

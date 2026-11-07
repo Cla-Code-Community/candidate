@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   filterJobs,
+  prepareJobFilter,
   normalizeComparable,
   inferJobLocationParts,
   sortJobsByMatch,
@@ -76,6 +77,23 @@ describe("inferJobLocationParts", () => {
 });
 
 describe("filterJobs", () => {
+  it("reutiliza filtros preparados entre lotes preservando ordem e documentos", () => {
+    const apply = prepareJobFilter(filters({ company: "acme", country: "Brasil", family: "backend", technology: "Go", contract: "clt" }));
+    expect([...apply(JOBS.slice(0, 1)), ...apply(JOBS.slice(1))]).toEqual([JOBS[0]]);
+    expect(apply(JOBS)).toEqual([JOBS[0]]);
+    expect(apply([])).toEqual([]);
+  });
+
+  it("isola a preparação de mudanças posteriores dos filtros e preserva o caminho sem filtros", () => {
+    const query = filters({ family: "backend", familyMode: "primary" });
+    const apply = prepareJobFilter(query);
+    query.families.push("frontend");
+    query.familyMode = "any";
+    const data = [JOBS[0], JOBS[1], { id: "related", classification: { primaryFamily: "leadership", relatedFamilies: ["backend"] } }];
+    expect(apply(data)).toEqual([JOBS[0]]);
+    expect(prepareJobFilter(query)(data)).toEqual(data);
+    expect(prepareJobFilter(filters({}))(JOBS)).toBe(JOBS);
+  });
   it("preserva fallback textual e precedência do país em filtros combinados", () => {
     const data = [
       { id: "known", company: "Acme", location: "Toronto, Canadá" },
