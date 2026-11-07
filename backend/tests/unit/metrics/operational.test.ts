@@ -47,7 +47,7 @@ describe("operational metrics cardinality and cache", () => {
       if (result === "stale") storage.generation.mockResolvedValue(null);
       if (result === "error")
         storage.generation.mockRejectedValue(new Error("secret free error"));
-      await new JobSearchCache(storage).search(
+      const search = new JobSearchCache(storage).search(
         parseJobSearchQuery({
           family: "product",
           keywords: "private free text",
@@ -56,6 +56,8 @@ describe("operational metrics cardinality and cache", () => {
         null,
         async () => ({ jobs: [], total: 0 }),
       );
+      if (["stale", "error"].includes(result)) await expect(search).rejects.toMatchObject({ statusCode: 503 });
+      else await search;
       expect((await searchCacheRequests.get()).values).toContainEqual(
         expect.objectContaining({ labels: { result }, value: 1 }),
       );
@@ -125,12 +127,12 @@ it("records a rejected generation publication as stale", async () => {
     read: vi.fn().mockResolvedValue(null),
     writeIfGeneration: vi.fn().mockResolvedValue(false),
   };
-  await new JobSearchCache(storage).search(
+  await expect(new JobSearchCache(storage).search(
     parseJobSearchQuery({ family: "product" }),
     { page: 1, limit: 20 },
     null,
     async () => ({ jobs: [], total: 0 }),
-  );
+  )).rejects.toMatchObject({ statusCode: 503 });
   expect((await searchCacheRequests.get()).values).toEqual([
     expect.objectContaining({ labels: { result: "stale" }, value: 1 }),
   ]);

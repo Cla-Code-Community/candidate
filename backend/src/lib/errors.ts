@@ -8,6 +8,7 @@ export type ErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "SEARCH_CATALOG_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
 export type ErrorDetails = Record<string, unknown>;
