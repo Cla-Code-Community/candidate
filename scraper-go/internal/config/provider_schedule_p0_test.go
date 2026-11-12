@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProviderSchedulePresetHas21IndependentWindows(t *testing.T) {
+func TestProviderSchedulePresetHas22IndependentWindows(t *testing.T) {
 	windows, err := ParseProviderWindows(ProviderSchedulePreset)
 	require.NoError(t, err)
-	require.Len(t, windows, 21)
+	require.Len(t, windows, 22)
 	counts := map[string]int{}
 	ids := map[string]bool{}
-	expected := []string{"greenhouse", "gupy", "inhire", "linkedin", "adzuna", "lever", "greenhouse", "gupy", "inhire", "linkedin", "themuse", "greenhouse", "gupy", "inhire", "adzuna", "lever", "linkedin", "greenhouse", "gupy", "inhire", "jooble"}
+	expected := []string{"greenhouse", "gupy", "inhire", "linkedin", "adzuna", "lever", "greenhouse", "gupy", "inhire", "linkedin", "themuse", "greenhouse", "gupy", "inhire", "adzuna", "lever", "linkedin", "greenhouse", "gupy", "inhire", "jooble", "greenhouse"}
 	for i, w := range windows {
 		require.Equal(t, expected[i], string(w.Provider))
 		require.Equal(t, i*60, w.Start)
@@ -26,7 +26,7 @@ func TestProviderSchedulePresetHas21IndependentWindows(t *testing.T) {
 		ids[w.WindowID()] = true
 		counts[string(w.Provider)]++
 	}
-	require.Equal(t, map[string]int{"greenhouse": 4, "gupy": 4, "inhire": 4, "linkedin": 3, "adzuna": 2, "lever": 2, "themuse": 1, "jooble": 1}, counts)
+	require.Equal(t, map[string]int{"greenhouse": 5, "gupy": 4, "inhire": 4, "linkedin": 3, "adzuna": 2, "lever": 2, "themuse": 1, "jooble": 1}, counts)
 	values := map[string]string{ProviderWindowsEnv: ProviderSchedulePreset}
 	cfg, err := LoadRuntimeConfigFromLookup(func(k string) (string, bool) { v, ok := values[k]; return v, ok })
 	require.NoError(t, err)

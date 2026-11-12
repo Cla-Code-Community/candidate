@@ -39,6 +39,7 @@ const (
 )
 
 type RuntimeConfig struct {
+	GreenhouseWindowMaxAdapters  int
 	MinSuccessPercent            int
 	ProviderWindows              []ProviderWindow
 	GreenhouseBatchSize          int
@@ -129,6 +130,10 @@ func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeCon
 		}
 	}
 	cfg.MinSuccessPercent, err = boundedPositiveIntFromLookup(lookup, "SCRAPER_MIN_SUCCESS_PERCENT", 50, 100)
+	if err != nil {
+		return RuntimeConfig{}, err
+	}
+	cfg.GreenhouseWindowMaxAdapters, err = boundedPositiveIntFromLookup(lookup, "SCRAPER_GREENHOUSE_WINDOW_MAX_ADAPTERS", 680, 1000)
 	if err != nil {
 		return RuntimeConfig{}, err
 	}

@@ -116,6 +116,7 @@ func run(adapterList []ports.JobSource, runtimeCfg config.RuntimeConfig) {
 	schedulerCfg.ScrapeTimeout = runtimeCfg.ScrapeTimeout
 	schedulerCfg.ProviderWindows = runtimeCfg.ProviderWindows
 	schedulerCfg.MinSuccessPercent = runtimeCfg.MinSuccessPercent
+	schedulerCfg.GreenhouseWindowMaxAdapters = runtimeCfg.GreenhouseWindowMaxAdapters
 	schedulerCfg.GreenhouseBatchSize = runtimeCfg.GreenhouseBatchSize
 
 	schedulerCfg.MaxConcurrency = runtimeCfg.MaxConcurrency

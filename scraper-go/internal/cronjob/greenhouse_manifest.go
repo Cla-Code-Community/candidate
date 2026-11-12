@@ -21,7 +21,7 @@ import (
 // every retained board's group; never regenerate all groups from a new sort.
 // A version already pinned in Valkey is immutable, including across replicas.
 //
-//go:embed greenhouse_manifest_v1.json
+//go:embed greenhouse_manifest_v2.json
 var greenhouseManifestJSON []byte
 
 type greenhouseManifest struct {
@@ -34,11 +34,11 @@ func parseGreenhouseManifest(data []byte) (greenhouseManifest, string, error) {
 	if err := json.Unmarshal(data, &m); err != nil {
 		return m, "", fmt.Errorf("greenhouse manifest: %w", err)
 	}
-	if !strings.HasPrefix(m.Version, "greenhouse-v") || len(m.Version) <= len("greenhouse-v") || len(m.Groups) != 4 {
+	if !strings.HasPrefix(m.Version, "greenhouse-v") || len(m.Version) <= len("greenhouse-v") || len(m.Groups) != 5 {
 		return m, "", fmt.Errorf("invalid greenhouse manifest version/groups")
 	}
 	seen := map[string]bool{}
-	for i := 1; i <= 4; i++ {
+	for i := 1; i <= 5; i++ {
 		group, ok := m.Groups[fmt.Sprintf("greenhouse-%d", i)]
 		if !ok {
 			return m, "", fmt.Errorf("missing greenhouse group %d", i)
@@ -112,6 +112,18 @@ func (s *Scheduler) greenhouseFixedBatch(ctx context.Context, lease *runlock.Lea
 	manifest, digest, err := parseGreenhouseManifest(greenhouseManifestJSON)
 	if err != nil {
 		return nil, err
+	}
+	limit := s.cfg.GreenhouseWindowMaxAdapters
+	if limit == 0 {
+		limit = 680
+	}
+	if limit < 1 {
+		return nil, fmt.Errorf("greenhouse window maximum must be positive")
+	}
+	for group, ids := range manifest.Groups {
+		if len(ids) > limit {
+			return nil, fmt.Errorf("greenhouse group %s has %d adapters, maximum %d", group, len(ids), limit)
+		}
 	}
 	batch, err := manifest.selectGroup(s.adapterList, windowID)
 	if err != nil {

@@ -21,6 +21,7 @@ import (
 )
 
 type Config struct {
+	GreenhouseWindowMaxAdapters  int
 	MinSuccessPercent            int
 	ProviderWindows              []config.ProviderWindow
 	GreenhouseBatchSize          int
