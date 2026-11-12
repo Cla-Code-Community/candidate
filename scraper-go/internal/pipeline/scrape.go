@@ -17,6 +17,7 @@ import (
 )
 
 type SearchConfig struct {
+	MinSuccessPercent            int                      `json:"-"`
 	GupyWindow                   bool                     `json:"-"`
 	QueryCursor                  domain.QueryCursor       `json:"-"`
 	FullKeywordCoverage          bool                     `json:"-"`
@@ -152,10 +153,12 @@ func ScrapeAllSources(
 		processCfg,
 	)
 	if err != nil {
+		stats.OperationalStatus = "failed"
 		return jobs, stats, err
 	}
-	if stats.CollectionFailed > 0 {
-		return jobs, stats, collectionFailure{stats.CollectionFailed, stats.CollectionError}
+	stats.OperationalStatus, err = EvaluateOutcome(stats, config.MinSuccessPercent, nil)
+	if err != nil {
+		return jobs, stats, err
 	}
 
 	slog.Info("scrape finished",

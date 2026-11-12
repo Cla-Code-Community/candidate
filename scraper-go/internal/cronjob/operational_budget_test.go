@@ -54,7 +54,7 @@ func TestPreparationConsumesCollectionBudgetAndPartialDrainKeepsLock(t *testing.
 	start := time.Now()
 	s.runCron(ctx)
 	require.Less(t, preparationDeadline.Sub(start), 150*time.Millisecond)
-	require.Equal(t, "partial", s.LastRun().Status)
+	require.Equal(t, "failed", s.LastRun().Status)
 	require.Positive(t, s.LastRun().JobsSaved)
 	require.Positive(t, s.LastRun().JobsIndexed)
 	require.Less(t, time.Since(start), 350*time.Millisecond)

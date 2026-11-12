@@ -39,6 +39,7 @@ const (
 )
 
 type RuntimeConfig struct {
+	MinSuccessPercent            int
 	ProviderWindows              []ProviderWindow
 	GreenhouseBatchSize          int
 	ScrapeTimeout                time.Duration
@@ -126,6 +127,10 @@ func LoadRuntimeConfigFromLookup(lookup func(string) (string, bool)) (RuntimeCon
 		if err != nil {
 			return RuntimeConfig{}, err
 		}
+	}
+	cfg.MinSuccessPercent, err = boundedPositiveIntFromLookup(lookup, "SCRAPER_MIN_SUCCESS_PERCENT", 50, 100)
+	if err != nil {
+		return RuntimeConfig{}, err
 	}
 	cfg.GreenhouseBatchSize, err = boundedPositiveIntFromLookup(lookup, "SCRAPER_GREENHOUSE_BATCH_SIZE", 1000, 1000)
 	if err != nil {

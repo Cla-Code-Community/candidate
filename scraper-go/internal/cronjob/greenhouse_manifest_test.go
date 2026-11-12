@@ -190,8 +190,13 @@ func TestGreenhouseFixedGroupsPreservePartialJobsAndNeverTransferFailures(t *tes
 			require.NoError(t, client.Set(context.Background(), greenhouseCheckpointKey, "legacy-state-must-not-change", 0).Err())
 			day := time.Now().In(mustProviderLocation(t)).AddDate(0, 0, 1)
 			start, _ := windowBounds(day, windows[0])
-			require.Error(t, s.dispatchProviderWindow(context.Background(), start))
-			require.Equal(t, "partial", s.LastRun().Status)
+			if failure == "timeout" {
+				require.Error(t, s.dispatchProviderWindow(context.Background(), start))
+				require.Equal(t, "failed", s.LastRun().Status)
+			} else {
+				require.NoError(t, s.dispatchProviderWindow(context.Background(), start))
+				require.Equal(t, "partial_success", s.LastRun().Status)
+			}
 			require.Positive(t, s.LastRun().JobsSaved)
 			require.Positive(t, s.LastRun().JobsIndexed)
 			mu.Lock()

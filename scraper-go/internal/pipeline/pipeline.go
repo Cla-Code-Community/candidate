@@ -104,6 +104,7 @@ func runWithConcurrency(
 	results := make(chan result, queueCapacity)
 	incoming := make(chan domain.Job, stageQueueCapacity(processCfg))
 	runStats := newProviderRunStats(adapterList, budget)
+	runStats.prepareAdapters(adapterList, len(req.Keywords))
 	metrics.Configure(0, maxConcurrency, adapterList, len(req.Keywords), budget.providerLimit, processCfg.RunID)
 	metrics.BindQueue("collection", func() metrics.Queue { return metrics.Queue{Depth: len(tasks), Capacity: cap(tasks)} })
 	metrics.BindQueue("classification", func() metrics.Queue { return metrics.Queue{Depth: len(incoming), Capacity: cap(incoming)} })
@@ -148,9 +149,11 @@ func runWithConcurrency(
 
 	var incomingSendWait time.Duration
 	collectionFailed := 0
+	collected := 0
 	var collectionError error
 	defer func() { metrics.ChannelSendWait.WithLabelValues("incoming").Observe(incomingSendWait.Seconds()) }()
 	for r := range results {
+		collected += len(r.jobs)
 		if r.err != nil {
 			collectionFailed++
 			collectionError = errors.Join(collectionError, r.err)
@@ -169,6 +172,11 @@ func runWithConcurrency(
 	}
 	closeIncomingFn()
 	processWg.Wait()
+	processStats.Collected = collected
+	processStats.PersistedOperations = processStats.Saved()
+	processStats.PersistedDocuments = len(processed)
+	runStats.finish(&processStats)
+	processStats.DeadlineReached = errors.Is(context.Cause(collectionCtx), context.DeadlineExceeded)
 	processStats.CollectionFailed = collectionFailed
 	processStats.CollectionError = collectionError
 	gatherWg.Wait()
@@ -392,6 +400,8 @@ func runScheduledTask(
 		return
 	}
 	defer permit.release()
+	runStats.started(task)
+	defer runStats.stopped()
 
 	source := metrics.Provider(string(task.provider))
 	started := time.Now()
