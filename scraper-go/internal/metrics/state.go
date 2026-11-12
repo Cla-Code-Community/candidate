@@ -69,6 +69,7 @@ func (s MaintenanceSummary) Valid() bool {
 }
 
 type Snapshot struct {
+	Adzuna         *AdzunaCollectionProgress   `json:"adzunaCollection,omitempty"`
 	LinkedIn       *LinkedInCollectionProgress `json:"linkedinCollection,omitempty"`
 	Providers      []ProviderState             `json:"providers"`
 	Classification *ClassificationTotals       `json:"classification"`
@@ -88,6 +89,8 @@ type Snapshot struct {
 
 var state = struct {
 	sync.Mutex
+	adzuna             *AdzunaCollectionProgress
+	adzunaGeneration   uint64
 	linkedin           *LinkedInCollectionProgress
 	linkedinGeneration uint64
 	classification     *ClassificationTotals
@@ -194,6 +197,8 @@ func StartRun(source string, started time.Time, runID ...string) {
 	}
 	state.execution.FinishedAt = nil
 	state.execution.Partial = false
+	state.adzuna = nil
+	AdzunaProgress.Reset()
 	state.linkedin = nil
 	LinkedInProgress.Reset()
 	state.classification = nil
@@ -425,6 +430,7 @@ func Current() Snapshot {
 	defer state.Unlock()
 	s := Snapshot{Execution: state.execution, Concurrency: state.concurrency, Lock: Lock{Held: state.held, TTLSeconds: max(0, time.Until(state.expiry).Seconds())}, Progress: map[string]int{}, Queues: map[string]Queue{}, RejectedTitles: []RejectedTitle{}, RejectedTitlesSince: state.titlesSince}
 	s.Execution.RunID = copyPointer(s.Execution.RunID)
+	s.Adzuna = copyPointer(state.adzuna)
 	s.LinkedIn = copyPointer(state.linkedin)
 	if state.classification != nil {
 		v := *state.classification
