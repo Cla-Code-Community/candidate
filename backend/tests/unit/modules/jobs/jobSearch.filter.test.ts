@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   filterJobs,
+  prepareJobFilter,
+  normalizeComparable,
   inferJobLocationParts,
   sortJobsByMatch,
 } from "../../../../src/modules/jobs/filters/jobSearch.filter";
@@ -75,6 +77,37 @@ describe("inferJobLocationParts", () => {
 });
 
 describe("filterJobs", () => {
+  it("reutiliza filtros preparados entre lotes preservando ordem e documentos", () => {
+    const apply = prepareJobFilter(filters({ company: "acme", country: "Brasil", family: "backend", technology: "Go", contract: "clt" }));
+    expect([...apply(JOBS.slice(0, 1)), ...apply(JOBS.slice(1))]).toEqual([JOBS[0]]);
+    expect(apply(JOBS)).toEqual([JOBS[0]]);
+    expect(apply([])).toEqual([]);
+  });
+
+  it("isola a preparação de mudanças posteriores dos filtros e preserva o caminho sem filtros", () => {
+    const query = filters({ family: "backend", familyMode: "primary" });
+    const apply = prepareJobFilter(query);
+    query.families.push("frontend");
+    query.familyMode = "any";
+    const data = [JOBS[0], JOBS[1], { id: "related", classification: { primaryFamily: "leadership", relatedFamilies: ["backend"] } }];
+    expect(apply(data)).toEqual([JOBS[0]]);
+    expect(prepareJobFilter(query)(data)).toEqual(data);
+    expect(prepareJobFilter(filters({}))(JOBS)).toBe(JOBS);
+  });
+  it("preserva fallback textual e precedência do país em filtros combinados", () => {
+    const data = [
+      { id: "known", company: "Acme", location: "Toronto, Canadá" },
+      { id: "unknown", company: "Acme", location: "Atlantis Central" },
+      { id: "empty", company: "Acme" },
+    ];
+    const ids = (query: Record<string, unknown>) =>
+      filterJobs(data, filters(query)).map((job) => (job as { id: string }).id);
+    expect(ids({ company: "acme" })).toEqual(["known", "unknown", "empty"]);
+    expect(ids({ location: "atlantis", company: "acme" })).toEqual(["unknown"]);
+    expect(ids({ country: "Canadá", location: "atlantis", city: "Toronto" })).toEqual(["known"]);
+    expect(ids({ country: "Brasil", city: "Toronto" })).toEqual([]);
+  });
+
   it("devolve tudo quando não há filtros", () => {
     expect(filterJobs(JOBS, filters({}))).toHaveLength(3);
   });
@@ -146,5 +179,63 @@ describe("sortJobsByMatch", () => {
       "c",
       "b",
     ]);
+  });
+});
+
+
+describe("inferência de modalidade sem normalizar separadores do documento inteiro", () => {
+  const cases: [string, Record<string, string>, string][] = [
+    ["remoto explícito", { modality: "Remoto" }, "remoto"],
+    ["híbrido explícito", { modality: "HÍBRIDO" }, "hibrido"],
+    ["presencial explícito", { modality: "Presencial" }, "presencial"],
+    ["ausente", {}, "presencial"],
+    ["sem descrição", { title: "Remote engineer" }, "remoto"],
+    ["híbrido inglês", { description: "HYBRID working" }, "hibrido"],
+    ["acentos", { description: "Trabalho RÉMÓTO" }, "remoto"],
+    ["home office", { description: "HOME OFFICE" }, "remoto"],
+    ["pontuação", { description: "home---office" }, "remoto"],
+    ["separadores Unicode", { description: "home\u00a0—\nOFFICE" }, "remoto"],
+    ["letra entre palavras", { description: "home界office" }, "presencial"],
+    ["número entre palavras", { description: "home1office" }, "presencial"],
+    ["sem separador", { description: "homeoffice" }, "presencial"],
+    ["frase entre campos", { title: "home", location: "office" }, "remoto"],
+    ["teletrabalho", { description: "TELETRABALHO" }, "remoto"],
+    ["anywhere", { location: "Anywhere" }, "remoto"],
+    ["worldwide", { location: "Worldwide" }, "remoto"],
+    ["onsite", { description: "Onsite" }, "presencial"],
+    ["on-site", { description: "On-Site" }, "presencial"],
+    ["in office", { description: "In Office" }, "presencial"],
+    ["escritório", { description: "ESCRITÓRIO" }, "presencial"],
+    ["descrição híbrida vence remoto estruturado", { modality: "Remote", description: "HYBRID" }, "hibrido"],
+    ["híbrido estruturado vence descrição remota", { modality: "Hybrid", description: "Remote" }, "hibrido"],
+    ["remoto vence presencial", { modality: "Presencial", description: "Remote" }, "remoto"],
+    ["todos os termos", { description: "Presencial, remote, híbrido" }, "hibrido"],
+    ["acento decomposto", { description: "hi\u0301brido" }, "hibrido"],
+  ];
+
+  it.each(cases)("preserva %s", (_name, data, expected) => {
+    const job = { id: "test", ...data };
+    for (const type of ["remoto", "hibrido", "presencial"]) {
+      expect(filterJobs([job], filters({ type })).length).toBe(type === expected ? 1 : 0);
+    }
+  });
+
+  it("mantém IDs e ordem da regra anterior com combinações de campos e Unicode", () => {
+    const terms = ["", "Remote", "Híbrido", "Onsite", "home", "office", "home---office", "home界office", "home1office", "teletrabalho", "Worldwide", "hi\u0301brido"];
+    const data = terms.flatMap((modality, i) => terms.map((description, j) => ({
+      id: `${i}-${j}`, title: i % 2 ? "home" : "Engineer", company: "Acme",
+      location: "Brasil", modality, description,
+    })));
+    function previousType(job: typeof data[number]) {
+      const text = normalizeComparable([job.title, job.location, job.modality, job.description].filter(Boolean).join(" "));
+      if (text.includes("hibrid") || text.includes("hybrid")) return "hibrido";
+      if (["remot", "home office", "teletrabalho", "anywhere", "worldwide"].some(alias => text.includes(alias))) return "remoto";
+      return "presencial";
+    }
+    for (const type of ["remoto", "hibrido", "presencial", "remoto,hibrido"]) {
+      const expected = data.filter(job => type.split(",").includes(previousType(job))).map(job => job.id);
+      const actual = filterJobs(data, filters({ type, company: "acme", country: "Brasil" }));
+      expect(actual.map(job => (job as { id: string }).id)).toEqual(expected);
+    }
   });
 });
