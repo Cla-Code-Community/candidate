@@ -10,6 +10,13 @@ function createRes() {
 }
 
 describe("errorHandler", () => {
+  it("serializa indisponibilidade do catálogo como HTTP 503 controlado", () => {
+    const { status, json, res } = createRes();
+    const error = new AppError("SEARCH_CATALOG_UNAVAILABLE", "Catálogo temporariamente indisponível.", 503, { reason: "generation_changed" });
+    errorHandler(error, {} as any, res, vi.fn());
+    expect(status).toHaveBeenCalledWith(503);
+    expect(json).toHaveBeenCalledWith(error.toJSON());
+  });
   it("retorna FORBIDDEN para erro de CORS", () => {
     const { status, json, res } = createRes();
 

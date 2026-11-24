@@ -5,6 +5,15 @@ import {
 import { jobSearchCacheKey } from "./jobSearchFingerprint";
 import type { PaginationParams } from "../../../lib/pagination";
 import type { ParsedJobSearchQuery } from "../types/jobSearch.types";
+import { AppError } from "../../../lib/errors";
+
+class GenerationChanged extends Error {
+  constructor(readonly reason = "generation_changed") { super(reason); }
+}
+
+function unavailable(reason: string): AppError {
+  return new AppError("SEARCH_CATALOG_UNAVAILABLE", "Catálogo de vagas temporariamente indisponível. Tente novamente.", 503, { reason });
+}
 
 export type SearchPage = { jobs: unknown[]; total: number };
 export interface SearchCacheStore {
@@ -21,7 +30,7 @@ export interface SearchCacheStore {
 
 /** Local single-flight combines simultaneous identical queries without reusing
  * the scraper execution lock. Failures never remain in the in-flight map.
- * Cache lookup/publication failures degrade to the normal repository query.
+ * Page-cache failures may degrade to a query; catalog fences must remain valid.
  */
 export class JobSearchCache {
   private readonly inFlight = new Map<string, Promise<SearchPage>>();
@@ -43,85 +52,70 @@ export class JobSearchCache {
     rankingContext: unknown,
     query: () => Promise<SearchPage>,
   ): Promise<SearchPage> {
-    let generation: string | null;
+    let outcome: "hit" | "miss" | "stale" | "error" = "miss";
     try {
-      const end = searchCacheDuration.startTimer({ operation: "get" });
-      try {
-        generation = await this.store.generation();
-      } finally {
-        end();
-      }
-    } catch {
-      searchCacheRequests.inc({ result: "error" });
-      return query();
-    }
-    // null means indexes are unavailable or being rebuilt; do not cache.
-    if (generation === null) {
-      searchCacheRequests.inc({ result: "stale" });
-      return query();
-    }
-    const key = jobSearchCacheKey(
-      filters,
-      pagination,
-      generation,
-      rankingContext,
-    );
-    const existing = this.inFlight.get(key);
-    if (existing) {
-      searchCacheRequests.inc({ result: "hit" });
-      return structuredClone(await existing);
-    }
-
-    const pending = (async () => {
-      let outcome: "hit" | "miss" | "stale" | "error" = "miss";
-      try {
-        try {
-          const end = searchCacheDuration.startTimer({ operation: "get" });
-          let cached;
-          let current;
-          try {
-            cached = await this.store.read(key);
-            current = await this.store.generation();
-          } finally {
-            end();
-          }
-          if (cached && current === generation) {
-            outcome = "hit";
-            return cached;
-          }
-          outcome = cached ? "stale" : "miss";
-        } catch {
-          outcome = "error";
-          // A cache outage must not hide a successful persistence query.
+      // At most one reconstruction, shared under each generation's fingerprint.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const generation = await this.readGeneration();
+        const key = jobSearchCacheKey(filters, pagination, generation, rankingContext);
+        let pending = this.inFlight.get(key);
+        if (pending) outcome = "hit";
+        else {
+          pending = (async () => {
+            let cached: SearchPage | null = null;
+            const getEnd = searchCacheDuration.startTimer({ operation: "get" });
+            try { cached = await this.store.read(key); }
+            catch { outcome = "error"; }
+            finally { getEnd(); }
+            if (cached) { outcome = "hit"; return cached; }
+            await this.requireGeneration(generation);
+            const page = await query();
+            await this.requireGeneration(generation);
+            let published: boolean | undefined;
+            const setEnd = searchCacheDuration.startTimer({ operation: "set" });
+            try {
+              published = await this.store.writeIfGeneration(key, page, generation, this.ttlSeconds);
+            } catch { outcome = "error"; }
+            finally { setEnd(); }
+            if (published === false) throw new GenerationChanged("publication_rejected");
+            return page;
+          })();
+          this.inFlight.set(key, pending);
         }
-        const page = await query();
         try {
-          const end = searchCacheDuration.startTimer({ operation: "set" });
-          try {
-            const published = await this.store.writeIfGeneration(
-              key,
-              page,
-              generation,
-              this.ttlSeconds,
-            );
-            if (!published && outcome !== "error") outcome = "stale";
-          } finally {
-            end();
-          }
-        } catch {
-          outcome = "error";
-          // The query remains useful; the next request can repopulate the cache.
+          const page = structuredClone(await pending);
+          // Also fences hits, shared results and changes during publication.
+          await this.requireGeneration(generation);
+          return page;
+        } catch (error) {
+          if (!(error instanceof GenerationChanged)) throw error;
+          outcome = "stale";
+          if (attempt === 1) throw unavailable(error.reason);
+        } finally {
+          if (this.inFlight.get(key) === pending) this.inFlight.delete(key);
         }
-        return page;
-      } finally {
-        searchCacheRequests.inc({ result: outcome });
       }
-    })();
-    this.inFlight.set(key, pending);
-    try {
-      return structuredClone(await pending);
+      throw unavailable("generation_changed");
+    } catch (error) {
+      if (error instanceof AppError && error.details?.reason === "catalog_unavailable") outcome = "stale";
+      else if (!(error instanceof AppError && ["generation_changed", "publication_rejected"].includes(String(error.details?.reason)))) outcome = "error";
+      throw error;
     } finally {
-      this.inFlight.delete(key);
+      searchCacheRequests.inc({ result: outcome });
     }
+  }
+
+  private async readGeneration(): Promise<string> {
+    const end = searchCacheDuration.startTimer({ operation: "get" });
+    let generation: string | null;
+    try { generation = await this.store.generation(); }
+    catch { throw unavailable("generation_read_failed"); }
+    finally { end(); }
+    if (generation === null) throw unavailable("catalog_unavailable");
+    return generation;
+  }
+
+  private async requireGeneration(expected: string): Promise<void> {
+    if (await this.readGeneration() !== expected) throw new GenerationChanged();
   }
 }
