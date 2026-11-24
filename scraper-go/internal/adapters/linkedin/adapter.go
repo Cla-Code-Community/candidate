@@ -16,6 +16,7 @@ import (
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/dedup"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/jobstore"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 	"github.com/PuerkitoBio/goquery"
 )
@@ -85,7 +86,7 @@ func buildLinkedInURL(keyword string, req domain.ScrapeRequest, start int) strin
 	return u.String()
 }
 
-func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, req domain.ScrapeRequest, start int) ([]domain.Job, error) {
+func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, req domain.ScrapeRequest, start int) (jobs []domain.Job, resultErr error) {
 	pageTimeout := time.Duration(req.PageTimeoutMs) * time.Millisecond
 	if pageTimeout <= 0 {
 		pageTimeout = 15 * time.Second
@@ -104,11 +105,17 @@ func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, re
 	httpReq.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
 	httpReq.Header.Set("accept-language", "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7")
 
+	httpStarted := time.Now()
+	status := 0
+	defer func() {
+		observe(ctx, metrics.LinkedInProgressEvent{Kind: "http_finished", Keyword: keyword, Page: start/linkedinPageStep + 1, Offset: start, Received: len(jobs), HTTPStatus: status}, time.Since(httpStarted), resultErr)
+	}()
 	resp, err := a.client.Do(httpReq)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	status = resp.StatusCode
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		if req.FullKeywordCoverage {
@@ -129,7 +136,6 @@ func (a *LinkedInAdapter) fetchJobsChunk(ctx context.Context, keyword string, re
 		return nil, err
 	}
 
-	var jobs []domain.Job
 	doc.Find(".base-card, .job-search-card").Each(func(_ int, card *goquery.Selection) {
 		titulo := strings.TrimSpace(card.Find(".base-search-card__title").Text())
 		if titulo == "" {
@@ -279,10 +285,18 @@ func (a *LinkedInAdapter) Search(ctx context.Context, keyword string, req domain
 
 func (a *LinkedInAdapter) SearchBatch(ctx context.Context, keywords []string, req domain.ScrapeRequest) ([]domain.Job, error) {
 	if req.FullKeywordCoverage {
+		ctx = observeBatch(ctx, req.RunID, fullCoverageCount(keywords))
 		jobs, err := adapterutil.SearchAllKeywords(ctx, keywords, req, ports.ProviderLinkedIn, a.searchKeyword)
 		return dedupeLinkedIn(jobs), err
 	}
 	slot := a.nextKeywordSlot(keywords, linkedinKeywordSlotSize())
+	selected := 0
+	for _, k := range slot {
+		if strings.TrimSpace(k) != "" {
+			selected++
+		}
+	}
+	ctx = observeBatch(ctx, req.RunID, selected)
 	if len(slot) == 0 {
 		return nil, nil
 	}
@@ -342,12 +356,17 @@ func (a *LinkedInAdapter) nextKeywordSlot(keywords []string, slotSize int) []str
 	return slot
 }
 
-func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req domain.ScrapeRequest) ([]domain.Job, error) {
+func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req domain.ScrapeRequest) (output []domain.Job, resultErr error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
 		return nil, nil
 	}
 
+	keywordStarted := time.Now()
+	observe(ctx, metrics.LinkedInProgressEvent{Kind: "keyword_started", Keyword: keyword}, 0, nil)
+	defer func() {
+		observe(ctx, metrics.LinkedInProgressEvent{Kind: "keyword_finished", Keyword: keyword, Received: len(output)}, time.Since(keywordStarted), resultErr)
+	}()
 	maxPages := req.MaxPagesPerKeyword
 	if maxPages <= 0 {
 		maxPages = defaultLinkedInMaxPages
@@ -364,6 +383,7 @@ func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req
 	for pageIndex := 0; pageIndex < maxPages; pageIndex++ {
 		start := pageIndex * linkedinPageStep
 
+		observe(ctx, metrics.LinkedInProgressEvent{Kind: "page_started", Keyword: keyword, Page: pageIndex + 1, Offset: start}, 0, nil)
 		jobs, err := a.fetchJobsChunk(ctx, keyword, req, start)
 		if err != nil {
 			if req.FullKeywordCoverage {
@@ -372,9 +392,11 @@ func (a *LinkedInAdapter) searchKeyword(ctx context.Context, keyword string, req
 			// 429 → back-off e tenta a mesma página uma vez
 			if strings.Contains(err.Error(), "429") {
 				backoff := 15 * time.Second
+				observe(ctx, metrics.LinkedInProgressEvent{Kind: "backoff", Keyword: keyword, Page: pageIndex + 1, Offset: start}, backoff, err)
 				if err := adapterutil.Wait(ctx, backoff); err != nil {
 					return dedupeLinkedIn(allJobs), err
 				}
+				observe(ctx, metrics.LinkedInProgressEvent{Kind: "retry", Keyword: keyword, Page: pageIndex + 1, Offset: start}, 0, nil)
 				jobs, err = a.fetchJobsChunk(ctx, keyword, req, start)
 				if err != nil {
 					// Segunda falha: aborta essa keyword mas não o scraper inteiro
