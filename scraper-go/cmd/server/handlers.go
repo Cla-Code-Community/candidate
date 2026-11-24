@@ -119,6 +119,7 @@ func searchConfigFromRuntime(
 		WaitBetweenSearchesMs:        req.WaitBetweenSearchesMs,
 		PageTimeoutMs:                req.PageTimeoutMs,
 		MaxConcurrency:               config.ResolveEffectiveConcurrency(req.MaxConcurrency, runtimeCfg.MaxConcurrency),
+		MinSuccessPercent:            runtimeCfg.MinSuccessPercent,
 		ProviderMaxConcurrency:       min(runtimeCfg.ProviderMaxConcurrency, config.ResolveEffectiveConcurrency(req.MaxConcurrency, runtimeCfg.MaxConcurrency)),
 		ProviderConcurrencyOverrides: runtimeCfg.ProviderConcurrencyOverrides,
 		ClassificationBatchSize:      runtimeCfg.ClassificationBatchSize,

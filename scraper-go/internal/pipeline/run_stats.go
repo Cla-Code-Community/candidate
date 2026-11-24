@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"net"
 	"sort"
 	"sync"
 	"time"
@@ -29,9 +30,12 @@ type providerErrorSample struct {
 }
 
 type providerRunStats struct {
-	mu        sync.Mutex
-	budget    *concurrencyBudget
-	providers map[ports.ProviderID]*providerRunSummary
+	mu           sync.Mutex
+	budget       *concurrencyBudget
+	providers    map[ports.ProviderID]*providerRunSummary
+	adapters     map[int]*adapterProgress
+	failures     []AdapterFailure
+	active, peak int
 }
 
 type providerRunSummary struct {
@@ -52,6 +56,7 @@ func newProviderRunStats(adapterList []ports.JobSource, budget *concurrencyBudge
 	stats := &providerRunStats{
 		budget:    budget,
 		providers: make(map[ports.ProviderID]*providerRunSummary),
+		adapters:  make(map[int]*adapterProgress),
 	}
 	for _, adapter := range adapterList {
 		capabilities := ports.CapabilitiesOf(adapter)
@@ -89,6 +94,20 @@ func (s *providerRunStats) recordCompleted(ctx context.Context, task adapterTask
 
 	summary := s.summary(task)
 	summary.Completed++
+	if a := s.adapters[task.ordinal]; a != nil {
+		a.completed++
+		switch classifyTaskOutcome(ctx, err) {
+		case taskOutcomeTimeout:
+			a.timeouts++
+		case taskOutcomeCancelled, taskOutcomeLockLost:
+			a.canceled++
+		case taskOutcomeProviderError:
+			a.failed++
+		}
+	}
+	if err != nil {
+		s.failures = append(s.failures, diagnoseAdapter(task, err))
+	}
 	summary.Duration += duration
 
 	switch classifyTaskOutcome(ctx, err) {
@@ -153,7 +172,8 @@ func classifyTaskOutcome(ctx context.Context, err error) taskOutcome {
 	if errors.Is(err, runlock.ErrLost) || errors.Is(cause, runlock.ErrLost) {
 		return taskOutcomeLockLost
 	}
-	if errors.Is(err, context.DeadlineExceeded) ||
+	var networkError net.Error
+	if (errors.As(err, &networkError) && networkError.Timeout()) || errors.Is(err, context.DeadlineExceeded) ||
 		errors.Is(cause, context.DeadlineExceeded) ||
 		errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return taskOutcomeTimeout

@@ -69,14 +69,16 @@ func (s MaintenanceSummary) Valid() bool {
 }
 
 type Snapshot struct {
-	Providers      []ProviderState       `json:"providers"`
-	Classification *ClassificationTotals `json:"classification"`
-	Persistence    *PersistenceTotals    `json:"persistence"`
-	Execution      Execution             `json:"execution"`
-	Lock           Lock                  `json:"lock"`
-	Concurrency    Concurrency           `json:"concurrency"`
-	Progress       map[string]int        `json:"progress"`
-	Queues         map[string]Queue      `json:"queues"`
+	Adzuna         *AdzunaCollectionProgress   `json:"adzunaCollection,omitempty"`
+	LinkedIn       *LinkedInCollectionProgress `json:"linkedinCollection,omitempty"`
+	Providers      []ProviderState             `json:"providers"`
+	Classification *ClassificationTotals       `json:"classification"`
+	Persistence    *PersistenceTotals          `json:"persistence"`
+	Execution      Execution                   `json:"execution"`
+	Lock           Lock                        `json:"lock"`
+	Concurrency    Concurrency                 `json:"concurrency"`
+	Progress       map[string]int              `json:"progress"`
+	Queues         map[string]Queue            `json:"queues"`
 	Errors         struct {
 		Total    int `json:"total"`
 		Timeouts int `json:"timeouts"`
@@ -87,23 +89,27 @@ type Snapshot struct {
 
 var state = struct {
 	sync.Mutex
-	classification    *ClassificationTotals
-	persistence       *PersistenceTotals
-	providers         map[string]ProviderState
-	runID             string
-	lockRunID         string
-	execution         Execution
-	concurrency       Concurrency
-	expiry            time.Time
-	held              bool
-	progress          map[string]int
-	providerRemaining map[string]int
-	adapterRemaining  map[int]int
-	active, waiting   map[string]int
-	queues            map[string]func() Queue
-	errors, timeouts  int
-	titles            map[string]RejectedTitle
-	titlesSince       time.Time
+	adzuna             *AdzunaCollectionProgress
+	adzunaGeneration   uint64
+	linkedin           *LinkedInCollectionProgress
+	linkedinGeneration uint64
+	classification     *ClassificationTotals
+	persistence        *PersistenceTotals
+	providers          map[string]ProviderState
+	runID              string
+	lockRunID          string
+	execution          Execution
+	concurrency        Concurrency
+	expiry             time.Time
+	held               bool
+	progress           map[string]int
+	providerRemaining  map[string]int
+	adapterRemaining   map[int]int
+	active, waiting    map[string]int
+	queues             map[string]func() Queue
+	errors, timeouts   int
+	titles             map[string]RejectedTitle
+	titlesSince        time.Time
 }{execution: Execution{Status: "idle", ApplicationVersion: "unknown", TaxonomyVersion: taxonomy.Version()}, progress: map[string]int{}, providerRemaining: map[string]int{}, adapterRemaining: map[int]int{}, active: map[string]int{}, waiting: map[string]int{}, queues: map[string]func() Queue{}, titles: map[string]RejectedTitle{}, titlesSince: time.Now().UTC()}
 var progressKinds = []string{"providersTotal", "providersCompleted", "adaptersTotal", "adaptersProcessed", "tasksTotal", "tasksCompleted", "tasksCanceled", "keywordsTotal", "keywordsProcessed", "batchesCompleted"}
 var CronInterval = promauto.NewGauge(prometheus.GaugeOpts{Name: "candidate_scraper_cron_interval_seconds", Help: "Configured cron interval"})
@@ -191,6 +197,10 @@ func StartRun(source string, started time.Time, runID ...string) {
 	}
 	state.execution.FinishedAt = nil
 	state.execution.Partial = false
+	state.adzuna = nil
+	AdzunaProgress.Reset()
+	state.linkedin = nil
+	LinkedInProgress.Reset()
 	state.classification = nil
 	state.persistence = nil
 	state.providers = nil
@@ -420,6 +430,8 @@ func Current() Snapshot {
 	defer state.Unlock()
 	s := Snapshot{Execution: state.execution, Concurrency: state.concurrency, Lock: Lock{Held: state.held, TTLSeconds: max(0, time.Until(state.expiry).Seconds())}, Progress: map[string]int{}, Queues: map[string]Queue{}, RejectedTitles: []RejectedTitle{}, RejectedTitlesSince: state.titlesSince}
 	s.Execution.RunID = copyPointer(s.Execution.RunID)
+	s.Adzuna = copyPointer(state.adzuna)
+	s.LinkedIn = copyPointer(state.linkedin)
 	if state.classification != nil {
 		v := *state.classification
 		s.Classification = &v

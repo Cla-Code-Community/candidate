@@ -51,7 +51,7 @@ export const ScraperStatusSchema = z.object({
   lastRun: z.object({
     runId: z.string(),
     providers: z.array(z.string()).nullable().optional(),
-    status: z.enum(["success", "partial", "failed", "timeout", "canceled"]),
+    status: z.enum(["success", "partial", "partial_success", "failed", "timeout", "canceled"]),
     finishedAt: z.string().datetime(),
     jobsSaved: z.number().int().nonnegative(),
     jobsIndexed: z.number().int().nonnegative(),

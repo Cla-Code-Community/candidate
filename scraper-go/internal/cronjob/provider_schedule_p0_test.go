@@ -81,7 +81,7 @@ func TestProviderWindowLegacyOccurrenceKeyIsPreserved(t *testing.T) {
 	require.Equal(t, "scraper:window:2026-11-02:linkedin:60", windowOccurrenceKey(start, w))
 }
 
-func TestProviderScheduleDispatches21OccurrencesWithoutRepeatingAfterRestart(t *testing.T) {
+func TestProviderScheduleDispatches22OccurrencesWithoutRepeatingAfterRestart(t *testing.T) {
 	s, _, client := newConcurrentTestScheduler(t)
 	windows, err := config.ParseProviderWindows(config.ProviderSchedulePreset)
 	require.NoError(t, err)
@@ -106,7 +106,7 @@ func TestProviderScheduleDispatches21OccurrencesWithoutRepeatingAfterRestart(t *
 		start, _ := windowBounds(day, w)
 		require.NoError(t, s.dispatchProviderWindow(context.Background(), start), w.WindowID())
 	}
-	require.Len(t, client.Keys(context.Background(), "scraper:window:*").Val(), 21)
+	require.Len(t, client.Keys(context.Background(), "scraper:window:*").Val(), 22)
 	expected := map[ports.ProviderID]int32{}
 	for _, w := range windows {
 		expected[w.Provider]++

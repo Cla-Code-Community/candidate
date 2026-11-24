@@ -63,7 +63,12 @@ func SearchJobs(
 		if err != nil {
 			return SearchResult{}, err
 		}
-		defer func() { metrics.FinishRun(resultErr, lease.RunID()) }()
+		started := time.Now()
+		var stats ProcessStats
+		defer func() {
+			EmitReport(lease.RunID(), config.Sources, config.WindowID, started, config.CollectionTimeout, config.MaxConcurrency, stats, resultErr)
+			metrics.FinishRun(resultErr, lease.RunID())
+		}()
 		defer func() {
 			releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -75,7 +80,8 @@ func SearchJobs(
 		runCtx := lease.Context()
 		config.RunID = lease.RunID()
 		config.CollectionDeadline = lease.CollectionDeadline(config.CollectionTimeout)
-		jobs, _, err := ScrapeAllSources(runCtx, config, adapterList, rdb)
+		jobs, runStats, err := ScrapeAllSources(runCtx, config, adapterList, rdb)
+		stats = runStats
 		if err != nil {
 			return SearchResult{}, fmt.Errorf("pipeline.SearchJobs: scrape: %w", err)
 		}

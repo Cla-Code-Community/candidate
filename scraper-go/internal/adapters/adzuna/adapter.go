@@ -16,6 +16,7 @@ import (
 
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/adapters/adapterutil"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/domain"
+	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/metrics"
 	"github.com/Benevanio/Jobs_Scraper_Global/scraper-go/internal/ports"
 )
 
@@ -120,9 +121,17 @@ func (a *AdzunaAdapter) Search(ctx context.Context, keyword string, req domain.S
 
 func (a *AdzunaAdapter) SearchBatch(ctx context.Context, keywords []string, req domain.ScrapeRequest) ([]domain.Job, error) {
 	if req.FullKeywordCoverage {
+		ctx = observeBatch(ctx, req.RunID, fullCoverageCount(keywords), a.appID, a.appKey)
 		return adapterutil.SearchAllKeywords(ctx, keywords, req, ports.ProviderAdzuna, a.searchKeyword)
 	}
 	slot := a.nextKeywordSlot(keywords, adzunaKeywordSlotSize())
+	selected := 0
+	for _, k := range slot {
+		if strings.TrimSpace(k) != "" {
+			selected++
+		}
+	}
+	ctx = observeBatch(ctx, req.RunID, selected, a.appID, a.appKey)
 	if len(slot) == 0 {
 		return nil, nil
 	}
@@ -183,12 +192,17 @@ func (a *AdzunaAdapter) nextKeywordSlot(keywords []string, slotSize int) []strin
 	return slot
 }
 
-func (a *AdzunaAdapter) searchKeyword(ctx context.Context, keyword string, req domain.ScrapeRequest) ([]domain.Job, error) {
+func (a *AdzunaAdapter) searchKeyword(ctx context.Context, keyword string, req domain.ScrapeRequest) (output []domain.Job, resultErr error) {
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
 		return nil, nil
 	}
 
+	keywordStarted := time.Now()
+	observe(ctx, metrics.AdzunaProgressEvent{Kind: "keyword_started", Keyword: keyword}, 0, nil)
+	defer func() {
+		observe(ctx, metrics.AdzunaProgressEvent{Kind: "keyword_finished", Keyword: keyword, Received: len(output)}, time.Since(keywordStarted), resultErr)
+	}()
 	maxPages := req.MaxPagesPerKeyword
 	if maxPages <= 0 {
 		maxPages = defaultAdzunaMaxPages
@@ -212,7 +226,11 @@ func (a *AdzunaAdapter) searchKeyword(ctx context.Context, keyword string, req d
 		endpoint := a.buildURL(keyword, req, page)
 
 		pageCtx, cancel := context.WithTimeout(ctx, pageTimeout)
+		pageCtx = context.WithValue(pageCtx, pageProgressKey{}, pageProgress{page: page})
+		pageStarted := time.Now()
+		observe(pageCtx, metrics.AdzunaProgressEvent{Kind: "page_started", Keyword: keyword, Page: page}, 0, nil)
 		jobs, err := a.fetchPageWithRetry(pageCtx, endpoint, keyword, req.FullKeywordCoverage)
+		observe(pageCtx, metrics.AdzunaProgressEvent{Kind: "page_finished", Keyword: keyword, Page: page, Received: len(jobs)}, time.Since(pageStarted), err)
 		cancel()
 
 		if err != nil {
@@ -249,7 +267,13 @@ func (a *AdzunaAdapter) fetchPageWithRetry(ctx context.Context, endpoint, keywor
 	var lastErr error
 
 	for attempt := 0; attempt < 3; attempt++ {
-		jobs, err := a.fetchPage(ctx, endpoint, keyword)
+		page, _ := ctx.Value(pageProgressKey{}).(pageProgress)
+		page.attempt = attempt + 1
+		attemptCtx := context.WithValue(ctx, pageProgressKey{}, page)
+		if attempt > 0 {
+			observe(attemptCtx, metrics.AdzunaProgressEvent{Kind: "retry", Keyword: keyword, Page: page.page}, 0, nil)
+		}
+		jobs, err := a.fetchPage(attemptCtx, endpoint, keyword)
 		if err == nil {
 			return jobs, nil
 		}
@@ -265,6 +289,7 @@ func (a *AdzunaAdapter) fetchPageWithRetry(ctx context.Context, endpoint, keywor
 			return nil, err
 		}
 
+		observe(attemptCtx, metrics.AdzunaProgressEvent{Kind: "backoff", Keyword: keyword, Page: page.page}, time.Duration(attempt+1)*1500*time.Millisecond, err)
 		if err := adapterutil.Wait(ctx, time.Duration(attempt+1)*1500*time.Millisecond); err != nil {
 			return nil, err
 		}
@@ -307,18 +332,24 @@ type adzunaResponse struct {
 	} `json:"results"`
 }
 
-func (a *AdzunaAdapter) fetchPage(ctx context.Context, endpoint, keyword string) ([]domain.Job, error) {
+func (a *AdzunaAdapter) fetchPage(ctx context.Context, endpoint, keyword string) (jobs []domain.Job, resultErr error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 
+	httpStarted := time.Now()
+	status := 0
+	defer func() {
+		observe(ctx, metrics.AdzunaProgressEvent{Kind: "http_finished", Keyword: keyword, HTTPStatus: status, Received: len(jobs)}, time.Since(httpStarted), resultErr)
+	}()
 	resp, err := a.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	status = resp.StatusCode
 
 	if resp.StatusCode != http.StatusOK {
 		var at time.Time
@@ -341,7 +372,7 @@ func (a *AdzunaAdapter) fetchPage(ctx context.Context, endpoint, keyword string)
 		return []domain.Job{}, nil
 	}
 
-	jobs := make([]domain.Job, 0, len(data.Results))
+	jobs = make([]domain.Job, 0, len(data.Results))
 	for _, r := range data.Results {
 		// Espelha o salario do JS: "min-max" ou vazio.
 		salario := ""

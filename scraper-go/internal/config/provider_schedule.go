@@ -86,6 +86,7 @@ func ParseProviderWindowsInTimezone(value, timezone string) ([]ProviderWindow, e
 			"linkedin-3@linkedin=16:00-17:00", "greenhouse-4@greenhouse=17:00-18:00",
 			"gupy-4@gupy=18:00-19:00", "inhire-4@inhire=19:00-20:00",
 			"jooble-1@jooble=20:00-21:00",
+			"greenhouse-5@greenhouse=21:00-22:00",
 		}, ",")
 	}
 	if timezone == "" {

@@ -29,6 +29,42 @@ describe("scraperClient", () => {
     vi.restoreAllMocks();
   });
 
+  it.each(["partial", "partial_success"] as const)(
+    "preserva %s na resposta Go e permite listar o scraper",
+    async (status) => {
+      const payload = {
+        name: "go-scraper",
+        running: false,
+        lastRunAt: "2026-11-12T20:00:00Z",
+        jobsCollected: 210,
+        lastRun: {
+          runId: "fixture-partial-run",
+          providers: ["greenhouse"],
+          status,
+          finishedAt: "2026-11-12T20:00:00Z",
+          jobsSaved: 210,
+          jobsIndexed: 209,
+          errorType: "",
+        },
+      };
+      vi.stubGlobal("fetch", vi.fn().mockImplementation(async (input: string | URL | Request) => ({
+        ok: true,
+        status: 200,
+        json: async () => String(input).includes("/admin/jobs/count") ? { total: 210 } : payload,
+      })));
+
+      await expect(scraperClient.getStatus()).resolves.toEqual(payload);
+      await expect(new ScrapersService().listScrapers()).resolves.toEqual([{
+        name: "go-scraper",
+        status: "idle",
+        running: false,
+        lastRunAt: payload.lastRunAt,
+        jobsCollected: 210,
+      }]);
+    },
+  );
+
+
   it("calls trigger endpoint and returns json", async () => {
     vi.stubGlobal(
       "fetch",

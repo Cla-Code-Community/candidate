@@ -1,5 +1,5 @@
 {
-  "version": "greenhouse-v1",
+  "version": "greenhouse-v2",
   "groups": {
     "greenhouse-1": [
       "103644278",
@@ -669,7 +669,9 @@
       "claudecorps",
       "cleancroptech",
       "clear",
-      "clearfield",
+      "clearfield"
+    ],
+    "greenhouse-2": [
       "clearlinktechnologiesllc",
       "clearscoretechnologylimited",
       "clearstreet",
@@ -851,9 +853,7 @@
       "defcon",
       "defenseunicorns",
       "definitivehc",
-      "definitivehcindia"
-    ],
-    "greenhouse-2": [
+      "definitivehcindia",
       "definiumtherapeutics",
       "degreed",
       "deliveryassociates",
@@ -1339,7 +1339,9 @@
       "grover",
       "growe",
       "growetalents",
-      "gruns",
+      "gruns"
+    ],
+    "greenhouse-3": [
       "grvty",
       "gsgcareers",
       "gsrmarkets",
@@ -1703,9 +1705,7 @@
       "lawzero",
       "layerhealth",
       "layerzerolabs",
-      "lazarusenterprises"
-    ],
-    "greenhouse-3": [
+      "lazarusenterprises",
       "leaflink",
       "leagueinc",
       "learneo",
@@ -2009,7 +2009,9 @@
       "nearform",
       "nearspacelabs",
       "neo4j",
-      "neocybernetica",
+      "neocybernetica"
+    ],
+    "greenhouse-4": [
       "neonaerospace",
       "neoris",
       "neptunebio",
@@ -2555,9 +2557,7 @@
       "route06",
       "rpa",
       "rubiconcarbon",
-      "ruelala"
-    ],
-    "greenhouse-4": [
+      "ruelala",
       "ruggable",
       "ruggedrobotics",
       "rumble",
@@ -2679,7 +2679,9 @@
       "similarweb",
       "simplesense",
       "simpletechnologysolutions",
-      "simplextrading",
+      "simplextrading"
+    ],
+    "greenhouse-5": [
       "simplifed",
       "simplisafe",
       "simpluris",

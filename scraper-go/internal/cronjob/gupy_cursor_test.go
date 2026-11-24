@@ -75,7 +75,7 @@ func TestGupyWindowWiresCursorAndPersistsPartialJobs(t *testing.T) {
 	for _, index := range []int{1, 7} {
 		start, _ := windowBounds(day, windows[index])
 		require.Error(t, s.dispatchProviderWindow(context.Background(), start))
-		require.Equal(t, "partial", s.LastRun().Status)
+		require.Equal(t, "failed", s.LastRun().Status)
 		require.Positive(t, s.LastRun().JobsSaved)
 		require.Positive(t, s.LastRun().JobsIndexed)
 	}
