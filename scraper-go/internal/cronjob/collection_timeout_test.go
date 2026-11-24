@@ -22,7 +22,7 @@ func TestCollectionTimeoutPersistsPartialJobsBeforeReleasingGlobalLock(t *testin
 	require.False(t, scheduler.IsRunning())
 	summary := scheduler.LastRun()
 	require.NotNil(t, summary)
-	require.Equal(t, "partial", summary.Status)
+	require.Equal(t, "failed", summary.Status)
 	require.Positive(t, summary.JobsSaved)
 	require.Positive(t, summary.JobsIndexed)
 	_, lastRunAt, jobs := scheduler.Snapshot()

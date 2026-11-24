@@ -37,8 +37,23 @@ type processConfig struct {
 }
 
 type ProcessStats struct {
+	Collected                       int
+	PersistedOperations             int
+	PersistedDocuments              int
+	PersistencePending              int
+	IndexPending                    int
+	PersistenceFailures             int
+	IndexFailures                   int
+	IndexUnconfirmedInputs          int
+	Adapters                        AdapterTotals
+	TaskTimeouts                    int
+	TaskCancellations               int
+	Failures                        []AdapterFailure
+	EffectiveConcurrency            int
+	OperationalStatus               string
+	DeadlineReached                 bool
 	CollectionFailed                int
-	CollectionError                 error
+	CollectionError                 error `json:"-"`
 	Received                        int
 	Valid                           int
 	Invalid                         int
@@ -72,7 +87,7 @@ func processIncomingJobs(
 	ctx context.Context,
 	incoming <-chan domain.Job,
 	cfg processConfig,
-) ([]domain.Job, ProcessStats, error) {
+) (output []domain.Job, stats ProcessStats, resultErr error) {
 	if cfg.ClassificationBatchSize <= 0 {
 		cfg.ClassificationBatchSize = config.DefaultClassificationBatchSize
 	}
@@ -110,7 +125,8 @@ func processIncomingJobs(
 	defer func() { persistenceDepth.Store(0); indexDepth.Store(0); indexInFlight.Store(0) }()
 	approved := make([]domain.Job, 0)
 	metrics.BeginRunProcessing(cfg.RunID, cfg.Persist != nil || cfg.Store != nil)
-	stats := ProcessStats{}
+	stats = ProcessStats{}
+	defer func() { stats.PersistencePending = len(pending); stats.IndexPending = len(indexBuf) }()
 	batchNo := 0
 	windowDuplicates := 0
 	var terminalErr error
@@ -542,6 +558,7 @@ func persistJobs(
 		metrics.RecordRunPersistence(cfg.RunID, len(chunk), result.Inserted, result.Updated, len(result.Persisted), err)
 		if err != nil {
 			stats.Failed++
+			stats.PersistenceFailures++
 			slog.Error("scraper persist batch failed",
 				"run_id", cfg.RunID,
 				"stage", "persist",
@@ -675,6 +692,8 @@ func indexPersistedChunk(
 	}
 	if err != nil {
 		stats.Failed++
+		stats.IndexFailures++
+		stats.IndexUnconfirmedInputs += len(jobs)
 		slog.Error("scraper index batch failed",
 			"run_id", cfg.RunID,
 			"stage", "index",
@@ -695,6 +714,7 @@ func indexPersistedChunk(
 			return err
 		}
 		err = nil
+		stats.IndexUnconfirmedInputs -= len(jobs)
 		slog.Warn("scraper index reconciled after failure",
 			"run_id", cfg.RunID,
 			"stage", "index_reconcile",

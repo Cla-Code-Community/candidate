@@ -46,7 +46,7 @@ func fixedGroupTestRegistry(t *testing.T, search func(context.Context, string) (
 	t.Helper()
 	m := fixedGroupTestManifest(t)
 	var sources []ports.JobSource
-	for i := 1; i <= 4; i++ {
+	for i := 1; i <= 5; i++ {
 		for _, id := range m.Groups[fmt.Sprintf("greenhouse-%d", i)] {
 			sources = append(sources, fixedGroupTestSource{id: id, search: search})
 		}
@@ -62,7 +62,7 @@ func TestGreenhouseFixedManifestCoversCatalogOnceAndSurvivesReordering(t *testin
 	require.NoError(t, json.Unmarshal(raw, &catalog))
 	sources := fixedGroupTestRegistry(t, nil)
 	seen := map[string]bool{}
-	counts := []int{850, 850, 850, 789}
+	counts := []int{668, 668, 668, 668, 667}
 	for i, count := range counts {
 		id := fmt.Sprintf("greenhouse-%d", i+1)
 		batch, err := m.selectGroup(sources, id)
@@ -101,7 +101,7 @@ func TestGreenhouseFixedManifestRejectsCatalogDriftAndInvalidIdentities(t *testi
 		_, err := m.selectGroup(changed, "greenhouse-1")
 		require.Error(t, err)
 	}
-	_, err := m.selectGroup(sources, "greenhouse-5")
+	_, err := m.selectGroup(sources, "greenhouse-6")
 	require.Error(t, err)
 	for _, raw := range []string{
 		`{}`, `{"version":"greenhouse-v1","groups":{"greenhouse-1":["a"],"greenhouse-2":["a"],"greenhouse-3":[],"greenhouse-4":[]}}`,
@@ -111,7 +111,7 @@ func TestGreenhouseFixedManifestRejectsCatalogDriftAndInvalidIdentities(t *testi
 		require.Error(t, err)
 	}
 	// An explicitly reviewed new manifest can have another catalog size.
-	updated := greenhouseManifest{Version: "greenhouse-v2", Groups: map[string][]string{"greenhouse-1": {"a"}, "greenhouse-2": {"b"}, "greenhouse-3": {"c"}, "greenhouse-4": {"d", "e"}}}
+	updated := greenhouseManifest{Version: "greenhouse-v2", Groups: map[string][]string{"greenhouse-1": {"a"}, "greenhouse-2": {"b"}, "greenhouse-3": {"c"}, "greenhouse-4": {"d", "e"}, "greenhouse-5": {}}}
 	raw, err := json.Marshal(updated)
 	require.NoError(t, err)
 	parsed, _, err := parseGreenhouseManifest(raw)
@@ -133,7 +133,7 @@ func TestGreenhouseFixedManifestPinIsImmutableAndFenced(t *testing.T) {
 	t.Cleanup(func() { _ = lease.Release(context.Background()) })
 	batch, err := s.greenhouseFixedBatch(context.Background(), lease, "greenhouse-1")
 	require.NoError(t, err)
-	require.Len(t, batch, 850)
+	require.Len(t, batch, 668)
 	m, digest, err := parseGreenhouseManifest(greenhouseManifestJSON)
 	require.NoError(t, err)
 	key := "scraper:provider:greenhouse:manifest:" + m.Version
@@ -157,7 +157,7 @@ func TestGreenhouseFixedGroupsPreservePartialJobsAndNeverTransferFailures(t *tes
 			s, _, client := newConcurrentTestScheduler(t)
 			m := fixedGroupTestManifest(t)
 			first := m.Groups["greenhouse-1"][0]
-			last := m.Groups["greenhouse-1"][849]
+			last := m.Groups["greenhouse-1"][667]
 			visits := map[string]int{}
 			var mu sync.Mutex
 			var failing atomic.Bool
@@ -190,8 +190,13 @@ func TestGreenhouseFixedGroupsPreservePartialJobsAndNeverTransferFailures(t *tes
 			require.NoError(t, client.Set(context.Background(), greenhouseCheckpointKey, "legacy-state-must-not-change", 0).Err())
 			day := time.Now().In(mustProviderLocation(t)).AddDate(0, 0, 1)
 			start, _ := windowBounds(day, windows[0])
-			require.Error(t, s.dispatchProviderWindow(context.Background(), start))
-			require.Equal(t, "partial", s.LastRun().Status)
+			if failure == "timeout" {
+				require.Error(t, s.dispatchProviderWindow(context.Background(), start))
+				require.Equal(t, "failed", s.LastRun().Status)
+			} else {
+				require.NoError(t, s.dispatchProviderWindow(context.Background(), start))
+				require.Equal(t, "partial_success", s.LastRun().Status)
+			}
 			require.Positive(t, s.LastRun().JobsSaved)
 			require.Positive(t, s.LastRun().JobsIndexed)
 			mu.Lock()
@@ -264,4 +269,24 @@ func TestGreenhouseFixedPresetKeepsManualAndCustomWindowLegacyBatching(t *testin
 	require.NoError(t, s.dispatchProviderWindow(context.Background(), start))
 	require.EqualValues(t, 3, calls.Load())
 	require.Empty(t, client.Keys(context.Background(), "scraper:provider:greenhouse:manifest:*").Val())
+}
+
+func TestGreenhouseWindowMaximumIsIndependentAndOldStateIsPreserved(t *testing.T) {
+	s, _, client := newConcurrentTestScheduler(t)
+	s.adapterList = fixedGroupTestRegistry(t, nil)
+	ctx := context.Background()
+	require.NoError(t, client.Set(ctx, "scraper:provider:greenhouse:manifest:greenhouse-v1", "old-hash", 0).Err())
+	require.NoError(t, client.Set(ctx, greenhouseCheckpointKey, "old-manual-checkpoint", 0).Err())
+	lease, err := s.runLock.Acquire(ctx, "cron")
+	require.NoError(t, err)
+	defer lease.Release(ctx)
+	s.cfg.GreenhouseWindowMaxAdapters = 667
+	_, err = s.greenhouseFixedBatch(ctx, lease, "greenhouse-1")
+	require.ErrorContains(t, err, "maximum 667")
+	s.cfg.GreenhouseWindowMaxAdapters = 680
+	batch, err := s.greenhouseFixedBatch(ctx, lease, "greenhouse-5")
+	require.NoError(t, err)
+	require.Len(t, batch, 667)
+	require.Equal(t, "old-hash", client.Get(ctx, "scraper:provider:greenhouse:manifest:greenhouse-v1").Val())
+	require.Equal(t, "old-manual-checkpoint", client.Get(ctx, greenhouseCheckpointKey).Val())
 }

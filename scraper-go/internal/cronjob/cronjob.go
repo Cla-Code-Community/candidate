@@ -21,6 +21,8 @@ import (
 )
 
 type Config struct {
+	GreenhouseWindowMaxAdapters  int
+	MinSuccessPercent            int
 	ProviderWindows              []config.ProviderWindow
 	GreenhouseBatchSize          int
 	Interval                     time.Duration
@@ -256,7 +258,9 @@ func (s *Scheduler) runSelectedWithLease(lease *runlock.Lease, sources []string,
 
 func (s *Scheduler) runSelectedWindowWithLease(lease *runlock.Lease, sources []string, timeout time.Duration, window *config.ProviderWindow) (runErr error) {
 	var stats pipeline.ProcessStats
+	started := time.Now()
 	defer func() {
+		pipeline.EmitReport(lease.RunID(), sources, windowID(window), started, timeout, s.cfg.MaxConcurrency, stats, runErr)
 		s.recordResult(lease.RunID(), stats, runErr, sources)
 		metrics.FinishRun(runErr, lease.RunID())
 	}()
@@ -394,10 +398,14 @@ type RunSummary struct {
 }
 
 func (s *Scheduler) recordResult(runID string, stats pipeline.ProcessStats, err error, sources []string) {
-	status := metrics.Status(err)
-	if err != nil && stats.Saved() > 0 {
-		status = "partial"
+	status := stats.OperationalStatus
+	if status == "" {
+		status = "success"
 	}
+	if err != nil {
+		status = "failed"
+	}
+
 	now := time.Now().UTC()
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -418,6 +426,7 @@ func (s *Scheduler) LastRun() *RunSummary {
 
 func (s *Scheduler) searchConfig(kws []string, runID string) pipeline.SearchConfig {
 	return pipeline.SearchConfig{
+		MinSuccessPercent:            s.cfg.MinSuccessPercent,
 		CollectionTimeout:            s.cfg.ScrapeTimeout,
 		Store:                        s.jobStore,
 		Keywords:                     kws,
@@ -447,3 +456,10 @@ var (
 	ErrLockUnavailable = runlock.ErrUnavailable
 	ErrLockLost        = runlock.ErrLost
 )
+
+func windowID(w *config.ProviderWindow) string {
+	if w == nil {
+		return ""
+	}
+	return w.WindowID()
+}

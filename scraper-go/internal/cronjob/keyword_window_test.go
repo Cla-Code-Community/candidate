@@ -122,7 +122,7 @@ func TestKeywordWindowPartialResultsPreservePersistenceAndRetryState(t *testing.
 					s.cfg.ProviderWindows = []config.ProviderWindow{w}
 					start, _ := windowBounds(time.Now().Add(24*time.Hour), w)
 					require.Error(t, s.dispatchProviderWindow(context.Background(), start))
-					require.Equal(t, "partial", s.LastRun().Status)
+					require.Equal(t, "failed", s.LastRun().Status)
 					require.Positive(t, s.LastRun().JobsSaved)
 					require.Positive(t, s.LastRun().JobsIndexed)
 					require.Equal(t, 2, calls)
